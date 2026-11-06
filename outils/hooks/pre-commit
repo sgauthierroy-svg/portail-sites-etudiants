@@ -1,0 +1,20 @@
+#!/bin/bash
+# Lancé automatiquement par Git avant chaque enregistrement (commit),
+# une fois activé avec : git config core.hooksPath outils/hooks
+#
+# 1. Bloque tout enregistrement contenant un secret.
+# 2. Bloque tout enregistrement si un contrôle échoue.
+RACINE="$(git rev-parse --show-toplevel)"
+CACHE="$RACINE/outils/.cache"
+
+if ! "$CACHE/gitleaks" git --pre-commit --staged --no-banner --redact "$RACINE"; then
+    echo ""
+    echo "✗ ENREGISTREMENT BLOQUÉ : un secret a été détecté dans les fichiers ajoutés."
+    exit 1
+fi
+
+if ! bash "$RACINE/outils/controle.sh"; then
+    echo ""
+    echo "✗ ENREGISTREMENT BLOQUÉ : corriger les contrôles en échec."
+    exit 1
+fi

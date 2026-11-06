@@ -1,0 +1,52 @@
+# Portail des sites étudiants — Sup'Sallanches
+
+Portail web sécurisé qui permet à l'équipe pédagogique et administrative de gérer les sites WordPress et PrestaShop des étudiants de BTS NDRC, hébergés sur O2switch : liste des étudiants, création, réinitialisation et suppression des sites, certificats, alertes.
+
+- **Adresse** : https://portail.bts-sup-sallanches.com
+- **Hébergement** : O2switch (compte `jafl3067`), PHP 8.1, Apache + LiteSpeed (mod_lsapi)
+- **Administrateur** : service informatique (`informatique@ecs-sallanches.fr`)
+
+## Règles d'or
+
+1. **Aucun secret dans ce dépôt.** Mots de passe, clé de chiffrement, base de données et configuration réelle vivent uniquement sur le serveur, dans `~/portail/data`. Le dépôt ne contient qu'un modèle vide (`config/config.exemple.php`).
+2. **Aucune version sans contrôles au vert** : `bash outils/controle.sh`.
+3. **Le serveur n'est jamais relié à GitHub.** Une version validée est copiée sur le serveur par une personne.
+4. **Aucune dépendance en production** : PHP 8.1 seul, sans framework ni Composer. Les outils de `outils/` servent uniquement au développement.
+
+## Organisation
+
+| Dossier | Contenu | Sur le serveur |
+| --- | --- | --- |
+| `public/` | La seule page exposée au web, qui appelle le reste | `~/portail/public` |
+| `app/` | Le code du portail | `~/portail/app` |
+| `bin/` | Commandes lancées en SSH ou par tâche planifiée (secours, relevés) | `~/portail/app/bin` |
+| `config/` | Modèle de configuration, sans aucune valeur secrète | copie remplie dans `~/portail/data/config.php` |
+| `tests/` | Tests automatiques | non copié |
+| `docs/` | Guide de l'administrateur, fiche de passation | non copié |
+| `outils/` | Contrôles automatiques (développement uniquement) | non copié |
+
+Sur le serveur, `~/portail/data` (base, sessions, configuration) et `~/portail/logs` (journal des erreurs) sont en droits `700` et ne sont jamais accessibles depuis le web.
+
+## Contrôles automatiques
+
+```
+bash outils/installer_outils.sh      # une fois : versions fixées, empreintes vérifiées
+git config core.hooksPath outils/hooks   # contrôle automatique avant chaque commit
+bash outils/controle.sh              # contrôle complet
+```
+
+| Contrôle | Outil | Rôle |
+| --- | --- | --- |
+| Syntaxe | `php -l` | Fichiers PHP lisibles |
+| Tests | PHPUnit 9.6 | Comportement attendu (droits, blocages, calculs…) |
+| Logique | PHPStan 2.3.5, niveau max, PHP 8.1 | Erreurs détectées sans exécuter le code |
+| Analyse stricte | Psalm 5.26.1, niveau 1, PHP 8.1 | Types et cas oubliés |
+| Données dangereuses | Psalm `--taint-analysis` | Suit chaque donnée du visiteur jusqu'à son affichage ou son enregistrement |
+| Pièges de sécurité | Semgrep 1.184.0 + `outils/semgrep/regles-portail.yml` | 13 règles, chacune vérifiée par un cas de test |
+| Secrets | gitleaks 8.28.0 | Fichiers et historique ; bloque tout commit contenant un secret |
+
+## État
+
+Préparation du serveur terminée le 06/11/2026 (sous-domaine, certificat, porte d'entrée, messagerie). Développement de la V1 à venir : connexion avec double authentification, comptes et rôles, classes, import des étudiants, consultation, journal.
+
+Dépôt privé, créé sur le compte de Stéphanie Gauthier-Roy ; transfert prévu vers une organisation GitHub de l'établissement à la remise de la V1.

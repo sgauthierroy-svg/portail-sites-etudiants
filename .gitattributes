@@ -1,0 +1,6 @@
+# Fins de ligne Unix partout (le serveur est sous Linux)
+* text=auto eol=lf
+*.sh text eol=lf
+*.php text eol=lf
+*.png binary
+*.jpg binary

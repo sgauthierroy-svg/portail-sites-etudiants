@@ -1,0 +1,12 @@
+# PHPStan : recherche d'erreurs de logique, au niveau le plus strict.
+# Le code est analysé comme s'il tournait en PHP 8.1 (version du serveur).
+parameters:
+    level: max
+    phpVersion: 80100
+    paths:
+        - app
+        - public
+        - bin
+        - config
+    reportUnmatchedIgnoredErrors: true
+    treatPhpDocTypesAsCertain: false

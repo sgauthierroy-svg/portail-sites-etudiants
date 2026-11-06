@@ -1,0 +1,13 @@
+# Configuration de gitleaks : règles par défaut (plus de 150 types de secrets),
+# sans analyser les outils téléchargés dans outils/.cache (non versionnés),
+# dont le code interne contient des exemples qui ressemblent à des clés.
+title = "Portail des sites étudiants"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Outils de développement téléchargés, jamais versionnés"
+paths = [
+    '''^outils/\.cache/''',
+]

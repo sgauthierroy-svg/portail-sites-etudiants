@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!--
+  Psalm : niveau le plus strict (1), code analysé en PHP 8.1.
+  Le script outils/controle.sh le lance deux fois : analyse classique,
+  puis analyse des données dangereuses (- -taint-analysis), qui suit
+  chaque donnée venant d'un visiteur jusqu'à son affichage ou son
+  enregistrement.
+-->
+<psalm
+    errorLevel="1"
+    phpVersion="8.1"
+    resolveFromConfigFile="true"
+    findUnusedBaselineEntry="true"
+    findUnusedCode="false"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://getpsalm.org/schema/config"
+    xsi:schemaLocation="https://getpsalm.org/schema/config https://getpsalm.org/schema/config"
+>
+    <projectFiles>
+        <directory name="app"/>
+        <directory name="public"/>
+        <directory name="bin"/>
+        <directory name="config"/>
+    </projectFiles>
+</psalm>

@@ -1,0 +1,48 @@
+# =============================================================
+# Fichiers qui ne doivent JAMAIS entrer dans le dépôt
+# =============================================================
+
+# --- Secrets et configuration réelle (vivent seulement sur le serveur,
+#     dans ~/portail/data). Seul le MODÈLE config/config.exemple.php
+#     est versionné.
+/config/config.php
+/data/
+*.env
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+.htpasswd
+passwd
+*.secret
+
+# --- Bases de données, sauvegardes, journaux
+*.sqlite
+*.sqlite3
+*.db
+*.sql
+*.sql.gz
+*.bak
+*.log
+/logs/
+
+# --- Données d'étudiants (exports CSV de la Google Sheets)
+*.csv
+!/tests/donnees/*.csv
+
+# --- Outils de développement téléchargés et caches
+/outils/.cache/
+/vendor/
+/.phpunit.result.cache
+/.phpunit.cache/
+/build/
+
+# --- Fichiers système et éditeurs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

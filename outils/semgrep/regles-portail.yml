@@ -1,0 +1,148 @@
+# =============================================================
+# Règles Semgrep propres au portail : pièges de sécurité classiques.
+# Chaque règle est vérifiée par le fichier regles-portail.php
+# (lignes marquées "ruleid" = doivent être détectées,
+#  lignes marquées "ok" = ne doivent pas l'être) :
+#     semgrep --test outils/semgrep
+# =============================================================
+rules:
+  - id: execution-de-code-dynamique
+    languages: [php]
+    severity: ERROR
+    message: eval(), assert() avec chaîne et create_function() sont interdits.
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: assert($X)
+      - pattern: create_function(...)
+
+  - id: commande-systeme-hors-bin
+    languages: [php]
+    severity: ERROR
+    message: >-
+      Les commandes système sont interdites dans le code accessible depuis le web.
+      Elles ne sont permises que dans bin/ (tâches lancées en SSH ou par cron),
+      avec escapeshellarg() sur chaque argument.
+    paths:
+      exclude:
+        - "bin/"
+    pattern-either:
+      - pattern: exec(...)
+      - pattern: shell_exec(...)
+      - pattern: system(...)
+      - pattern: passthru(...)
+      - pattern: popen(...)
+      - pattern: proc_open(...)
+      - pattern: pcntl_exec(...)
+
+  - id: deserialisation-dangereuse
+    languages: [php]
+    severity: ERROR
+    message: unserialize() peut exécuter du code ; utiliser json_decode().
+    pattern: unserialize(...)
+
+  - id: hachage-faible
+    languages: [php]
+    severity: ERROR
+    message: md5() et sha1() sont trop faibles ; mots de passe = password_hash(), empreintes = hash('sha256', ...).
+    pattern-either:
+      - pattern: md5(...)
+      - pattern: sha1(...)
+      - pattern: crypt(...)
+
+  - id: hasard-previsible
+    languages: [php]
+    severity: ERROR
+    message: rand(), mt_rand(), uniqid() et lcg_value() sont prévisibles ; utiliser random_bytes() ou random_int().
+    pattern-either:
+      - pattern: rand(...)
+      - pattern: mt_rand(...)
+      - pattern: uniqid(...)
+      - pattern: lcg_value(...)
+      - pattern: array_rand(...)
+      - pattern: shuffle(...)
+      - pattern: str_shuffle(...)
+
+  - id: superglobale-request-ou-extract
+    languages: [php]
+    severity: ERROR
+    message: $_REQUEST et extract() mélangent les sources de données ; lire explicitement $_GET ou $_POST.
+    pattern-either:
+      - pattern: $_REQUEST
+      - pattern: extract(...)
+
+  - id: affichage-direct-de-donnees-visiteur
+    languages: [php]
+    severity: ERROR
+    message: Donnée venant du visiteur affichée sans échappement ; passer par la fonction d'échappement du portail.
+    pattern-either:
+      - pattern: echo <... $_GET ...>;
+      - pattern: echo <... $_POST ...>;
+      - pattern: echo <... $_COOKIE ...>;
+      - pattern: echo <... $_SERVER ...>;
+      - pattern: print(<... $_GET ...>)
+      - pattern: print(<... $_POST ...>)
+
+  - id: requete-sql-construite-par-concatenation
+    languages: [php]
+    severity: ERROR
+    message: >-
+      Requête SQL qui n'est pas un texte fixe : les valeurs doivent passer
+      par une requête préparée (prepare avec :marqueurs, puis execute).
+    patterns:
+      - pattern-either:
+          - pattern: $DB->query($Q, ...)
+          - pattern: $DB->exec($Q, ...)
+          - pattern: $DB->prepare($Q, ...)
+      - pattern-not: $DB->$M("...", ...)
+
+  - id: inclusion-de-fichier-variable
+    languages: [php]
+    severity: ERROR
+    message: Inclusion d'un fichier choisi par le visiteur.
+    pattern-either:
+      - pattern: include <... $_GET ...>;
+      - pattern: include <... $_POST ...>;
+      - pattern: require <... $_GET ...>;
+      - pattern: require <... $_POST ...>;
+      - pattern: include_once <... $_GET ...>;
+      - pattern: require_once <... $_GET ...>;
+
+  - id: redirection-ouverte
+    languages: [php]
+    severity: ERROR
+    message: Redirection vers une adresse fournie par le visiteur.
+    pattern-either:
+      - pattern: header("..." . <... $_GET ...>)
+      - pattern: header("..." . <... $_POST ...>)
+
+  - id: verification-tls-desactivee
+    languages: [php]
+    severity: ERROR
+    message: La vérification des certificats ne doit jamais être désactivée.
+    pattern-either:
+      - pattern: curl_setopt($C, CURLOPT_SSL_VERIFYPEER, false)
+      - pattern: curl_setopt($C, CURLOPT_SSL_VERIFYPEER, 0)
+      - pattern: curl_setopt($C, CURLOPT_SSL_VERIFYHOST, 0)
+      - pattern: curl_setopt($C, CURLOPT_SSL_VERIFYHOST, false)
+
+  - id: diagnostic-expose
+    languages: [php]
+    severity: ERROR
+    message: phpinfo(), var_dump(), print_r() et l'affichage des erreurs exposent des informations internes.
+    pattern-either:
+      - pattern: phpinfo(...)
+      - pattern: var_dump(...)
+      - pattern: print_r($X)
+      - pattern: ini_set('display_errors', '1')
+      - pattern: ini_set('display_errors', 1)
+      - pattern: ini_set('display_errors', 'On')
+
+  - id: comparaison-de-secret-non-constante
+    languages: [php]
+    severity: WARNING
+    message: Comparer jetons et codes avec hash_equals() pour ne pas laisser deviner le secret par le temps de réponse.
+    pattern-either:
+      - pattern: $X === $_POST[$K]
+      - pattern: $_POST[$K] === $X
+      - pattern: $X == $_POST[$K]
+      - pattern: $_POST[$K] == $X
