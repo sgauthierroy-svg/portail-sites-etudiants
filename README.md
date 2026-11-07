@@ -45,6 +45,17 @@ bash outils/controle.sh              # contrôle complet
 | Pièges de sécurité | Semgrep 1.184.0 + `outils/semgrep/regles-portail.yml` | 13 règles, chacune vérifiée par un cas de test |
 | Secrets | gitleaks 8.28.0 | Fichiers et historique ; bloque tout commit contenant un secret |
 
+## Mise à jour de PHP sur le serveur
+
+Le code vise PHP 8.1, version du serveur au 06/11/2026. Une montée de version est prévue à terme. Avant de changer la version PHP du sous-domaine `portail` dans CPanel :
+
+1. Vérifier que la nouvelle version est prise en charge par les outils (PHPStan, Psalm).
+2. Remplacer `8.1` par la nouvelle version dans `phpstan.neon.dist` (`phpVersion`) et `psalm.xml` (`phpVersion`), puis lancer `bash outils/controle.sh` et corriger les avertissements (fonctions dépréciées, comportements modifiés).
+3. Lancer les tests sur le serveur, avec la nouvelle version en ligne de commande.
+4. Changer la version dans CPanel pour le seul sous-domaine `portail`, puis vérifier la connexion et le journal `~/portail/logs/php_errors.log`.
+
+Les réglages de sécurité étant appliqués par le code (`ini_set()`), ils restent actifs quelle que soit la version.
+
 ## État
 
 Préparation du serveur terminée le 06/11/2026 (sous-domaine, certificat, porte d'entrée, messagerie). Développement de la V1 à venir : connexion avec double authentification, comptes et rôles, classes, import des étudiants, consultation, journal.
