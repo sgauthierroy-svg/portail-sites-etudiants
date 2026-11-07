@@ -162,12 +162,13 @@ final class EtudiantsTest extends TestCase
     {
         $id = $this->ajouter('MARTIN', 'Élodie', 'martinel');
         self::assertSame(200, $this->en('pmoreau', 'GET', '/etudiants')->statut);
-        self::assertSame(200, $this->en('pmoreau', 'GET', '/etudiants/' . $id)->statut);
+        self::assertSame(403, $this->en('pmoreau', 'GET', '/etudiants/' . $id)->statut, 'La direction ne voit pas les fiches');
+        self::assertStringNotContainsString('href="/etudiants/' . $id . '"', $this->en('pmoreau', 'GET', '/etudiants')->corps);
+        self::assertStringContainsString('href="/etudiants/' . $id . '"', $this->en('jroux', 'GET', '/etudiants')->corps);
         self::assertSame(403, $this->en('pmoreau', 'GET', '/etudiants/nouveau')->statut);
         self::assertSame(403, $this->en('pmoreau', 'POST', '/etudiants/nouveau', ['action' => 'enregistrer', 'nom' => 'A', 'prenom' => 'B',
             'email' => 'a@exemple.fr', 'regime' => (string) $this->fi, 'session' => (string) $this->s2028, 'identifiant' => 'ab'])->statut);
         self::assertSame(403, $this->en('pmoreau', 'POST', '/etudiants/' . $id, ['action' => 'coordonnees', 'nom_complet' => 'PIRATE', 'email' => 'p@exemple.fr'])->statut);
-        self::assertStringNotContainsString('name="action" value="coordonnees"', $this->en('pmoreau', 'GET', '/etudiants/' . $id)->corps);
         self::assertSame('MARTIN Élodie', $this->texte('SELECT nom_complet FROM etudiants WHERE id = ' . $id));
     }
 
@@ -180,7 +181,7 @@ final class EtudiantsTest extends TestCase
         self::assertStringContainsString('Les sites n&apos;ont pas été modifiés', $page->corps);
         self::assertSame($this->alt, $this->nombre('SELECT regime_id FROM etudiants WHERE id = ' . $id));
         self::assertSame("NDRC FI|NDRC ALT|Jroux", $this->texte("SELECT ancienne_valeur || '|' || nouvelle_valeur || '|' || auteur_nom FROM historique_etudiants WHERE champ = 'regime'"));
-        self::assertStringContainsString('NDRC FI → NDRC ALT', $this->en('pmoreau', 'GET', '/etudiants/' . $id)->corps);
+        self::assertStringContainsString('NDRC FI → NDRC ALT', $this->en('cpetit', 'GET', '/etudiants/' . $id)->corps);
     }
 
     public function testEnseignantAdministratifEtAdministrateurChangentLaSession(): void
@@ -229,9 +230,10 @@ final class EtudiantsTest extends TestCase
     public function testUnNomPiegeEstAfficheSansEtreExecute(): void
     {
         $id = (new GestionEtudiants($this->pdo))->ajouter('<script>alert(1)</script>', 'Eve', 'eve@exemple.fr', $this->fi, $this->s2028, 'scripev');
-        $fiche = $this->en('pmoreau', 'GET', '/etudiants/' . $id)->corps;
+        $fiche = $this->en('cpetit', 'GET', '/etudiants/' . $id)->corps;
         self::assertStringNotContainsString('<script>', $fiche);
         self::assertStringContainsString('&lt;SCRIPT&gt;', $fiche);
+        self::assertStringNotContainsString('<script>', $this->en('pmoreau', 'GET', '/etudiants')->corps);
     }
 
     // ===== Aides =====

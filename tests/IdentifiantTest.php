@@ -31,7 +31,7 @@ final class IdentifiantTest extends TestCase
             '08 particules néerlandaises' => ['VAN DER BERG Noa', 'vanderbergno', 'VanderbergnO'],
             '09 particule d\'' => ['D\'ALMEIDA Inês', 'dalmeidain', 'DalmeidaiN'],
             '10 particule arabe' => ['BEN SALEM Yasmine', 'bensalemya', 'BensalemyA'],
-            '11 tilde espagnol' => ['OÑATE Íñigo', 'onatein', 'OnateiN'],
+            '11 tilde espagnol' => ['PEÑA Inès', 'penain', 'PenaiN'],
             '12 lettres hors liste supprimées' => ['ŠIMIĆ Ana', 'imian', 'ImiaN'],
             '13 ligature supprimée' => ['CŒURDEVENT Paul', 'curdeventpa', 'CurdeventpA'],
             '14 nom long à tirets' => ['MONTGOLFIER-SAINT-ANDRÉ Zoé', 'montgolfierzo', 'MontgolfierzO'],
@@ -69,6 +69,18 @@ final class IdentifiantTest extends TestCase
         self::assertSame('MaciteB2', Identifiant::wordpress('maciteb2'));
         // HENRI JEAN-MARC et HENRI GAULTIER Jean-Marc donnent les mêmes lettres.
         self::assertSame(Identifiant::depuisNomComplet('HENRI JEAN-MARC'), Identifiant::depuisNomComplet('HENRI GAULTIER Jean-Marc'));
+    }
+
+    public function testLesLimitesDeLaFeuilleSontReprisesALIdentique(): void
+    {
+        // ý n'est pas dans la liste des accents de la feuille : supprimé.
+        self::assertSame('krnevol', Identifiant::depuisNomComplet('KÝRNEV Oleg'));
+        // Une espace après l'apostrophe arrête le nom, comme dans la feuille.
+        self::assertSame('dru', Identifiant::depuisNomComplet('D\' ALMEIDA Rui'));
+        // Apostrophe typographique : supprimée, même résultat que l'apostrophe droite.
+        self::assertSame('ndiayeaw', Identifiant::depuisNomComplet('N’DIAYE Awa'));
+        // Prénom : 2 premières lettres une fois le tiret retiré.
+        self::assertSame('martinjm', Identifiant::depuisNomComplet('MARTIN J-Marc'));
     }
 
     public function testAuDelaDeNeufHomonymesIlFautChoisirALaMain(): void

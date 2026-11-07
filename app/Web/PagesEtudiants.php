@@ -31,8 +31,9 @@ final class PagesEtudiants
             $optionsSessions .= self::option((string) $session['id'], 'Session ' . $session['annee'] . ($session['active'] ? '' : ' (archivée)'), $session['id'] === $sessionChoisie);
         }
         $lignes = '';
+        $fiches = Droits::peut($moi->role, Droits::VOIR_FICHE);
         foreach ($etudiants as $etudiant) {
-            $lignes .= '<tr><td><a href="/etudiants/' . $etudiant->id . '">' . Html::e($etudiant->nomComplet) . '</a></td>'
+            $lignes .= '<tr><td>' . ($fiches ? '<a href="/etudiants/' . $etudiant->id . '">' . Html::e($etudiant->nomComplet) . '</a>' : Html::e($etudiant->nomComplet)) . '</td>'
                 . '<td>' . Html::e($etudiant->regime) . '</td><td>' . $etudiant->session . '</td>'
                 . '<td>' . Html::e(RegimesSessions::anneeDeFormation($etudiant->session, $maintenant)) . '</td></tr>';
         }

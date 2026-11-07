@@ -54,10 +54,10 @@ final class RolesEtComptesTest extends TestCase
     public function testLaMatriceDesDroitsCorrespondAuxDecisions(): void
     {
         $refuses = [
-            'enseignant' => [Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES],
-            'administratif' => [Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES,
+            'enseignant' => [Droits::JOURNAL_CONNEXIONS, Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES],
+            'administratif' => [Droits::JOURNAL_CONNEXIONS, Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES,
                 Droits::REINITIALISER_SITE, Droits::BIBLIOTHEQUE],
-            'consultation' => [Droits::CHANGER_SESSION, Droits::REGIMES_SESSIONS, Droits::IMPORTER, Droits::CREER_ETUDIANT, Droits::MODIFIER_ETUDIANT, Droits::DEMANDER,
+            'consultation' => [Droits::JOURNAL_CONNEXIONS, Droits::VOIR_FICHE, Droits::CHANGER_SESSION, Droits::REGIMES_SESSIONS, Droits::IMPORTER, Droits::CREER_ETUDIANT, Droits::MODIFIER_ETUDIANT, Droits::DEMANDER,
                 Droits::SUPPRIMER, Droits::GERER_COMPTES, Droits::REINITIALISER_SITE],
         ];
         foreach ($refuses as $role => $droits) {

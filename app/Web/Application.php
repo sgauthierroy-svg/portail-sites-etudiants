@@ -74,7 +74,7 @@ final class Application
             return $this->pageConnectee($requete, Droits::GERER_COMPTES, fn (Compte $moi) => $this->ficheCompte($requete, $moi, (int) $trouve[1]));
         }
         if (preg_match('#^/etudiants/([1-9][0-9]{0,9})$#', $requete->chemin, $trouve) === 1) {
-            return $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->ficheEtudiant($requete, $moi, (int) $trouve[1]));
+            return $this->pageConnectee($requete, Droits::VOIR_FICHE, fn (Compte $moi) => $this->ficheEtudiant($requete, $moi, (int) $trouve[1]));
         }
 
         return new Reponse(404, Pages::message('Page introuvable', 'Cette page n\'existe pas.'));

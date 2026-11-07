@@ -15,7 +15,12 @@ namespace Portail\Comptes;
 final class Droits
 {
     public const CONSULTER = 'consulter';
+    /** Journal des actions (étudiants, sites, comptes). */
     public const JOURNAL = 'journal';
+    /** Journal des connexions (adresses IP, échecs) : informaticien seulement (décision du 07/11/2026). */
+    public const JOURNAL_CONNEXIONS = 'journal_connexions';
+    /** Fiche détaillée d'un étudiant (identifiant, e-mail, parcours). */
+    public const VOIR_FICHE = 'voir_fiche';
     public const IMPORTER = 'importer';
     public const CREER_ETUDIANT = 'creer_etudiant';
     public const MODIFIER_ETUDIANT = 'modifier_etudiant';
@@ -32,18 +37,20 @@ final class Droits
     /** @var array<string, list<string>> */
     private const MATRICE = [
         'administrateur' => [
-            self::CONSULTER, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT,
+            self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::JOURNAL_CONNEXIONS, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT,
             self::CHANGER_SESSION, self::DEMANDER, self::REINITIALISER_SITE, self::BIBLIOTHEQUE, self::SUPPRIMER,
             self::TRAITER_DEMANDES, self::REGIMES_SESSIONS, self::GERER_COMPTES, self::PARAMETRES,
         ],
         'enseignant' => [
-            self::CONSULTER, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT,
+            self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT,
             self::CHANGER_SESSION, self::DEMANDER, self::REINITIALISER_SITE, self::BIBLIOTHEQUE, self::REGIMES_SESSIONS,
         ],
         'administratif' => [
-            self::CONSULTER, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT, self::DEMANDER,
+            self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT, self::DEMANDER,
             self::REGIMES_SESSIONS, self::CHANGER_SESSION, // décisions du 07/11/2026
         ],
+        // Direction adjointe : suivi à distance (classes ; sites en activité et alertes en V2,
+        // affichées dans le portail, jamais envoyées par e-mail). Pas de fiche détaillée.
         'consultation' => [
             self::CONSULTER, self::JOURNAL,
         ],

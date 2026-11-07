@@ -20,9 +20,10 @@ use Portail\Noyau\ErreurSaisie;
  *   en majuscule (gauthierst → GauthiersT), chiffre éventuel conservé.
  *
  * Limites reprises volontairement de la feuille, pour que le portail et la
- * feuille donnent toujours le même résultat :
+ * feuille donnent toujours le même résultat (vérifié le 07/11/2026 sur 17 noms) :
  * - le prénom est le dernier mot du nom complet (« Jean Pierre » donne pi) ;
- * - les lettres hors de la liste des accents (Š, Ć, Ø, Œ…) sont supprimées.
+ * - les lettres hors de la liste des accents (ý, Š, Ć, Ø, Œ…) sont supprimées ;
+ * - une espace après l'apostrophe (« D' ALMEIDA ») arrête le nom à « d ».
  */
 final class Identifiant
 {
@@ -32,51 +33,63 @@ final class Identifiant
     /** Format des nouveaux identifiants : 13 lettres au plus, chiffre éventuel (homonyme). */
     public const FORMAT = '/^[a-z]{2,13}[2-9]?$/D';
 
-    /** Particules soudées au mot qui suit. */
-    public const PARTICULES = [
-        'de', 'du', 'des', 'le', 'la', 'del', 'van', 'von', 'ben', 'al', 'el', 'da', 'dos', 'di', 'der',
-        "d'", "l'", "o'", "n'",
-    ];
+    /**
+     * Début du nom de famille : particules (suivies d'une espace ou d'une apostrophe),
+     * préfixes d', l', o', n', puis le premier mot jusqu'au tiret, à l'espace ou à l'apostrophe.
+     * Copie de l'expression REGEXEXTRACT de la colonne E de la feuille.
+     */
+    public const MOTIF_NOM = "/^(?:(?:de|du|des|le|la|del|van|von|ben|al|el|da|dos|di|der)[ ']|(?:d|l|o|n)')*[^- ']+/iu";
 
-    /** Lettres accentuées reconnues ; toute autre lettre est supprimée. */
+    /**
+     * Accents remplacés, copie des SUBSTITUTE/REGEXREPLACE de la feuille.
+     * Toute autre lettre (ý, Š, Ć, Ø, Œ…) est supprimée, comme dans la feuille.
+     */
     private const ACCENTS = [
-        'à' => 'a', 'á' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a', 'å' => 'a',
-        'ç' => 'c',
-        'è' => 'e', 'é' => 'e', 'ê' => 'e', 'ë' => 'e',
-        'ì' => 'i', 'í' => 'i', 'î' => 'i', 'ï' => 'i',
-        'ñ' => 'n',
-        'ò' => 'o', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o', 'ö' => 'o',
-        'ù' => 'u', 'ú' => 'u', 'û' => 'u', 'ü' => 'u',
-        'ý' => 'y', 'ÿ' => 'y',
-        '’' => "'", 'ʼ' => "'",
+        '/[àáâãäå]/u' => 'a',
+        '/ç/u' => 'c',
+        '/[èéêë]/u' => 'e',
+        '/[ìíîï]/u' => 'i',
+        '/[òóôõö]/u' => 'o',
+        '/[ùúûü]/u' => 'u',
+        '/ÿ/u' => 'y',
+        '/ñ/u' => 'n',
     ];
 
     /**
      * Lettres de l'identifiant, sans chiffre d'homonyme, à partir du nom complet
      * tel qu'exporté d'EcoleDirecte (« GAUTHIER ROY Stéphanie »).
+     * Même enchaînement que la feuille : espaces nettoyées, dernier mot = prénom,
+     * le reste passe par MOTIF_NOM.
      */
     public static function depuisNomComplet(string $nomComplet): string
     {
-        $mots = self::mots($nomComplet);
-        if (count($mots) < 2) {
+        $texte = trim(preg_replace('/ +/', ' ', $nomComplet) ?? '');
+        if (preg_match('/^(.+) ([^ ]+)$/Dsu', $texte, $parties) !== 1) {
             throw new ErreurSaisie('Le nom complet doit contenir au moins un nom et un prénom.');
         }
-        $prenom = array_pop($mots);
+        $debutNom = preg_match(self::MOTIF_NOM, $parties[1], $trouve) === 1 ? $trouve[0] : '';
+        $lettresNom = substr(self::lettres(str_replace(["'", ' '], '', $debutNom)), 0, self::LETTRES_NOM_MAX);
+        $lettresPrenom = substr(self::lettres($parties[2]), 0, self::LETTRES_PRENOM);
+        if ($lettresNom === '' || $lettresPrenom === '') {
+            throw new ErreurSaisie('Aucune lettre exploitable dans le nom ou le prénom : choisissez l\'identifiant à la main.');
+        }
 
-        return self::assembler($mots, $prenom);
+        return $lettresNom . $lettresPrenom;
     }
 
-    /** Même calcul, à partir du nom et du prénom saisis séparément (ajout manuel). */
+    /**
+     * Même calcul, à partir du nom et du prénom saisis séparément (ajout manuel) :
+     * on reconstitue « NOM Prénom », exactement ce que la feuille recevrait.
+     */
     public static function depuisNomEtPrenom(string $nom, string $prenom): string
     {
-        $motsNom = self::mots($nom);
-        $motsPrenom = self::mots($prenom);
-        if ($motsNom === [] || $motsPrenom === []) {
+        $nom = trim(preg_replace('/\s+/u', ' ', $nom) ?? '');
+        $prenom = trim(preg_replace('/\s+/u', ' ', $prenom) ?? '');
+        if ($nom === '' || $prenom === '') {
             throw new ErreurSaisie('Le nom et le prénom sont obligatoires.');
         }
 
-        // Comme la feuille, qui reçoit « NOM Prénom » : le prénom retenu est le dernier mot.
-        return self::assembler($motsNom, $motsPrenom[count($motsPrenom) - 1]);
+        return self::depuisNomComplet(mb_strtoupper($nom, 'UTF-8') . ' ' . $prenom);
     }
 
     /**
@@ -116,49 +129,14 @@ final class Identifiant
         return preg_match(self::FORMAT, $identifiant) === 1;
     }
 
-    /**
-     * @param list<string> $motsNom
-     */
-    private static function assembler(array $motsNom, string $prenom): string
+    /** Minuscules, accents de la liste remplacés, tout ce qui n'est pas a-z supprimé. */
+    private static function lettres(string $texte): string
     {
-        // Particules soudées : on avance tant que le mot est une particule
-        // et qu'il en reste au moins un après lui.
-        $nom = '';
-        $i = 0;
-        $dernier = count($motsNom) - 1;
-        while ($i < $dernier && in_array($motsNom[$i], self::PARTICULES, true)) {
-            $nom .= $motsNom[$i];
-            $i++;
-        }
-        $nom .= $motsNom[$i];
-
-        $lettresNom = substr(self::lettres(self::avantTiret($nom)), 0, self::LETTRES_NOM_MAX);
-        $lettresPrenom = substr(self::lettres(self::avantTiret($prenom)), 0, self::LETTRES_PRENOM);
-        if ($lettresNom === '' || $lettresPrenom === '') {
-            throw new ErreurSaisie('Aucune lettre exploitable dans le nom ou le prénom : choisissez l\'identifiant à la main.');
+        $texte = mb_strtolower($texte, 'UTF-8');
+        foreach (self::ACCENTS as $motif => $lettre) {
+            $texte = preg_replace($motif, $lettre, $texte) ?? '';
         }
 
-        return $lettresNom . $lettresPrenom;
-    }
-
-    /** @return list<string> Mots en minuscules, accents remplacés */
-    private static function mots(string $texte): array
-    {
-        $texte = strtr(mb_strtolower(trim($texte), 'UTF-8'), self::ACCENTS);
-        $mots = preg_split('/\s+/u', $texte, -1, PREG_SPLIT_NO_EMPTY);
-
-        return $mots === false ? [] : $mots;
-    }
-
-    private static function avantTiret(string $mot): string
-    {
-        $position = strpos($mot, '-');
-
-        return $position === false ? $mot : substr($mot, 0, $position);
-    }
-
-    private static function lettres(string $mot): string
-    {
-        return preg_replace('/[^a-z]/', '', $mot) ?? '';
+        return preg_replace('/[^a-z]/', '', $texte) ?? '';
     }
 }
