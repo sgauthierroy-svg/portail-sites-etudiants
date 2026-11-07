@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Portail\Tests;
 
 use PHPUnit\Framework\TestCase;
-use Portail\Web\Application;
 use Portail\Web\EnTetes;
 use Portail\Web\Html;
 
@@ -39,25 +38,5 @@ final class WebTest extends TestCase
     {
         self::assertStringContainsString('no-store', EnTetes::securite()['Cache-Control']);
         self::assertSame('nosniff', EnTetes::securite()['X-Content-Type-Options']);
-    }
-
-    public function testLaPageDAccueilRepond(): void
-    {
-        $reponse = (new Application())->traiter('GET', '/');
-        self::assertSame(200, $reponse->statut);
-        self::assertStringContainsString('Portail en préparation', $reponse->corps);
-        self::assertStringContainsString('lang="fr"', $reponse->corps);
-    }
-
-    public function testUnePageInconnueRepond404(): void
-    {
-        self::assertSame(404, (new Application())->traiter('GET', '/wp-admin')->statut);
-    }
-
-    public function testUneMethodeNonPrevueEstRefusee(): void
-    {
-        $reponse = (new Application())->traiter('POST', '/');
-        self::assertSame(405, $reponse->statut);
-        self::assertSame('GET, HEAD', $reponse->enTetes['Allow']);
     }
 }

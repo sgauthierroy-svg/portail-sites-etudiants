@@ -46,7 +46,10 @@ final class ReglagesPhp
             'session.gc_divisor' => '100',
             'session.sid_length' => '48',
             'session.sid_bits_per_character' => '6',
-            'session.name' => 'portail_session',
+            // Préfixe __Host- : cookie limité à ce sous-domaine, en https, sans domaine élargi.
+            'session.name' => '__Host-portail',
+            'session.cookie_path' => '/',
+            'session.cookie_domain' => '',
             'session.cache_limiter' => 'nocache',
             'zend.exception_ignore_args' => '1',
             // En dernier : à partir de là, aucun fichier hors du portail n'est lisible.

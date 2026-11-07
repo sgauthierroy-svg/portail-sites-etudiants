@@ -6,8 +6,13 @@ namespace Portail\Noyau;
 
 use PDO;
 use Portail\Base\Connexion;
+use Portail\Securite\Chiffrement;
+use Portail\Securite\HorlogeSysteme;
 use Portail\Web\Application;
 use Portail\Web\EnTetes;
+use Portail\Web\Requete;
+use Portail\Web\Session;
+use Portail\Web\SessionPhp;
 
 /**
  * Démarrage d'une requête web, dans un ordre qui ne laisse rien passer :
@@ -29,22 +34,12 @@ final class Demarrage
         // Avant tout le reste, pour que même une page d'erreur les porte.
         EnTetes::envoyer();
         $config = Config::charger($racine . '/data/config.php');
-        self::base($config);
+        $pdo = self::base($config);
+        $horloge = new HorlogeSysteme();
 
-        $methode = self::serveur('REQUEST_METHOD', 'GET');
-        $chemin = parse_url(self::serveur('REQUEST_URI', '/'), PHP_URL_PATH);
-
-        (new Application())
-            ->traiter($methode, is_string($chemin) ? $chemin : '/')
+        (new Application($pdo, new Chiffrement($config->cleBinaire()), $horloge, new Session(new SessionPhp(), $horloge), $config->urlPortail))
+            ->traiter(Requete::depuisServeur())
             ->envoyer();
-    }
-
-    /** Valeur de $_SERVER, toujours vérifiée : elle vient du visiteur ou du serveur web. */
-    private static function serveur(string $cle, string $defaut): string
-    {
-        $valeur = $_SERVER[$cle] ?? null;
-
-        return is_string($valeur) ? $valeur : $defaut;
     }
 
     /** Ouvre la base et vérifie qu'elle a été installée par bin/installer.php. */
