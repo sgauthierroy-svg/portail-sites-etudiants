@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Portail\Comptes;
 
 use PDO;
+use Portail\Base\Lecture;
 
 /**
  * Lecture et écriture des comptes en base (requêtes préparées uniquement).
@@ -143,6 +144,20 @@ final class DepotComptes
                     echecs_consecutifs = 0, bloque_jusqu_a = NULL, generation = generation + 1 WHERE id = :id'
         );
         $requete->execute([':id' => $id]);
+    }
+
+    /** Dernier filtre de la liste des étudiants (« regime=3;session=2 »), retrouvé à la connexion suivante. */
+    public function dernierFiltre(int $id): ?string
+    {
+        $requete = $this->pdo->prepare('SELECT dernier_filtre FROM comptes WHERE id = :id');
+        $requete->execute([':id' => $id]);
+        return Lecture::texte($requete->fetchColumn());
+    }
+
+    public function enregistrerFiltre(int $id, ?string $filtre): void
+    {
+        $requete = $this->pdo->prepare('UPDATE comptes SET dernier_filtre = :filtre WHERE id = :id');
+        $requete->execute([':filtre' => $filtre, ':id' => $id]);
     }
 
     private function compte(mixed $ligne): ?Compte

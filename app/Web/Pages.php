@@ -79,6 +79,12 @@ final class Pages
     public static function accueil(string $jeton, Compte $compte): string
     {
         $liens = [];
+        if (Droits::peut($compte->role, Droits::CONSULTER)) {
+            $liens[] = '<li><a href="/etudiants">Étudiants</a></li>';
+        }
+        if (Droits::peut($compte->role, Droits::REGIMES_SESSIONS)) {
+            $liens[] = '<li><a href="/regimes-sessions">Régimes et sessions</a></li>';
+        }
         if (Droits::peut($compte->role, Droits::GERER_COMPTES)) {
             $liens[] = '<li><a href="/comptes">Comptes du portail</a></li>';
         }
@@ -165,18 +171,18 @@ final class Pages
             . '<p><a href="/comptes">Retour aux comptes</a></p>');
     }
 
-    private static function alerte(?string $erreur, ?string $information): string
+    public static function alerte(?string $erreur, ?string $information): string
     {
         return ($erreur === null ? '' : '<p role="alert"><strong>' . Html::e($erreur) . '</strong></p>')
             . ($information === null ? '' : '<p role="status">' . Html::e($information) . '</p>');
     }
 
-    private static function boutonDeconnexion(string $jeton): string
+    public static function boutonDeconnexion(string $jeton): string
     {
         return '<form method="post" action="/deconnexion">' . self::jeton($jeton) . '<button type="submit">Se déconnecter</button></form>';
     }
 
-    private static function saisie(string $nom, string $libelle, string $valeur, string $type = 'text'): string
+    public static function saisie(string $nom, string $libelle, string $valeur, string $type = 'text'): string
     {
         return '<p><label for="' . Html::e($nom) . '">' . Html::e($libelle) . '</label><br>'
             . '<input id="' . Html::e($nom) . '" name="' . Html::e($nom) . '" type="' . Html::e($type) . '"'
@@ -193,7 +199,7 @@ final class Pages
         return '<p><label for="role">Rôle</label><br><select id="role" name="role">' . $options . '</select></p>';
     }
 
-    private static function jeton(string $jeton): string
+    public static function jeton(string $jeton): string
     {
         return '<input type="hidden" name="jeton" value="' . Html::e($jeton) . '">';
     }

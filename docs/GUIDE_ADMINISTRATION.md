@@ -6,7 +6,7 @@ Mode opératoire de l'administrateur. Document complété au fil du développeme
 
 ### Créer la session de la nouvelle promotion
 
-À chaque rentrée, une nouvelle promotion de 1re année arrive. Avant d'importer les nouveaux étudiants, créer dans le portail **la session** de cette promotion, par exemple « 2029 » pour la rentrée 2027.
+À chaque rentrée, une nouvelle promotion de 1re année arrive. Avant d'importer les nouveaux étudiants, créer dans le portail **la session** de cette promotion, par exemple « 2029 » pour la rentrée 2027 : page **Régimes et sessions** (administrateur, enseignant ou administratif).
 
 Les régimes (NDRC FI, NDRC ALT) existent déjà : la classe affichée, par exemple « NDRC ALT – session 2029 », combine régime et session. Cela prend une minute. La 1re ou la 2e année se calcule toute seule à partir de la session : rien d'autre à mettre à jour.
 
@@ -14,11 +14,21 @@ Un fichier d'import qui cite une session ou un régime absent du portail est ref
 
 ### Archiver les sessions terminées
 
-Une session dont tous les étudiants sont partis (sous-domaines supprimés) est archivée. Une session qui contient encore des étudiants ne peut pas être supprimée.
+Une session dont tous les étudiants sont partis (sous-domaines supprimés) est archivée, sur la même page. Un régime ou une session n'est jamais supprimé : on le désactive ou on l'archive, et on peut le réactiver. On ne peut plus y placer d'étudiant tant qu'il est désactivé ou archivé.
+
+La même page permet d'indiquer la **version WordPress gelée** de chaque session (par exemple 6.8) ; elle servira à la création des sites (V2).
 
 ### Redoublants et changements de régime
 
-Ils se modifient sur la fiche de l'étudiant (session et/ou régime). Le portail propose alors les actions sur les sites : réinitialisation de `/WP` pour un redoublant de 1re année, de `/Presta` pour un redoublant de 2e année. Rien n'est fait sans confirmation.
+Ils se modifient sur la fiche de l'étudiant (session et/ou régime, en une seule fois si besoin). Le régime peut être changé par un enseignant, un administratif ou l'administrateur ; la session (redoublement), seulement par un enseignant ou l'administrateur. Chaque changement est inscrit dans le **parcours** de l'étudiant (date, avant → après, auteur) et au journal. L'identifiant, lui, ne change jamais.
+
+À partir de la V2, le portail proposera alors les actions sur les sites : réinitialisation de `/WP` pour un redoublant de 1re année, de `/Presta` pour un redoublant de 2e année. Rien ne sera fait sans confirmation. En V1, aucun site n'est touché.
+
+### Ajouter un étudiant arrivé en cours d'année
+
+Page **Étudiants**, puis **Ajouter un étudiant** : saisir le nom de famille et le prénom séparément, l'e-mail, le régime et la session. Le portail calcule l'identifiant avec la même règle que la Google Sheets et l'affiche à côté du nom complet : le vérifier, le corriger si besoin, puis enregistrer. Un homonyme reçoit automatiquement un chiffre (`henrije2`). Un identifiant déjà pris par un étudiant, par un site présent sur le serveur ou par un site protégé est refusé.
+
+Comme la feuille, le portail prend le **dernier mot** du prénom (« Jean Pierre » donne `pi`) : corriger à la main si besoin, et reporter le même identifiant dans la Google Sheets.
 
 ## Installation et mise à jour
 

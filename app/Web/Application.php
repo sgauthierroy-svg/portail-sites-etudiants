@@ -10,6 +10,9 @@ use Portail\Comptes\Compte;
 use Portail\Comptes\DepotComptes;
 use Portail\Comptes\Droits;
 use Portail\Comptes\GestionComptes;
+use Portail\Etudiants\GestionEtudiants;
+use Portail\Etudiants\Identifiant;
+use Portail\Etudiants\RegimesSessions;
 use Portail\Journal\Journal;
 use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
@@ -58,10 +61,210 @@ final class Application
             '/deconnexion' => $this->deconnexion($requete),
             '/' => $this->accueil($requete),
             '/comptes', '/comptes/nouveau' => $this->pageConnectee($requete, Droits::GERER_COMPTES, fn (Compte $moi) => $this->comptes($requete, $moi)),
-            default => preg_match('#^/comptes/([1-9][0-9]{0,9})$#', $requete->chemin, $trouve) === 1
-                ? $this->pageConnectee($requete, Droits::GERER_COMPTES, fn (Compte $moi) => $this->ficheCompte($requete, $moi, (int) $trouve[1]))
-                : new Reponse(404, Pages::message('Page introuvable', 'Cette page n\'existe pas.')),
+            '/etudiants' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->etudiants($requete, $moi)),
+            '/etudiants/nouveau' => $this->pageConnectee($requete, Droits::CREER_ETUDIANT, fn (Compte $moi) => $this->nouvelEtudiant($requete, $moi)),
+            '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
+            default => $this->pageNumerotee($requete),
         };
+    }
+
+    private function pageNumerotee(Requete $requete): Reponse
+    {
+        if (preg_match('#^/comptes/([1-9][0-9]{0,9})$#', $requete->chemin, $trouve) === 1) {
+            return $this->pageConnectee($requete, Droits::GERER_COMPTES, fn (Compte $moi) => $this->ficheCompte($requete, $moi, (int) $trouve[1]));
+        }
+        if (preg_match('#^/etudiants/([1-9][0-9]{0,9})$#', $requete->chemin, $trouve) === 1) {
+            return $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->ficheEtudiant($requete, $moi, (int) $trouve[1]));
+        }
+
+        return new Reponse(404, Pages::message('Page introuvable', 'Cette page n\'existe pas.'));
+    }
+
+    // ===== Étudiants, régimes et sessions (lot 4) =====
+
+    private function etudiants(Requete $requete, Compte $moi): Reponse
+    {
+        if ($requete->methode === 'POST') {
+            if ($requete->champ('action') !== 'filtrer') {
+                return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+            $regime = self::idFacultatif($requete->champ('regime'));
+            $session = self::idFacultatif($requete->champ('session'));
+            $this->comptes->enregistrerFiltre($moi->id, $regime === null && $session === null ? null
+                : 'regime=' . ($regime ?? '') . ';session=' . ($session ?? ''));
+
+            return Reponse::redirection('/etudiants');
+        }
+        [$regime, $session] = self::lireFiltre($this->comptes->dernierFiltre($moi->id));
+        $referentiel = new RegimesSessions($this->pdo);
+
+        return $this->seulementGet($requete) ?? new Reponse(200, PagesEtudiants::liste(
+            $this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste($regime, $session),
+            $referentiel->regimes(), $referentiel->sessions(), $regime, $session, $this->horloge->maintenant()
+        ));
+    }
+
+    private function nouvelEtudiant(Requete $requete, Compte $moi): Reponse
+    {
+        $referentiel = new RegimesSessions($this->pdo);
+        $regimes = $referentiel->regimes(true);
+        $sessions = $referentiel->sessions(true);
+        $jeton = $this->session->jeton();
+        if ($requete->methode !== 'POST') {
+            return $this->seulementGet($requete) ?? new Reponse(200, PagesEtudiants::nouveau($jeton, $regimes, $sessions, [], null));
+        }
+        $valeurs = [];
+        foreach (['nom', 'prenom', 'email', 'regime', 'session', 'identifiant'] as $champ) {
+            $valeurs[$champ] = $requete->champ($champ);
+        }
+        $gestion = new GestionEtudiants($this->pdo, $moi, $requete->adresseIp);
+        $regimeId = self::idFacultatif($valeurs['regime']) ?? 0;
+        $sessionId = self::idFacultatif($valeurs['session']) ?? 0;
+        $action = $requete->champ('action');
+        if ($action === 'corriger') {
+            return new Reponse(200, PagesEtudiants::nouveau($jeton, $regimes, $sessions, $valeurs, null));
+        }
+        if ($action !== 'apercu' && $action !== 'enregistrer') {
+            return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+        }
+        try {
+            $nomComplet = GestionEtudiants::nomComplet($valeurs['nom'], $valeurs['prenom']);
+            if (!$referentiel->regimeActif($regimeId) || !$referentiel->sessionActive($sessionId)) {
+                throw new ErreurSaisie('Choisissez un régime actif et une session active.');
+            }
+            $classe = $referentiel->nomRegime($regimeId) . ' – session ' . $referentiel->anneeSession($sessionId);
+            if ($action === 'apercu') {
+                $proposition = $gestion->proposer($valeurs['nom'], $valeurs['prenom']);
+                $valeurs['identifiant'] = $proposition['identifiant'];
+
+                return new Reponse(200, PagesEtudiants::apercu($jeton, $valeurs, $nomComplet, $classe, $proposition['identifiant_wp'], null));
+            }
+        } catch (ErreurSaisie $e) {
+            return new Reponse(200, PagesEtudiants::nouveau($jeton, $regimes, $sessions, $valeurs, $e->getMessage()));
+        }
+        try {
+            $id = $gestion->ajouter($valeurs['nom'], $valeurs['prenom'], $valeurs['email'], $regimeId, $sessionId, $valeurs['identifiant']);
+        } catch (ErreurSaisie $e) {
+            $wp = Identifiant::formatValide(trim($valeurs['identifiant'])) ? Identifiant::wordpress(trim($valeurs['identifiant'])) : '';
+
+            return new Reponse(200, PagesEtudiants::apercu($jeton, $valeurs, $nomComplet, $classe, $wp, $e->getMessage()));
+        }
+
+        return Reponse::redirection('/etudiants/' . $id);
+    }
+
+    private function ficheEtudiant(Requete $requete, Compte $moi, int $id): Reponse
+    {
+        $gestion = new GestionEtudiants($this->pdo, $moi, $requete->adresseIp);
+        $etudiant = $gestion->parId($id);
+        if ($etudiant === null) {
+            return new Reponse(404, Pages::message('Page introuvable', 'Cet étudiant n\'existe pas.'));
+        }
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            try {
+                switch ($requete->champ('action')) {
+                    case 'coordonnees':
+                        if (!Droits::peut($moi->role, Droits::MODIFIER_ETUDIANT)) {
+                            return $this->refuser($requete, $moi);
+                        }
+                        $gestion->modifierCoordonnees($id, $requete->champ('nom_complet'), $requete->champ('email'));
+                        $information = 'Modifications enregistrées.';
+                        break;
+                    case 'parcours':
+                        $regimeId = self::idFacultatif($requete->champ('regime')) ?? 0;
+                        $sessionId = self::idFacultatif($requete->champ('session')) ?? 0;
+                        // Régime : enseignant, administratif, administrateur (cas 4).
+                        // Session (redoublement, cas 5 à 7) : enseignant et administrateur seulement.
+                        if (!Droits::peut($moi->role, Droits::MODIFIER_ETUDIANT)
+                            || ($sessionId !== $etudiant->sessionId && !Droits::peut($moi->role, Droits::CHANGER_SESSION))) {
+                            return $this->refuser($requete, $moi);
+                        }
+                        $gestion->changerParcours($id, $regimeId, $sessionId);
+                        $information = 'Changement enregistré dans le parcours de l\'étudiant. Les sites n\'ont pas été modifiés.';
+                        break;
+                    default:
+                        return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+                }
+            } catch (ErreurSaisie $e) {
+                $erreur = $e->getMessage();
+            }
+            $etudiant = $gestion->parId($id) ?? $etudiant;
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        $referentiel = new RegimesSessions($this->pdo);
+
+        return new Reponse(200, PagesEtudiants::fiche($this->session->jeton(), $moi, $etudiant, $referentiel->regimes(), $referentiel->sessions(),
+            $gestion->historique($etudiant->identifiant), $this->horloge->maintenant(), $erreur, $information));
+    }
+
+    private function regimesSessions(Requete $requete, Compte $moi): Reponse
+    {
+        $referentiel = new RegimesSessions($this->pdo, $moi, $requete->adresseIp);
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            $id = self::idFacultatif($requete->champ('id')) ?? 0;
+            try {
+                switch ($requete->champ('action')) {
+                    case 'creer_regime':
+                        $referentiel->creerRegime($requete->champ('nom'));
+                        $information = 'Régime créé.';
+                        break;
+                    case 'desactiver_regime':
+                    case 'reactiver_regime':
+                        $referentiel->changerRegimeActif($id, $requete->champ('action') === 'reactiver_regime');
+                        $information = 'Régime mis à jour.';
+                        break;
+                    case 'creer_session':
+                        $referentiel->creerSession($requete->champ('annee'));
+                        $information = 'Session créée.';
+                        break;
+                    case 'archiver_session':
+                    case 'reactiver_session':
+                        $referentiel->changerSessionActive($id, $requete->champ('action') === 'reactiver_session');
+                        $information = 'Session mise à jour.';
+                        break;
+                    case 'version':
+                        $referentiel->gelerVersion($id, $requete->champ('version'));
+                        $information = 'Version WordPress enregistrée.';
+                        break;
+                    default:
+                        return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+                }
+            } catch (ErreurSaisie $e) {
+                $erreur = $e->getMessage();
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+
+        return new Reponse(200, PagesEtudiants::regimesSessions($this->session->jeton(), $referentiel->regimes(), $referentiel->sessions(), $erreur, $information));
+    }
+
+    private function refuser(Requete $requete, Compte $moi): Reponse
+    {
+        (new Journal($this->pdo))->ecrire('administration', 'accès refusé', 'refus', $moi->id, $moi->nomAffiche, $requete->adresseIp,
+            $requete->chemin, 'action : ' . mb_substr($requete->champ('action'), 0, 40, 'UTF-8'));
+
+        return new Reponse(403, Pages::refus());
+    }
+
+    private static function idFacultatif(string $valeur): ?int
+    {
+        return preg_match('/^[1-9][0-9]{0,9}$/D', $valeur) === 1 ? (int) $valeur : null;
+    }
+
+    /** @return array{?int, ?int} Régime et session du filtre enregistré */
+    private static function lireFiltre(?string $filtre): array
+    {
+        if ($filtre === null || preg_match('/^regime=([0-9]*);session=([0-9]*)$/', $filtre, $parties) !== 1) {
+            return [null, null];
+        }
+
+        return [self::idFacultatif($parties[1]), self::idFacultatif($parties[2])];
     }
 
     /**
