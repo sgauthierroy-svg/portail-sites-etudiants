@@ -8,7 +8,10 @@ use PDO;
 use Portail\Authentification\Authentification;
 use Portail\Comptes\Compte;
 use Portail\Comptes\DepotComptes;
+use Portail\Comptes\Droits;
+use Portail\Comptes\GestionComptes;
 use Portail\Journal\Journal;
+use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\Horloge;
 
@@ -54,8 +57,105 @@ final class Application
             '/mot-de-passe' => $this->motDePasse($requete),
             '/deconnexion' => $this->deconnexion($requete),
             '/' => $this->accueil($requete),
-            default => new Reponse(404, Pages::message('Page introuvable', 'Cette page n\'existe pas.')),
+            '/comptes', '/comptes/nouveau' => $this->pageConnectee($requete, Droits::GERER_COMPTES, fn (Compte $moi) => $this->comptes($requete, $moi)),
+            default => preg_match('#^/comptes/([1-9][0-9]{0,9})$#', $requete->chemin, $trouve) === 1
+                ? $this->pageConnectee($requete, Droits::GERER_COMPTES, fn (Compte $moi) => $this->ficheCompte($requete, $moi, (int) $trouve[1]))
+                : new Reponse(404, Pages::message('Page introuvable', 'Cette page n\'existe pas.')),
         };
+    }
+
+    /**
+     * Page réservée aux comptes connectés qui ont le droit demandé.
+     *
+     * @param callable(Compte): Reponse $page
+     */
+    private function pageConnectee(Requete $requete, string $droit, callable $page): Reponse
+    {
+        $moi = $this->compteConnecte();
+        if ($moi === null) {
+            return Reponse::redirection('/connexion');
+        }
+        if ($moi->doitChangerMotDePasse) {
+            return Reponse::redirection('/mot-de-passe');
+        }
+        if (!Droits::peut($moi->role, $droit)) {
+            (new Journal($this->pdo))->ecrire('administration', 'accès refusé', 'refus', $moi->id, $moi->nomAffiche, $requete->adresseIp, $requete->chemin);
+
+            return new Reponse(403, Pages::refus());
+        }
+        $this->session->noterActivite();
+
+        return $page($moi);
+    }
+
+    private function comptes(Requete $requete, Compte $moi): Reponse
+    {
+        if ($requete->chemin === '/comptes') {
+            return $this->seulementGet($requete) ?? new Reponse(200, Pages::comptes($this->session->jeton(), $this->comptes->liste(), null));
+        }
+        if ($requete->methode !== 'POST') {
+            return $this->seulementGet($requete) ?? new Reponse(200, Pages::nouveauCompte($this->session->jeton(), null, []));
+        }
+        $valeurs = ['identifiant' => $requete->champ('identifiant'), 'nom' => $requete->champ('nom'),
+            'email' => $requete->champ('email'), 'role' => $requete->champ('role')];
+        try {
+            $cree = $this->gestion($moi, $requete)->creer($valeurs['identifiant'], $valeurs['nom'], $valeurs['email'], $valeurs['role']);
+        } catch (ErreurSaisie $e) {
+            return new Reponse(200, Pages::nouveauCompte($this->session->jeton(), $e->getMessage(), $valeurs));
+        }
+
+        return new Reponse(200, Pages::motDePasseProvisoire(trim($valeurs['identifiant']), $cree['provisoire']));
+    }
+
+    private function ficheCompte(Requete $requete, Compte $moi, int $id): Reponse
+    {
+        $compte = $this->comptes->parId($id);
+        if ($compte === null) {
+            return new Reponse(404, Pages::message('Page introuvable', 'Ce compte n\'existe pas.'));
+        }
+        if ($requete->methode !== 'POST') {
+            return $this->seulementGet($requete) ?? new Reponse(200, Pages::ficheCompte($this->session->jeton(), $compte, $moi, null, null));
+        }
+        $gestion = $this->gestion($moi, $requete);
+        $information = '';
+        try {
+            switch ($requete->champ('action')) {
+                case 'modifier':
+                    $gestion->modifier($id, $requete->champ('nom'), $requete->champ('email'), $requete->champ('role'));
+                    $information = 'Modifications enregistrées.';
+                    break;
+                case 'mot_de_passe':
+                    return new Reponse(200, Pages::motDePasseProvisoire($compte->identifiant, $gestion->reinitialiserMotDePasse($id)));
+                case 'double_auth':
+                    $gestion->reinitialiserDoubleAuth($id);
+                    $information = 'Double authentification réinitialisée : le téléphone sera à relier à la prochaine connexion.';
+                    break;
+                case 'desactiver':
+                    $gestion->desactiver($id);
+                    $information = 'Compte désactivé.';
+                    break;
+                case 'reactiver':
+                    $gestion->reactiver($id);
+                    $information = 'Compte réactivé.';
+                    break;
+                default:
+                    return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+        } catch (ErreurSaisie $e) {
+            return new Reponse(200, Pages::ficheCompte($this->session->jeton(), $compte, $moi, $e->getMessage(), null));
+        }
+        // L'administrateur qui modifie son propre compte peut avoir fermé sa propre session.
+        if ($this->compteConnecte() === null) {
+            return Reponse::redirection('/connexion');
+        }
+        $apres = $this->comptes->parId($id) ?? $compte;
+
+        return new Reponse(200, Pages::ficheCompte($this->session->jeton(), $apres, $moi, null, $information));
+    }
+
+    private function gestion(Compte $moi, Requete $requete): GestionComptes
+    {
+        return new GestionComptes($this->pdo, $moi, $requete->adresseIp);
     }
 
     private function connexion(Requete $requete): Reponse
@@ -147,8 +247,9 @@ final class Application
         if ($refus !== null) {
             return new Reponse(200, Pages::changementMotDePasse($this->session->jeton(), $refus, $compte->doitChangerMotDePasse));
         }
-        // Nouvel identifiant de session après un changement de mot de passe.
-        $this->session->connecter($compte->id);
+        // Nouvel identifiant de session après un changement de mot de passe ;
+        // les autres sessions de ce compte sont fermées (génération +1).
+        $this->session->connecter($compte->id, $compte->generation + 1);
 
         return Reponse::redirection('/');
     }
@@ -183,7 +284,7 @@ final class Application
 
     private function connexionComplete(Compte $compte): Reponse
     {
-        $this->session->connecter($compte->id);
+        $this->session->connecter($compte->id, $compte->generation);
 
         return Reponse::redirection($compte->doitChangerMotDePasse ? '/mot-de-passe' : '/');
     }
@@ -209,7 +310,8 @@ final class Application
             return null;
         }
         $compte = $this->comptes->parId($id);
-        if ($compte === null || !$compte->actif) {
+        // Compte supprimé, désactivé, ou modifié depuis la connexion (rôle, réinitialisation) : session fermée.
+        if ($compte === null || !$compte->actif || $compte->generation !== $this->session->generation()) {
             $this->session->deconnecter();
 
             return null;

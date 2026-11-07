@@ -35,6 +35,7 @@ final class Compte
         public readonly ?int $bloqueJusqua,
         public readonly bool $actif,
         public readonly bool $doitChangerMotDePasse,
+        public readonly int $generation = 0,
     ) {
     }
 
@@ -63,6 +64,7 @@ final class Compte
             $bloque === null ? null : self::instant($bloque),
             self::entier($ligne, 'actif') === 1,
             self::entier($ligne, 'doit_changer_mdp') === 1,
+            self::entier($ligne, 'generation'),
         );
     }
 

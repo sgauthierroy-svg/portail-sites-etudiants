@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Portail\Web;
 
 use Portail\Comptes\Compte;
+use Portail\Comptes\Droits;
 use Portail\Securite\MotsDePasse;
 
 /**
@@ -77,17 +78,119 @@ final class Pages
 
     public static function accueil(string $jeton, Compte $compte): string
     {
+        $liens = [];
+        if (Droits::peut($compte->role, Droits::GERER_COMPTES)) {
+            $liens[] = '<li><a href="/comptes">Comptes du portail</a></li>';
+        }
+        $liens[] = '<li><a href="/mot-de-passe">Changer mon mot de passe</a></li>';
+
         return self::page('Portail des sites étudiants',
             '<p>Bonjour ' . Html::e($compte->nomAffiche) . ' (' . Html::e($compte->libelleRole()) . ').</p>'
-            . '<p>Les fonctions du portail arrivent avec les prochains lots.</p>'
-            . '<form method="post" action="/deconnexion">' . self::jeton($jeton)
-            . '<button type="submit">Se déconnecter</button></form>');
+            . '<ul>' . implode('', $liens) . '</ul>'
+            . '<p>Les autres fonctions du portail arrivent avec les prochains lots.</p>'
+            . self::boutonDeconnexion($jeton));
+    }
+
+    public static function refus(): string
+    {
+        return self::message('Accès refusé', 'Votre rôle ne permet pas cette action.');
+    }
+
+    /** @param list<Compte> $comptes */
+    public static function comptes(string $jeton, array $comptes, ?string $information): string
+    {
+        $lignes = '';
+        foreach ($comptes as $compte) {
+            $lignes .= '<tr><td><a href="/comptes/' . $compte->id . '">' . Html::e($compte->nomAffiche) . '</a></td>'
+                . '<td>' . Html::e($compte->identifiant) . '</td><td>' . Html::e($compte->libelleRole()) . '</td>'
+                . '<td>' . Html::e($compte->email) . '</td>'
+                . '<td>' . ($compte->doubleAuthActive ? 'activée' : 'à activer') . '</td>'
+                . '<td>' . ($compte->actif ? 'actif' : 'désactivé') . '</td></tr>';
+        }
+
+        return self::page('Comptes du portail', self::alerte(null, $information)
+            . '<p><a href="/comptes/nouveau">Créer un compte</a> · <a href="/">Accueil</a></p>'
+            . '<table><thead><tr><th>Nom</th><th>Identifiant</th><th>Rôle</th><th>E-mail</th>'
+            . '<th>Double authentification</th><th>État</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
+            . self::boutonDeconnexion($jeton));
+    }
+
+    /** @param array<string, string> $valeurs */
+    public static function nouveauCompte(string $jeton, ?string $erreur, array $valeurs): string
+    {
+        return self::page('Créer un compte', self::alerte($erreur, null)
+            . '<p>Un mot de passe provisoire sera affiché une seule fois, à transmettre à la personne. '
+            . 'Elle reliera son téléphone et choisira son mot de passe à sa première connexion.</p>'
+            . '<form method="post" action="/comptes/nouveau">' . self::jeton($jeton)
+            . self::saisie('identifiant', 'Identifiant de connexion (ex. cpetit)', $valeurs['identifiant'] ?? '')
+            . self::saisie('nom', 'Nom affiché (ex. Claire PETIT)', $valeurs['nom'] ?? '')
+            . self::saisie('email', 'Adresse e-mail', $valeurs['email'] ?? '', 'email')
+            . self::choixRole($valeurs['role'] ?? 'enseignant')
+            . '<button type="submit">Créer le compte</button></form><p><a href="/comptes">Retour aux comptes</a></p>');
+    }
+
+    public static function ficheCompte(string $jeton, Compte $compte, Compte $moi, ?string $erreur, ?string $information): string
+    {
+        $soi = $compte->id === $moi->id;
+        $action = '/comptes/' . $compte->id;
+        $bouton = static fn (string $valeur, string $libelle): string => '<form method="post" action="' . $action . '">'
+            . self::jeton($jeton) . '<input type="hidden" name="action" value="' . Html::e($valeur) . '">'
+            . '<button type="submit">' . Html::e($libelle) . '</button></form>';
+
+        return self::page('Compte ' . $compte->identifiant, self::alerte($erreur, $information)
+            . '<form method="post" action="' . $action . '">' . self::jeton($jeton)
+            . '<input type="hidden" name="action" value="modifier">'
+            . self::saisie('nom', 'Nom affiché', $compte->nomAffiche)
+            . self::saisie('email', 'Adresse e-mail', $compte->email, 'email')
+            . self::choixRole($compte->role)
+            . '<button type="submit">Enregistrer</button></form>'
+            . '<h2>Actions</h2>'
+            . '<p>Double authentification : ' . ($compte->doubleAuthActive ? 'activée' : 'à activer à la prochaine connexion') . '.</p>'
+            . $bouton('mot_de_passe', 'Réinitialiser le mot de passe')
+            . $bouton('double_auth', 'Réinitialiser le code à 6 chiffres (téléphone perdu ou changé)')
+            . ($compte->actif ? $bouton('desactiver', $soi ? 'Désactiver mon propre compte' : 'Désactiver le compte')
+                : $bouton('reactiver', 'Réactiver le compte'))
+            . '<p>Toute modification du rôle, toute réinitialisation et toute désactivation ferment immédiatement '
+            . 'les sessions ouvertes de ce compte.</p>'
+            . '<p><a href="/comptes">Retour aux comptes</a></p>');
+    }
+
+    public static function motDePasseProvisoire(string $identifiant, string $provisoire): string
+    {
+        return self::page('Mot de passe provisoire',
+            '<p>Mot de passe provisoire du compte <strong>' . Html::e($identifiant) . '</strong> :</p>'
+            . '<p><code>' . Html::e($provisoire) . '</code></p>'
+            . '<p>Il ne sera <strong>plus jamais affiché</strong>. Transmettez-le à la personne par un moyen sûr '
+            . '(de vive voix, ou par un autre canal que l\'identifiant). Elle devra le changer à sa première connexion.</p>'
+            . '<p><a href="/comptes">Retour aux comptes</a></p>');
     }
 
     private static function alerte(?string $erreur, ?string $information): string
     {
         return ($erreur === null ? '' : '<p role="alert"><strong>' . Html::e($erreur) . '</strong></p>')
             . ($information === null ? '' : '<p role="status">' . Html::e($information) . '</p>');
+    }
+
+    private static function boutonDeconnexion(string $jeton): string
+    {
+        return '<form method="post" action="/deconnexion">' . self::jeton($jeton) . '<button type="submit">Se déconnecter</button></form>';
+    }
+
+    private static function saisie(string $nom, string $libelle, string $valeur, string $type = 'text'): string
+    {
+        return '<p><label for="' . Html::e($nom) . '">' . Html::e($libelle) . '</label><br>'
+            . '<input id="' . Html::e($nom) . '" name="' . Html::e($nom) . '" type="' . Html::e($type) . '"'
+            . ' value="' . Html::e($valeur) . '" required maxlength="254"></p>';
+    }
+
+    private static function choixRole(string $actuel): string
+    {
+        $options = '';
+        foreach (Compte::LIBELLES_ROLES as $role => $libelle) {
+            $options .= '<option value="' . Html::e($role) . '"' . ($role === $actuel ? ' selected' : '') . '>' . Html::e($libelle) . '</option>';
+        }
+
+        return '<p><label for="role">Rôle</label><br><select id="role" name="role">' . $options . '</select></p>';
     }
 
     private static function jeton(string $jeton): string

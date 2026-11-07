@@ -79,7 +79,8 @@ final class DepotComptes
 
     public function changerMotDePasse(int $id, string $hache): void
     {
-        $requete = $this->pdo->prepare('UPDATE comptes SET mot_de_passe_hache = :hache, doit_changer_mdp = 0 WHERE id = :id');
+        // Génération +1 : les autres sessions ouvertes avec l'ancien mot de passe sont fermées.
+        $requete = $this->pdo->prepare('UPDATE comptes SET mot_de_passe_hache = :hache, doit_changer_mdp = 0, generation = generation + 1 WHERE id = :id');
         $requete->execute([':hache' => $hache, ':id' => $id]);
     }
 
@@ -88,6 +89,60 @@ final class DepotComptes
     {
         $requete = $this->pdo->prepare('UPDATE comptes SET mot_de_passe_hache = :hache WHERE id = :id');
         $requete->execute([':hache' => $hache, ':id' => $id]);
+    }
+
+    /** @return list<Compte> Tous les comptes, administrateurs d'abord */
+    public function liste(): array
+    {
+        $comptes = [];
+        $resultat = $this->pdo->query(
+            "SELECT * FROM comptes ORDER BY actif DESC, CASE role WHEN 'administrateur' THEN 0 WHEN 'enseignant' THEN 1
+             WHEN 'administratif' THEN 2 ELSE 3 END, nom_affiche"
+        );
+        /** @var list<array<string, mixed>> $lignes Mode de lecture : tableau associatif (Connexion) */
+        $lignes = $resultat === false ? [] : $resultat->fetchAll();
+        foreach ($lignes as $ligne) {
+            $comptes[] = Compte::depuisLigne($ligne);
+        }
+
+        return $comptes;
+    }
+
+    /** @param 'administrateur'|'enseignant'|'administratif'|'consultation' $role */
+    public function modifier(int $id, string $nomAffiche, string $email, string $role): void
+    {
+        $requete = $this->pdo->prepare(
+            'UPDATE comptes SET nom_affiche = :nom, email = :email,
+                    generation = generation + CASE WHEN role <> :role THEN 1 ELSE 0 END, role = :role2
+             WHERE id = :id'
+        );
+        $requete->execute([':nom' => $nomAffiche, ':email' => $email, ':role' => $role, ':role2' => $role, ':id' => $id]);
+    }
+
+    public function changerActif(int $id, bool $actif): void
+    {
+        $requete = $this->pdo->prepare('UPDATE comptes SET actif = :actif, generation = generation + 1 WHERE id = :id');
+        $requete->execute([':actif' => $actif ? 1 : 0, ':id' => $id]);
+    }
+
+    /** Mot de passe provisoire : à changer à la prochaine connexion ; le compte est débloqué. */
+    public function motDePasseProvisoire(int $id, string $hache): void
+    {
+        $requete = $this->pdo->prepare(
+            'UPDATE comptes SET mot_de_passe_hache = :hache, doit_changer_mdp = 1, echecs_consecutifs = 0,
+                    bloque_jusqu_a = NULL, generation = generation + 1 WHERE id = :id'
+        );
+        $requete->execute([':hache' => $hache, ':id' => $id]);
+    }
+
+    /** Le téléphone sera à relier de nouveau à la prochaine connexion. */
+    public function reinitialiserDoubleAuth(int $id): void
+    {
+        $requete = $this->pdo->prepare(
+            'UPDATE comptes SET secret_2fa_chiffre = NULL, double_auth_active = 0, dernier_pas_2fa = NULL,
+                    echecs_consecutifs = 0, bloque_jusqu_a = NULL, generation = generation + 1 WHERE id = :id'
+        );
+        $requete->execute([':id' => $id]);
     }
 
     private function compte(mixed $ligne): ?Compte

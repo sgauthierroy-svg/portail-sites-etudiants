@@ -211,6 +211,12 @@ final class Schema
                     valeur  TEXT NOT NULL CHECK (length(valeur) <= 5000)
                 );
                 SQL,
+            // Lot 3 : numéro de « génération » du compte. Il augmente à chaque
+            // réinitialisation, désactivation ou changement de rôle : toutes les
+            // sessions ouvertes avec l'ancien numéro sont aussitôt fermées.
+            2 => <<<SQL
+                ALTER TABLE comptes ADD COLUMN generation INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0);
+                SQL,
         ];
     }
 

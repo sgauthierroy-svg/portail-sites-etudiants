@@ -104,12 +104,18 @@ final class Session
 
     // ----- Connexion complète -----
 
-    public function connecter(int $compteId): void
+    public function connecter(int $compteId, int $generation): void
     {
         $this->stockage->regenerer();
         $maintenant = $this->horloge->maintenant();
-        $this->donnees = ['compte' => $compteId, 'connecte_le' => $maintenant, 'activite' => $maintenant];
+        $this->donnees = ['compte' => $compteId, 'generation' => $generation, 'connecte_le' => $maintenant, 'activite' => $maintenant];
         $this->jeton();
+    }
+
+    /** Génération du compte au moment de la connexion (voir Schema, version 2). */
+    public function generation(): ?int
+    {
+        return $this->entier('generation');
     }
 
     public function compteConnecte(): ?int
