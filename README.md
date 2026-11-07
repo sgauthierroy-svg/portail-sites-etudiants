@@ -19,13 +19,13 @@ Portail web sécurisé qui permet à l'équipe pédagogique et administrative de
 | --- | --- | --- |
 | `public/` | La seule page exposée au web, qui appelle le reste | `~/portail/public` |
 | `app/` | Le code du portail | `~/portail/app` |
-| `bin/` | Commandes lancées en SSH ou par tâche planifiée (secours, relevés) | `~/portail/app/bin` |
+| `bin/` | Commandes lancées en SSH ou par tâche planifiée (installation, secours, relevés) | `~/portail/bin` |
 | `config/` | Modèle de configuration, sans aucune valeur secrète | copie remplie dans `~/portail/data/config.php` |
 | `tests/` | Tests automatiques | non copié |
 | `docs/` | Guide de l'administrateur, fiche de passation | non copié |
 | `outils/` | Contrôles automatiques (développement uniquement) | non copié |
 
-Sur le serveur, `~/portail/data` (base, sessions, configuration) et `~/portail/logs` (journal des erreurs) sont en droits `700` et ne sont jamais accessibles depuis le web.
+Sur le serveur, `~/portail/data` (base, sessions, configuration) et `~/portail/logs` (journal des erreurs) sont en droits `700` et ne sont jamais accessibles depuis le web. Les dossiers `app`, `bin`, `data` et `logs` sont voisins de `public`, jamais à l'intérieur.
 
 ## Contrôles automatiques
 

@@ -5,7 +5,8 @@
          failOnWarning="true"
          failOnRisky="true"
          beStrictAboutOutputDuringTests="true"
-         executionOrder="random">
+         executionOrder="random"
+         bootstrap="tests/bootstrap.php">
     <testsuites>
         <testsuite name="portail">
             <directory suffix="Test.php">tests</directory>
