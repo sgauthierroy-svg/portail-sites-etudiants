@@ -145,7 +145,7 @@ final class PagesEtudiants
             }
             $contenu .= '<h2>Changer de régime' . ($peutSession ? ' ou de session' : '') . '</h2>'
                 . '<p>Passage FI ↔ ALT : changez le régime. Redoublement : changez la session'
-                . ($peutSession ? '' : ' (enseignant ou administrateur)') . '. Les deux peuvent changer en une seule fois. '
+                . ($peutSession ? '' : ' (droit non attribué à ce compte)') . '. Les deux peuvent changer en une seule fois. '
                 . 'Les sites ne sont pas modifiés ici.</p>'
                 . '<form method="post" action="' . $action . '">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="parcours">'
                 . '<p><label for="regime">Régime</label><br><select id="regime" name="regime">' . $optionsRegimes . '</select></p>'

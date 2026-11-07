@@ -56,8 +56,8 @@ final class RolesEtComptesTest extends TestCase
         $refuses = [
             'enseignant' => [Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES],
             'administratif' => [Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES,
-                Droits::REINITIALISER_SITE, Droits::BIBLIOTHEQUE, Droits::CHANGER_SESSION],
-            'consultation' => [Droits::IMPORTER, Droits::CREER_ETUDIANT, Droits::MODIFIER_ETUDIANT, Droits::DEMANDER,
+                Droits::REINITIALISER_SITE, Droits::BIBLIOTHEQUE],
+            'consultation' => [Droits::CHANGER_SESSION, Droits::REGIMES_SESSIONS, Droits::IMPORTER, Droits::CREER_ETUDIANT, Droits::MODIFIER_ETUDIANT, Droits::DEMANDER,
                 Droits::SUPPRIMER, Droits::GERER_COMPTES, Droits::REINITIALISER_SITE],
         ];
         foreach ($refuses as $role => $droits) {

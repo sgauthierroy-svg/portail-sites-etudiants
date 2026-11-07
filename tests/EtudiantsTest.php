@@ -183,17 +183,20 @@ final class EtudiantsTest extends TestCase
         self::assertStringContainsString('NDRC FI → NDRC ALT', $this->en('pmoreau', 'GET', '/etudiants/' . $id)->corps);
     }
 
-    public function testSeulsEnseignantEtAdministrateurChangentLaSession(): void
+    public function testEnseignantAdministratifEtAdministrateurChangentLaSession(): void
     {
         $id = $this->ajouter('MARTIN', 'Élodie', 'martinel', $this->s2027);
-        $refus = $this->en('jroux', 'POST', '/etudiants/' . $id, ['action' => 'parcours', 'regime' => (string) $this->fi, 'session' => (string) $this->s2028]);
-        self::assertSame(403, $refus->statut, 'Formulaire forgé par l\'administratif');
+        $refus = $this->en('pmoreau', 'POST', '/etudiants/' . $id, ['action' => 'parcours', 'regime' => (string) $this->fi, 'session' => (string) $this->s2028]);
+        self::assertSame(403, $refus->statut, 'Formulaire forgé par la consultation');
         self::assertSame($this->s2027, $this->nombre('SELECT session_id FROM etudiants WHERE id = ' . $id));
+        self::assertStringContainsString('<select id="session" name="session">', $this->en('jroux', 'GET', '/etudiants/' . $id)->corps);
 
-        // Redoublant qui change aussi de régime (cas 7) : une seule opération.
-        $this->en('cpetit', 'POST', '/etudiants/' . $id, ['action' => 'parcours', 'regime' => (string) $this->alt, 'session' => (string) $this->s2028]);
+        // Redoublant qui change aussi de régime (cas 7) : une seule opération, par l'administratif.
+        $this->en('jroux', 'POST', '/etudiants/' . $id, ['action' => 'parcours', 'regime' => (string) $this->alt, 'session' => (string) $this->s2028]);
         self::assertSame(2, $this->nombre('SELECT count(*) FROM historique_etudiants'));
-        self::assertSame('2027 → 2028', $this->texte("SELECT ancienne_valeur || ' → ' || nouvelle_valeur FROM historique_etudiants WHERE champ = 'session'"));
+        self::assertSame('2027 → 2028 par Jroux', $this->texte("SELECT ancienne_valeur || ' → ' || nouvelle_valeur || ' par ' || auteur_nom FROM historique_etudiants WHERE champ = 'session'"));
+        $this->en('cpetit', 'POST', '/etudiants/' . $id, ['action' => 'parcours', 'regime' => (string) $this->alt, 'session' => (string) $this->s2027]);
+        self::assertSame($this->s2027, $this->nombre('SELECT session_id FROM etudiants WHERE id = ' . $id), 'Et par l\'enseignant');
         self::assertSame('martinel', $this->texte('SELECT identifiant FROM etudiants WHERE id = ' . $id), 'L\'identifiant ne change jamais');
     }
 

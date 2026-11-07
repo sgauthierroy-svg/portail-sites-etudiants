@@ -6,7 +6,8 @@ namespace Portail\Comptes;
 
 /**
  * Qui peut faire quoi (cahier des charges, section « Utilisateurs, rôles et droits »,
- * décisions des 29/10 et 07/11/2026).
+ * décisions des 29/10 et 07/11/2026 : l'administratif crée régimes
+ * et sessions et change la session d'un étudiant).
  *
  * Chaque droit est vérifié par le serveur à chaque requête : masquer un bouton
  * ne suffit jamais. Un droit absent du tableau est refusé à tous.
@@ -41,7 +42,7 @@ final class Droits
         ],
         'administratif' => [
             self::CONSULTER, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT, self::DEMANDER,
-            self::REGIMES_SESSIONS, // décision du 07/11/2026
+            self::REGIMES_SESSIONS, self::CHANGER_SESSION, // décisions du 07/11/2026
         ],
         'consultation' => [
             self::CONSULTER, self::JOURNAL,

@@ -175,8 +175,9 @@ final class Application
                     case 'parcours':
                         $regimeId = self::idFacultatif($requete->champ('regime')) ?? 0;
                         $sessionId = self::idFacultatif($requete->champ('session')) ?? 0;
-                        // Régime : enseignant, administratif, administrateur (cas 4).
-                        // Session (redoublement, cas 5 à 7) : enseignant et administrateur seulement.
+                        // Régime (cas 4) et session (redoublement, cas 5 à 7) : enseignant,
+                        // administratif et administrateur (décision du 07/11/2026). Les deux droits
+                        // restent distincts pour pouvoir les séparer plus tard sans toucher aux pages.
                         if (!Droits::peut($moi->role, Droits::MODIFIER_ETUDIANT)
                             || ($sessionId !== $etudiant->sessionId && !Droits::peut($moi->role, Droits::CHANGER_SESSION))) {
                             return $this->refuser($requete, $moi);

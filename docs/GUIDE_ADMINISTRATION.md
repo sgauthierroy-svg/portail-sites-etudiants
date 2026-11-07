@@ -20,7 +20,7 @@ La même page permet d'indiquer la **version WordPress gelée** de chaque sessio
 
 ### Redoublants et changements de régime
 
-Ils se modifient sur la fiche de l'étudiant (session et/ou régime, en une seule fois si besoin). Le régime peut être changé par un enseignant, un administratif ou l'administrateur ; la session (redoublement), seulement par un enseignant ou l'administrateur. Chaque changement est inscrit dans le **parcours** de l'étudiant (date, avant → après, auteur) et au journal. L'identifiant, lui, ne change jamais.
+Ils se modifient sur la fiche de l'étudiant (session et/ou régime, en une seule fois si besoin). Le régime et la session (redoublement) peuvent être changés par un enseignant, un administratif ou l'administrateur. Chaque changement est inscrit dans le **parcours** de l'étudiant (date, avant → après, auteur) et au journal. L'identifiant, lui, ne change jamais.
 
 À partir de la V2, le portail proposera alors les actions sur les sites : réinitialisation de `/WP` pour un redoublant de 1re année, de `/Presta` pour un redoublant de 2e année. Rien ne sera fait sans confirmation. En V1, aucun site n'est touché.
 
