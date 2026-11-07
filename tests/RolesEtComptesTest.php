@@ -57,8 +57,8 @@ final class RolesEtComptesTest extends TestCase
             'enseignant' => [Droits::JOURNAL_CONNEXIONS, Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES],
             'administratif' => [Droits::JOURNAL_CONNEXIONS, Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES,
                 Droits::REINITIALISER_SITE, Droits::BIBLIOTHEQUE],
-            'consultation' => [Droits::JOURNAL_CONNEXIONS, Droits::VOIR_FICHE, Droits::CHANGER_SESSION, Droits::REGIMES_SESSIONS, Droits::IMPORTER, Droits::CREER_ETUDIANT, Droits::MODIFIER_ETUDIANT, Droits::DEMANDER,
-                Droits::SUPPRIMER, Droits::GERER_COMPTES, Droits::REINITIALISER_SITE],
+            'consultation' => [Droits::VOIR_FICHE, Droits::CHANGER_SESSION, Droits::REGIMES_SESSIONS, Droits::IMPORTER, Droits::CREER_ETUDIANT, Droits::MODIFIER_ETUDIANT, Droits::DEMANDER,
+                Droits::SUPPRIMER, Droits::REINITIALISER_SITE, Droits::TRAITER_DEMANDES, Droits::PARAMETRES, Droits::BIBLIOTHEQUE],
         ];
         foreach ($refuses as $role => $droits) {
             foreach ($droits as $droit) {
@@ -71,24 +71,25 @@ final class RolesEtComptesTest extends TestCase
             self::assertTrue(Droits::peut($role, Droits::REGIMES_SESSIONS), $role . ' crée régimes et sessions');
         }
         self::assertFalse(Droits::peut('consultation', Droits::REGIMES_SESSIONS));
-        self::assertSame([Droits::CONSULTER, Droits::JOURNAL], Droits::de('consultation'));
+        self::assertSame([Droits::CONSULTER, Droits::JOURNAL, Droits::JOURNAL_CONNEXIONS, Droits::GERER_COMPTES], Droits::de('consultation'),
+            'Direction : suivi et secours sur les comptes (07/11/2026)');
         self::assertTrue(Droits::peut('administrateur', Droits::SUPPRIMER), 'Seul l\'administrateur supprime');
         self::assertFalse(Droits::peut('superadmin', Droits::CONSULTER));
         self::assertFalse(Droits::peut('administrateur', 'droit_inexistant'));
     }
 
-    public function testSeulLAdministrateurAccedeALaGestionDesComptes(): void
+    public function testSeulsLAdministrateurEtLaDirectionAccedentALaGestionDesComptes(): void
     {
-        foreach (['mzanelli' => 200, 'cpetit' => 403, 'jroux' => 403, 'pmoreau' => 403] as $id => $attendu) {
+        foreach (['mzanelli' => 200, 'cpetit' => 403, 'jroux' => 403, 'pmoreau' => 200] as $id => $attendu) {
             self::assertSame($attendu, $this->en($id, 'GET', '/comptes')->statut, $id . ' /comptes');
             self::assertSame($attendu, $this->en($id, 'GET', '/comptes/' . $this->ids['cpetit'])->statut, $id . ' fiche');
         }
-        self::assertSame(3, $this->nombre("SELECT count(*) FROM journal WHERE action = 'accès refusé'") / 2);
+        self::assertSame(2, $this->nombre("SELECT count(*) FROM journal WHERE action = 'accès refusé'") / 2);
     }
 
     public function testUnRoleSansDroitNePeutPasCreerDeCompteMemeEnForgeantLeFormulaire(): void
     {
-        foreach (['cpetit', 'jroux', 'pmoreau'] as $id) {
+        foreach (['cpetit', 'jroux'] as $id) {
             $reponse = $this->en($id, 'POST', '/comptes/nouveau', ['identifiant' => 'pirate' . $id, 'nom' => 'X', 'email' => 'x@exemple.fr', 'role' => 'administrateur']);
             self::assertSame(403, $reponse->statut);
         }
@@ -159,7 +160,7 @@ final class RolesEtComptesTest extends TestCase
 
         $this->assertRedirection('/connexion', $this->traiter($navigateurClaire, 'GET', '/'));
         self::assertSame('consultation', $this->texte("SELECT role FROM comptes WHERE identifiant = 'cpetit'"));
-        self::assertSame(1, $this->nombre("SELECT count(*) FROM journal WHERE action = 'modification de compte' AND detail LIKE '%Enseignant → Consultation%'"));
+        self::assertSame(1, $this->nombre("SELECT count(*) FROM journal WHERE action = 'modification de compte' AND detail LIKE '%Enseignant → Direction (suivi et secours)%'"));
     }
 
     public function testDesactiverFermeLaSessionEtEmpecheLaConnexion(): void

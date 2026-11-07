@@ -17,7 +17,9 @@ final class Compte
         'administrateur' => 'Administrateur',
         'enseignant' => 'Enseignant',
         'administratif' => 'Administratif',
-        'consultation' => 'Consultation',
+        // Rôle de la direction adjointe (décision du 07/11/2026). La valeur enregistrée
+        // reste « consultation » : la base n'a pas à être reconstruite pour un libellé.
+        'consultation' => 'Direction (suivi et secours)',
     ];
 
     /** @param 'administrateur'|'enseignant'|'administratif'|'consultation' $role */

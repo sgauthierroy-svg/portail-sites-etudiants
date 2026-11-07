@@ -71,7 +71,7 @@ La commande affiche **une seule fois** un mot de passe provisoire, à transmettr
 
 Le compte `sgauthierroy` est temporaire (développement et tests) : à la remise du portail, le passer en enseignant ou le désactiver.
 
-### Gérer les comptes (dans le portail, administrateur seulement)
+### Gérer les comptes (dans le portail : administrateur ou direction)
 
 Menu « Comptes du portail » : créer un compte, changer le nom, l'e-mail ou le rôle, réinitialiser le mot de passe (nouveau mot de passe provisoire affiché une fois), réinitialiser le code à 6 chiffres (téléphone perdu ou changé), désactiver ou réactiver.
 
@@ -79,6 +79,30 @@ Menu « Comptes du portail » : créer un compte, changer le nom, l'e-mail ou le
 - Changer le rôle, réinitialiser ou désactiver ferme **immédiatement** les sessions ouvertes de la personne.
 - Le dernier administrateur actif ne peut être ni désactivé ni rétrogradé.
 - Chaque action est inscrite au journal (catégorie « administration », conservée 1 an).
+- **Revue tous les 6 mois** : un compte actif qui n'a pas été confirmé depuis 6 mois (création ou dernière revue) apparaît sur la page d'accueil, rubrique « Comptes à revoir ». Ouvrir le compte, puis **Confirmer** s'il est toujours nécessaire, ou **Désactiver** sinon. C'est la revue régulière des droits demandée par la CNIL (« Gérer les utilisateurs »).
+
+### Remplacement ou formation d'un enseignant
+
+Pas de compte partagé : la CNIL demande d'« éviter les comptes génériques partagés entre plusieurs personnes ». Pour un arrêt maladie, un remplacement ou un enseignant à former :
+
+1. Comptes du portail → Créer un compte, rôle **Enseignant**, au nom de la personne.
+2. Lui transmettre de vive voix le mot de passe provisoire affiché.
+3. À sa première connexion, elle relie son propre téléphone et choisit son mot de passe.
+4. À son départ : **Désactiver** le compte. Un oubli sera rattrapé par la revue des 6 mois.
+
+## Continuité : si personne n'est là
+
+Le rôle **Direction (suivi et secours)** est attribué à la direction adjointe. En temps normal, il sert au suivi : liste des étudiants et classes (en V2 : sites en activité et alertes, affichés dans le portail, jamais envoyés par e-mail). Il ne donne accès ni aux fiches détaillées, ni aux sites, ni aux réglages.
+
+En cas d'absence de l'informaticien et de l'enseignante référente, il donne les **pleins pouvoirs sur les comptes** :
+
+- créer un compte de n'importe quel rôle, y compris **administrateur** (nouvel informaticien, prestataire, remplaçant) ;
+- désactiver un compte, redonner un mot de passe provisoire, réinitialiser le code à 6 chiffres ;
+- lire le journal complet, connexions comprises.
+
+Chaque action de la direction sur les comptes est inscrite deux fois au journal, dont une fois comme « action de secours de la direction ». Elle s'affiche pendant 30 jours sur la page d'accueil de chaque administrateur ; l'envoi d'un e-mail viendra avec le lot des alertes. Un administrateur qui découvre une action inattendue désactive le compte concerné et prévient la direction.
+
+Si **plus personne ne peut se connecter** (tous les administrateurs et la direction partis, ou téléphones perdus), le dernier recours est l'accès au compte O2switch : **Commande de secours** ci-dessus. Les identifiants O2switch, du domaine et des autres outils sont recensés dans le **dossier de continuité**, détenu par la direction.
 
 ### Commande de secours
 
@@ -95,6 +119,7 @@ L'accès SSH au compte O2switch est donc la clé de secours du portail : ses ide
 
 ### Départ de l'administrateur
 
-1. L'administrateur sortant crée le compte de son successeur, qui active sa double authentification.
+1. L'administrateur sortant (ou, à défaut, la direction) crée le compte de son successeur, qui active sa double authentification.
 2. Le sortant désactive son propre compte (sans le supprimer).
 3. Changer les mots de passe partagés qu'il connaissait : porte d'entrée (`supsallanches`), boîte `portail@bts-sup-sallanches.com`.
+4. Mettre à jour le dossier de continuité (nom du nouvel administrateur, propriétaires des outils).

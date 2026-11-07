@@ -55,4 +55,27 @@ final class Journal
     {
         return mb_substr($texte, 0, $longueur, 'UTF-8');
     }
+
+    /**
+     * Entrées récentes pour une action donnée (alertes de la page d'accueil).
+     *
+     * @return list<array{date: string, auteur: string, cible: string, detail: string}>
+     */
+    public function recentes(string $action, string $depuis): array
+    {
+        $requete = $this->pdo->prepare('SELECT date, compte_nom, cible, detail FROM journal
+            WHERE action = :action AND date >= :depuis ORDER BY date DESC, id DESC LIMIT 50');
+        $requete->execute([':action' => $action, ':depuis' => $depuis]);
+        $liste = [];
+        foreach (\Portail\Base\Lecture::lignes($requete) as $ligne) {
+            $liste[] = [
+                'date' => \Portail\Base\Lecture::texte($ligne['date'] ?? null) ?? '',
+                'auteur' => \Portail\Base\Lecture::texte($ligne['compte_nom'] ?? null) ?? '',
+                'cible' => \Portail\Base\Lecture::texte($ligne['cible'] ?? null) ?? '',
+                'detail' => \Portail\Base\Lecture::texte($ligne['detail'] ?? null) ?? '',
+            ];
+        }
+
+        return $liste;
+    }
 }

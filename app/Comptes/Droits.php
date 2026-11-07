@@ -49,10 +49,13 @@ final class Droits
             self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT, self::DEMANDER,
             self::REGIMES_SESSIONS, self::CHANGER_SESSION, // décisions du 07/11/2026
         ],
-        // Direction adjointe : suivi à distance (classes ; sites en activité et alertes en V2,
-        // affichées dans le portail, jamais envoyées par e-mail). Pas de fiche détaillée.
+        // Direction adjointe (libellé « Direction ») : suivi à distance (classes ; sites en
+        // activité et alertes en V2, affichés dans le portail, jamais envoyés par e-mail), pas
+        // de fiche détaillée. Secours (décision du 07/11/2026) : tous les comptes, y compris
+        // créer un administrateur, et le journal complet. Chaque action de secours est signalée
+        // aux administrateurs (GestionComptes).
         'consultation' => [
-            self::CONSULTER, self::JOURNAL,
+            self::CONSULTER, self::JOURNAL, self::JOURNAL_CONNEXIONS, self::GERER_COMPTES,
         ],
     ];
 

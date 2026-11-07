@@ -217,6 +217,12 @@ final class Schema
             2 => <<<SQL
                 ALTER TABLE comptes ADD COLUMN generation INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0);
                 SQL,
+            // Revue des comptes (décision du 07/11/2026) : alerte quand un compte actif
+            // n'a pas été confirmé depuis 6 mois (CNIL, « Gérer les utilisateurs » :
+            // revue régulière des droits accordés).
+            3 => <<<SQL
+                ALTER TABLE comptes ADD COLUMN revu_le TEXT;
+                SQL,
         ];
     }
 

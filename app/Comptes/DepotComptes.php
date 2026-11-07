@@ -160,6 +160,44 @@ final class DepotComptes
         $requete->execute([':filtre' => $filtre, ':id' => $id]);
     }
 
+    /**
+     * Comptes actifs non confirmés depuis la limite (création ou dernière revue).
+     *
+     * @return list<array{id: int, identifiant: string, nom: string, depuis: string}>
+     */
+    public function aRevoir(string $limite): array
+    {
+        $requete = $this->pdo->prepare('SELECT id, identifiant, nom_affiche, coalesce(revu_le, cree_le) AS depuis FROM comptes
+            WHERE actif = 1 AND coalesce(revu_le, cree_le) < :limite ORDER BY depuis');
+        $requete->execute([':limite' => $limite]);
+        $liste = [];
+        foreach (Lecture::lignes($requete) as $ligne) {
+            $id = Lecture::entier($ligne['id'] ?? null);
+            $identifiant = Lecture::texte($ligne['identifiant'] ?? null);
+            $nom = Lecture::texte($ligne['nom_affiche'] ?? null);
+            $depuis = Lecture::texte($ligne['depuis'] ?? null);
+            if ($id !== null && $identifiant !== null && $nom !== null && $depuis !== null) {
+                $liste[] = ['id' => $id, 'identifiant' => $identifiant, 'nom' => $nom, 'depuis' => $depuis];
+            }
+        }
+
+        return $liste;
+    }
+
+    public function marquerRevu(int $id, string $date): void
+    {
+        $requete = $this->pdo->prepare('UPDATE comptes SET revu_le = :date WHERE id = :id');
+        $requete->execute([':date' => $date, ':id' => $id]);
+    }
+
+    public function revuLe(int $id): ?string
+    {
+        $requete = $this->pdo->prepare('SELECT coalesce(revu_le, cree_le) FROM comptes WHERE id = :id');
+        $requete->execute([':id' => $id]);
+
+        return Lecture::texte($requete->fetchColumn());
+    }
+
     private function compte(mixed $ligne): ?Compte
     {
         return is_array($ligne) ? Compte::depuisLigne($ligne) : null;

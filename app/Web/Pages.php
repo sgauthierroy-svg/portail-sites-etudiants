@@ -76,8 +76,33 @@ final class Pages
             . '<button type="submit">Enregistrer</button></form>');
     }
 
-    public static function accueil(string $jeton, Compte $compte): string
+    /**
+     * @param list<array{id: int, identifiant: string, nom: string, depuis: string}> $aRevoir
+     * @param list<array{date: string, auteur: string, cible: string, detail: string}> $secours
+     */
+    public static function accueil(string $jeton, Compte $compte, array $aRevoir = [], array $secours = []): string
     {
+        $alertes = '';
+        if ($secours !== []) {
+            $lignes = '';
+            foreach ($secours as $trace) {
+                $lignes .= '<li>' . Html::e(self::jour($trace['date'])) . ' – ' . Html::e($trace['auteur']) . ' : '
+                    . Html::e($trace['detail']) . ' – compte ' . Html::e($trace['cible']) . '</li>';
+            }
+            $alertes .= '<section role="alert"><h2>Actions de secours de la direction (30 derniers jours)</h2>'
+                . '<p>Vérifiez qu\'elles étaient attendues. Sinon, désactivez le compte concerné et prévenez la direction.</p>'
+                . '<ul>' . $lignes . '</ul></section>';
+        }
+        if ($aRevoir !== []) {
+            $lignes = '';
+            foreach ($aRevoir as $revue) {
+                $lignes .= '<li><a href="/comptes/' . $revue['id'] . '">' . Html::e($revue['nom']) . ' (' . Html::e($revue['identifiant']) . ')</a>'
+                    . ' – non confirmé depuis le ' . Html::e(self::jour($revue['depuis'])) . '</li>';
+            }
+            $alertes .= '<section role="alert"><h2>Comptes à revoir (plus de 6 mois)</h2>'
+                . '<p>Pour chacun : la personne en a-t-elle toujours besoin ? Ouvrez le compte, puis confirmez-le ou désactivez-le.</p>'
+                . '<ul>' . $lignes . '</ul></section>';
+        }
         $liens = [];
         if (Droits::peut($compte->role, Droits::CONSULTER)) {
             $liens[] = '<li><a href="/etudiants">Étudiants</a></li>';
@@ -92,6 +117,7 @@ final class Pages
 
         return self::page('Portail des sites étudiants',
             '<p>Bonjour ' . Html::e($compte->nomAffiche) . ' (' . Html::e($compte->libelleRole()) . ').</p>'
+            . $alertes
             . '<ul>' . implode('', $liens) . '</ul>'
             . '<p>Les autres fonctions du portail arrivent avec les prochains lots.</p>'
             . self::boutonDeconnexion($jeton));
@@ -135,7 +161,7 @@ final class Pages
             . '<button type="submit">Créer le compte</button></form><p><a href="/comptes">Retour aux comptes</a></p>');
     }
 
-    public static function ficheCompte(string $jeton, Compte $compte, Compte $moi, ?string $erreur, ?string $information): string
+    public static function ficheCompte(string $jeton, Compte $compte, Compte $moi, ?string $erreur, ?string $information, ?string $revuLe = null): string
     {
         $soi = $compte->id === $moi->id;
         $action = '/comptes/' . $compte->id;
@@ -154,6 +180,11 @@ final class Pages
             . '<p>Double authentification : ' . ($compte->doubleAuthActive ? 'activée' : 'à activer à la prochaine connexion') . '.</p>'
             . $bouton('mot_de_passe', 'Réinitialiser le mot de passe')
             . $bouton('double_auth', 'Réinitialiser le code à 6 chiffres (téléphone perdu ou changé)')
+            . ($compte->actif && $revuLe !== null
+                ? '<p>Dernière confirmation que ce compte est nécessaire : ' . Html::e(self::jour($revuLe))
+                    . ' (création ou revue). Le portail le signale au bout de 6 mois.</p>'
+                    . $bouton('confirmer', 'Confirmer : ce compte est toujours nécessaire')
+                : '')
             . ($compte->actif ? $bouton('desactiver', $soi ? 'Désactiver mon propre compte' : 'Désactiver le compte')
                 : $bouton('reactiver', 'Réactiver le compte'))
             . '<p>Toute modification du rôle, toute réinitialisation et toute désactivation ferment immédiatement '
@@ -217,5 +248,13 @@ final class Pages
         return '<p><label for="code">Code à 6 chiffres</label><br>'
             . '<input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7"'
             . ' autocomplete="one-time-code" required autofocus></p>';
+    }
+
+    /** « 2026-11-07T13:45:00Z » → « 07/11/2026 » */
+    private static function jour(string $date): string
+    {
+        $instant = strtotime($date);
+
+        return $instant === false ? $date : gmdate('d/m/Y', $instant);
     }
 }

@@ -19,6 +19,12 @@ use Portail\Securite\MotsDePasse;
  */
 final class GestionComptes
 {
+    /** Trace complémentaire de chaque action de la direction sur les comptes. */
+    public const ACTION_SECOURS = 'action de secours de la direction';
+
+    /** Un compte actif non confirmé depuis ce délai apparaît dans « Comptes à revoir ». */
+    public const DELAI_REVUE = '-6 months';
+
     private readonly DepotComptes $comptes;
     private readonly Journal $journal;
 
@@ -90,6 +96,22 @@ final class GestionComptes
         $this->tracer('réinitialisation de la double authentification', $compte->identifiant);
     }
 
+    /** Confirme qu'un compte est toujours nécessaire : il quitte « Comptes à revoir » pour 6 mois. */
+    public function confirmer(int $id, int $maintenant): void
+    {
+        $compte = $this->trouver($id);
+        $this->comptes->marquerRevu($id, gmdate('Y-m-d\\TH:i:s\\Z', $maintenant));
+        $this->tracer('revue de compte', $compte->identifiant, 'toujours nécessaire');
+    }
+
+    /** @return list<array{id: int, identifiant: string, nom: string, depuis: string}> */
+    public function aRevoir(int $maintenant): array
+    {
+        $limite = strtotime(self::DELAI_REVUE, $maintenant);
+
+        return $this->comptes->aRevoir(gmdate('Y-m-d\\TH:i:s\\Z', $limite === false ? $maintenant : $limite));
+    }
+
     private function trouver(int $id): Compte
     {
         $compte = $this->comptes->parId($id);
@@ -145,5 +167,11 @@ final class GestionComptes
     {
         $this->journal->ecrire('administration', $action, 'succes', $this->auteur?->id,
             $this->auteur !== null ? $this->auteur->nomAffiche : 'commande de secours (SSH)', $this->adresseIp, $cible, $detail);
+        // Toute action de la direction sur les comptes est une action de secours :
+        // elle est signalée aux administrateurs (page d'accueil ; e-mail avec le lot des alertes).
+        if ($this->auteur !== null && $this->auteur->role === 'consultation') {
+            $this->journal->ecrire('administration', self::ACTION_SECOURS, 'succes', $this->auteur->id,
+                $this->auteur->nomAffiche, $this->adresseIp, $cible, $action . ($detail === null ? '' : ' (' . $detail . ')'));
+        }
     }
 }

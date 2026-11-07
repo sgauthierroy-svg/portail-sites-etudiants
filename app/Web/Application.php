@@ -318,7 +318,7 @@ final class Application
             return new Reponse(404, Pages::message('Page introuvable', 'Ce compte n\'existe pas.'));
         }
         if ($requete->methode !== 'POST') {
-            return $this->seulementGet($requete) ?? new Reponse(200, Pages::ficheCompte($this->session->jeton(), $compte, $moi, null, null));
+            return $this->seulementGet($requete) ?? new Reponse(200, Pages::ficheCompte($this->session->jeton(), $compte, $moi, null, null, $this->comptes->revuLe($id)));
         }
         $gestion = $this->gestion($moi, $requete);
         $information = '';
@@ -342,11 +342,15 @@ final class Application
                     $gestion->reactiver($id);
                     $information = 'Compte réactivé.';
                     break;
+                case 'confirmer':
+                    $gestion->confirmer($id, $this->horloge->maintenant());
+                    $information = 'Compte confirmé : il ne sera plus signalé avant 6 mois.';
+                    break;
                 default:
                     return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
             }
         } catch (ErreurSaisie $e) {
-            return new Reponse(200, Pages::ficheCompte($this->session->jeton(), $compte, $moi, $e->getMessage(), null));
+            return new Reponse(200, Pages::ficheCompte($this->session->jeton(), $compte, $moi, $e->getMessage(), null, $this->comptes->revuLe($id)));
         }
         // L'administrateur qui modifie son propre compte peut avoir fermé sa propre session.
         if ($this->compteConnecte() === null) {
@@ -354,7 +358,7 @@ final class Application
         }
         $apres = $this->comptes->parId($id) ?? $compte;
 
-        return new Reponse(200, Pages::ficheCompte($this->session->jeton(), $apres, $moi, null, $information));
+        return new Reponse(200, Pages::ficheCompte($this->session->jeton(), $apres, $moi, null, $information, $this->comptes->revuLe($id)));
     }
 
     private function gestion(Compte $moi, Requete $requete): GestionComptes
@@ -483,7 +487,14 @@ final class Application
         }
         $this->session->noterActivite();
 
-        return $this->seulementGet($requete) ?? new Reponse(200, Pages::accueil($this->session->jeton(), $compte));
+        $maintenant = $this->horloge->maintenant();
+        $aRevoir = Droits::peut($compte->role, Droits::GERER_COMPTES)
+            ? (new GestionComptes($this->pdo, $compte, $requete->adresseIp))->aRevoir($maintenant) : [];
+        // Les actions de secours de la direction sont signalées aux administrateurs (30 derniers jours).
+        $secours = $compte->role === 'administrateur'
+            ? (new Journal($this->pdo))->recentes(GestionComptes::ACTION_SECOURS, gmdate('Y-m-d\\TH:i:s\\Z', $maintenant - 30 * 86400)) : [];
+
+        return $this->seulementGet($requete) ?? new Reponse(200, Pages::accueil($this->session->jeton(), $compte, $aRevoir, $secours));
     }
 
     private function connexionComplete(Compte $compte): Reponse
