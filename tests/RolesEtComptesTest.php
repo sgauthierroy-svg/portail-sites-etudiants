@@ -56,7 +56,7 @@ final class RolesEtComptesTest extends TestCase
         $refuses = [
             'enseignant' => [Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES],
             'administratif' => [Droits::SUPPRIMER, Droits::TRAITER_DEMANDES, Droits::GERER_COMPTES, Droits::PARAMETRES,
-                Droits::REINITIALISER_SITE, Droits::BIBLIOTHEQUE, Droits::CHANGER_SESSION, Droits::REGIMES_SESSIONS],
+                Droits::REINITIALISER_SITE, Droits::BIBLIOTHEQUE, Droits::CHANGER_SESSION],
             'consultation' => [Droits::IMPORTER, Droits::CREER_ETUDIANT, Droits::MODIFIER_ETUDIANT, Droits::DEMANDER,
                 Droits::SUPPRIMER, Droits::GERER_COMPTES, Droits::REINITIALISER_SITE],
         ];
@@ -67,6 +67,10 @@ final class RolesEtComptesTest extends TestCase
         }
         self::assertTrue(Droits::peut('enseignant', Droits::REINITIALISER_SITE));
         self::assertTrue(Droits::peut('administratif', Droits::DEMANDER));
+        foreach (['administrateur', 'enseignant', 'administratif'] as $role) {
+            self::assertTrue(Droits::peut($role, Droits::REGIMES_SESSIONS), $role . ' crée régimes et sessions');
+        }
+        self::assertFalse(Droits::peut('consultation', Droits::REGIMES_SESSIONS));
         self::assertSame([Droits::CONSULTER, Droits::JOURNAL], Droits::de('consultation'));
         self::assertTrue(Droits::peut('administrateur', Droits::SUPPRIMER), 'Seul l\'administrateur supprime');
         self::assertFalse(Droits::peut('superadmin', Droits::CONSULTER));

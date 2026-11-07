@@ -41,6 +41,7 @@ final class Droits
         ],
         'administratif' => [
             self::CONSULTER, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT, self::DEMANDER,
+            self::REGIMES_SESSIONS, // décision du 07/11/2026
         ],
         'consultation' => [
             self::CONSULTER, self::JOURNAL,
