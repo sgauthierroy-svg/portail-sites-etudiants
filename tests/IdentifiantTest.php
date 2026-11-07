@@ -13,7 +13,7 @@ use Portail\Noyau\ErreurSaisie;
  *
  * Les noms ci-dessous sont inventés (sauf les exemples du cahier des charges).
  * Les résultats attendus ont été calculés à la main avec la règle écrite ;
- * ils sont à comparer avec ceux de la feuille (docs/NOMS_TEST_IDENTIFIANT.csv).
+ * ils sont à comparer avec ceux de la feuille (les fichiers .csv restent hors du dépôt).
  */
 final class IdentifiantTest extends TestCase
 {
