@@ -35,6 +35,33 @@ telecharger "https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitl
     gitleaks.tar.gz a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb
 tar xzf "$CACHE/gitleaks.tar.gz" -C "$CACHE" gitleaks
 
+# Règles Semgrep publiques pour PHP (dossier php/lang, 37 règles), version
+# figée au commit 16b9e6d du dépôt semgrep/semgrep-rules.
+# Licence « Semgrep Rules License v1.0 » : usage interne seulement, pas de
+# redistribution. Elles ne sont donc PAS dans ce dépôt : chaque poste les
+# télécharge. L'empreinte porte sur les fichiers extraits (l'archive générée
+# par GitHub peut varier d'octets sans que son contenu change).
+COMMIT_REGLES=16b9e6d45f10649f6a531ec4838ed9924372c3bc
+EMPREINTE_REGLES=16a470ef39a06cea892120619f50e27cf0dad51806a57bc15b4a5a902d28613e
+empreinte_regles() {
+    (cd "$CACHE/semgrep-rules" && find php/lang -type f | LC_ALL=C sort | xargs sha256sum | sha256sum | cut -d' ' -f1)
+}
+if [ -d "$CACHE/semgrep-rules/php/lang" ] && [ "$(empreinte_regles)" = "$EMPREINTE_REGLES" ]; then
+    echo "  ✓ règles Semgrep publiques PHP (déjà présentes)"
+else
+    rm -rf "$CACHE/semgrep-rules" && mkdir -p "$CACHE/semgrep-rules"
+    if ! curl -fsSL "https://github.com/semgrep/semgrep-rules/archive/$COMMIT_REGLES.tar.gz" \
+        | tar xz -C "$CACHE/semgrep-rules" --strip-components=1 \
+            "semgrep-rules-$COMMIT_REGLES/php/lang" "semgrep-rules-$COMMIT_REGLES/LICENSE"; then
+        rm -rf "$CACHE/semgrep-rules"; echo "  ✗ règles Semgrep : téléchargement impossible" >&2; exit 1
+    fi
+    if [ "$(empreinte_regles)" = "$EMPREINTE_REGLES" ]; then
+        echo "  ✓ règles Semgrep publiques PHP"
+    else
+        rm -rf "$CACHE/semgrep-rules"; echo "  ✗ règles Semgrep : EMPREINTE INCORRECTE, refusées" >&2; exit 1
+    fi
+fi
+
 # PHPUnit 9.6 (compatible PHP 8.1) : paquet système (apt install phpunit)
 # ou archive officielle https://phar.phpunit.de/phpunit-9.6.phar
 command -v phpunit >/dev/null && echo "  ✓ phpunit ($(phpunit --version | head -1))" \

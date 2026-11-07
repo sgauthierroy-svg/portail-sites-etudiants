@@ -42,8 +42,11 @@ bash outils/controle.sh              # contrôle complet
 | Logique | PHPStan 2.3.5, niveau max, PHP 8.1 | Erreurs détectées sans exécuter le code |
 | Analyse stricte | Psalm 5.26.1, niveau 1, PHP 8.1 | Types et cas oubliés |
 | Données dangereuses | Psalm `--taint-analysis` | Suit chaque donnée du visiteur jusqu'à son affichage ou son enregistrement |
-| Pièges de sécurité | Semgrep 1.184.0 + `outils/semgrep/regles-portail.yml` | 13 règles, chacune vérifiée par un cas de test |
+| Pièges de sécurité | Semgrep 1.184.0 + `outils/semgrep/regles-portail.yml` | 13 règles propres au portail, chacune vérifiée par un cas de test |
+| Pièges de sécurité | Semgrep + règles publiques PHP (`php/lang` de [semgrep-rules](https://github.com/semgrep/semgrep-rules), commit `16b9e6d`) | 37 règles, téléchargées par `installer_outils.sh` et vérifiées par empreinte |
 | Secrets | gitleaks 8.28.0 | Fichiers et historique ; bloque tout commit contenant un secret |
+
+Les règles publiques Semgrep sont sous [Semgrep Rules License v1.0](https://semgrep.dev/legal/rules-license) : usage interne seulement, sans redistribution. Elles ne sont donc pas copiées dans ce dépôt.
 
 ## Mise à jour de PHP sur le serveur
 

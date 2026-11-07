@@ -49,8 +49,9 @@ etape "2. Tests automatiques (PHPUnit)"                phpunit --no-coverage
 etape "3. Erreurs de logique (PHPStan, niveau max)"    php "$CACHE/phpstan.phar" analyse --no-progress --memory-limit=1G
 etape "4. Analyse stricte (Psalm, niveau 1)"           php "$CACHE/psalm.phar" --no-progress --no-cache --show-info=false
 etape "5. Données dangereuses (Psalm, taint)"          php "$CACHE/psalm.phar" --taint-analysis --no-progress --no-cache
-etape "6. Règles de sécurité : vérification"           semgrep --test --metrics=off outils/semgrep
-etape "7. Règles de sécurité : analyse du code"        semgrep scan --metrics=off --quiet --error --config outils/semgrep/regles-portail.yml app public bin config
+etape "6a. Règles du portail : vérification"           semgrep --test --metrics=off outils/semgrep
+etape "6b. Règles publiques PHP : vérification"        semgrep --test --metrics=off "$CACHE/semgrep-rules/php/lang"
+etape "7. Règles de sécurité : analyse du code"        semgrep scan --metrics=off --quiet --error --config outils/semgrep/regles-portail.yml --config "$CACHE/semgrep-rules/php/lang" --exclude 'outils' app public bin config
 etape "8. Secrets dans les fichiers (gitleaks)"        "$CACHE/gitleaks" dir --no-banner --redact .
 etape "9. Secrets dans l'historique (gitleaks)"        "$CACHE/gitleaks" git --no-banner --redact .
 
