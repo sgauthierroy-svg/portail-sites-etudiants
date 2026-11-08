@@ -20,6 +20,7 @@ use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\Horloge;
 use Portail\Sites\Releve;
+use Portail\Travaux\FileTravaux;
 
 /**
  * Aiguillage des requêtes vers les pages du portail.
@@ -74,6 +75,8 @@ final class Application
             '/etudiants/import' => $this->pageConnectee($requete, Droits::IMPORTER, fn (Compte $moi) => $this->importEtudiants($requete, $moi)),
             '/etudiants/nouveau' => $this->pageConnectee($requete, Droits::CREER_ETUDIANT, fn (Compte $moi) => $this->nouvelEtudiant($requete, $moi)),
             '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
+            '/sites' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->voirTout($requete, $moi)),
+            '/travaux' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travaux($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
             default => $this->pageNumerotee($requete),
         };
@@ -88,7 +91,97 @@ final class Application
             return $this->pageConnectee($requete, Droits::VOIR_FICHE, fn (Compte $moi) => $this->ficheEtudiant($requete, $moi, (int) $trouve[1]));
         }
 
+        if (preg_match('#^/travaux/([1-9][0-9]{0,9})$#', $requete->chemin, $trouve) === 1) {
+            return $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travail($requete, $moi, (int) $trouve[1]));
+        }
+
         return new Reponse(404, Pages::message('Page introuvable', 'Cette page n\'existe pas.'));
+    }
+
+    // ===== V2, lot 1 : « Voir tout » et travaux en arrière-plan =====
+
+    private function voirTout(Requete $requete, Compte $moi): Reponse
+    {
+        if ($requete->methode === 'POST') {
+            if ($requete->champ('action') !== 'filtrer') {
+                return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+            $regime = self::idFacultatif($requete->champ('regime'));
+            $session = self::idFacultatif($requete->champ('session'));
+            $this->comptes->enregistrerFiltre($moi->id, $regime === null && $session === null ? null
+                : 'regime=' . ($regime ?? '') . ';session=' . ($session ?? ''));
+
+            return Reponse::redirection('/sites');
+        }
+        if (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        [$regime, $session] = self::lireFiltre($this->comptes->dernierFiltre($moi->id));
+        $referentiel = new RegimesSessions($this->pdo);
+        $file = new FileTravaux($this->pdo);
+
+        return new Reponse(200, PagesTravaux::voirTout($this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste($regime, $session),
+            Releve::parIdentifiant($this->pdo), Releve::identifiants($this->pdo), Releve::dernier($this->pdo), $file->dejaPrevu('releve'),
+            $referentiel->regimes(), $referentiel->sessions(), $regime, $session, null));
+    }
+
+    private function travaux(Requete $requete, Compte $moi): Reponse
+    {
+        $file = new FileTravaux($this->pdo);
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            if ($requete->champ('action') !== 'actualiser_releve') {
+                return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+            if (!Droits::peut($moi->role, Droits::ACTUALISER_RELEVE)) {
+                return $this->refuser($requete, $moi);
+            }
+            $prevu = $file->dejaPrevu('releve');
+            if ($prevu !== null) {
+                $erreur = 'Un relevé est déjà prévu (travail n° ' . $prevu . ') : inutile d\'en demander un deuxième.';
+            } else {
+                $id = $file->demander('releve', [], [['cible' => 'serveur', 'libelle' => 'Relevé des sous-domaines et des sites']], $moi, $requete->adresseIp);
+                $information = 'Relevé demandé (travail n° ' . $id . '). Il démarre dans la minute.';
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        if ($file->actifs() > 0) {
+            Pages::$rafraichir = 15;
+        }
+
+        return new Reponse(200, PagesTravaux::liste($this->session->jeton(), $moi, $file->lister(), Releve::dernier($this->pdo),
+            $file->dejaPrevu('releve'), $erreur, $information));
+    }
+
+    private function travail(Requete $requete, Compte $moi, int $id): Reponse
+    {
+        $file = new FileTravaux($this->pdo);
+        $travail = $file->detail($id);
+        if ($travail === null) {
+            return new Reponse(404, Pages::message('Travail introuvable', 'Ce travail n\'existe pas.'));
+        }
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            if ($requete->champ('action') !== 'annuler') {
+                return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+            if (!$file->peutAnnuler($travail['etat'], $travail['demande_par'], $moi)) {
+                return $this->refuser($requete, $moi);
+            }
+            $annulees = $file->annuler($id, $moi, $requete->adresseIp);
+            $information = $annulees . ' étape(s) annulée(s).';
+            $travail = $file->detail($id) ?? $travail;
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        if (in_array($travail['etat'], ['en_attente', 'en_cours'], true)) {
+            Pages::$rafraichir = 15;
+        }
+
+        return new Reponse(200, PagesTravaux::detail($this->session->jeton(), $travail, $file->peutAnnuler($travail['etat'], $travail['demande_par'], $moi), $erreur, $information));
     }
 
     // ===== Étudiants, régimes et sessions (lot 4) =====

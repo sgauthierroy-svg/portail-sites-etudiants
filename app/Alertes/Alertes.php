@@ -93,6 +93,14 @@ final class Alertes
             . "\nAu plus une alerte de ce type par heure : d'autres erreurs ont pu suivre.");
     }
 
+    /** Travail terminé avec au moins une étape en échec (V2, lot 1). */
+    public function travailEnEchec(int $id, string $libelle, int $echecs, int $total): void
+    {
+        $this->ajouter([], 'Travail terminé avec ' . $echecs . ' échec(s)',
+            'Le travail n° ' . $id . ' (« ' . $libelle . ' ») est terminé : ' . $echecs . ' étape(s) en échec sur ' . $total . '.'
+            . "\n\nLe détail de chaque étape est dans le portail : " . rtrim($this->urlPortail, '/') . '/travaux/' . $id);
+    }
+
     public function test(): void
     {
         $this->ajouter([], 'Test des alertes', 'Ce message de test confirme que le portail peut envoyer ses alertes.');

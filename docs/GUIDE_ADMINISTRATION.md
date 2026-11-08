@@ -92,6 +92,19 @@ Revenir en arrière : même procédure avec le paquet précédent.
 
 Si le portail s'affiche sans couleurs ni logo, le `.htaccess` de `public` empêche de servir les fichiers existants (style, logo, polices) : il doit laisser passer les fichiers réels et n'envoyer vers `index.php` que le reste.
 
+## Travaux sur le serveur (V2)
+
+Les pages du portail ne touchent jamais le serveur : elles inscrivent une demande dans la file des travaux. Le **travailleur** (`bin/travaux.php`) l'exécute ensuite, un étudiant à la fois, avec une pause entre chacun (blocage d'adresse IP par O2switch constaté en février 2026).
+
+- Tâche planifiée de CPanel (Tâches Cron), **chaque minute** : `* * * * *  /usr/local/bin/php /home/jafl3067/portail/bin/travaux.php > /dev/null 2>&1`. Sans elle, les travaux restent « En attente ».
+- Un seul travailleur à la fois (verrou `data/tmp/travaux.lock`) : si le précédent n'a pas fini, le suivant s'arrête aussitôt.
+- Chaque passage traite de nouvelles étapes pendant 50 secondes au plus ; le passage suivant reprend la suite.
+- Une étape restée « en cours » après un arrêt brutal (serveur redémarré, programme tué) n'est **jamais relancée** : elle passe en « Échec – interrompue ». Vérifier le site concerné avant de relancer.
+- Un travail terminé avec au moins un échec déclenche une alerte par e-mail ; le détail est sur la page du travail.
+- Lancer le travailleur à la main pour voir ce qu'il fait : `php ~/portail/bin/travaux.php --bavard`.
+- Suivi dans le portail : menu « Travaux en cours » (avancement étudiant par étudiant, bouton « Arrêter » pour le demandeur et l'administrateur) et « Voir tout » (une ligne par étudiant, une colonne par site, d'après le dernier relevé).
+- « Actualiser le relevé » (administrateur, enseignant, administratif) inscrit un relevé dans la file : lecture seule, rien n'est modifié.
+
 ## Alertes par e-mail
 
 Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la boîte `portail@bts-sup-sallanches.com`, par le serveur d'envoi d'O2switch (port 465, chiffré, certificat vérifié). Les e-mails partent juste après l'affichage de la page : ils ne ralentissent personne. Un échec d'envoi ne bloque jamais le portail ; il est inscrit au journal (« échec d'envoi d'alerte », avec la raison).
@@ -104,6 +117,7 @@ Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la b
 | Connexion d'un compte Direction | adresse d'alerte |
 | Rôle Administrateur attribué (y compris par la commande de secours) | adresse d'alerte |
 | Erreur technique du portail (une alerte par heure au plus) | adresse d'alerte |
+| Travail terminé avec au moins un échec | adresse d'alerte |
 | Comptes non confirmés depuis 6 mois (le lundi) | adresse d'alerte |
 
 Aucun e-mail ne contient de mot de passe ni de donnée d'étudiant.

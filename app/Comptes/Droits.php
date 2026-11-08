@@ -33,21 +33,25 @@ final class Droits
     public const REGIMES_SESSIONS = 'regimes_sessions';
     public const GERER_COMPTES = 'gerer_comptes';
     public const PARAMETRES = 'parametres';
+    /** Relancer le relevé des sous-domaines depuis le portail (V2, lot 1). Lecture seule sur le serveur. */
+    public const ACTUALISER_RELEVE = 'actualiser_releve';
 
     /** @var array<string, list<string>> */
     private const MATRICE = [
         'administrateur' => [
             self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::JOURNAL_CONNEXIONS, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT,
             self::CHANGER_SESSION, self::DEMANDER, self::REINITIALISER_SITE, self::BIBLIOTHEQUE, self::SUPPRIMER,
-            self::TRAITER_DEMANDES, self::REGIMES_SESSIONS, self::GERER_COMPTES, self::PARAMETRES,
+            self::TRAITER_DEMANDES, self::REGIMES_SESSIONS, self::GERER_COMPTES, self::PARAMETRES, self::ACTUALISER_RELEVE,
         ],
         'enseignant' => [
             self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT,
             self::CHANGER_SESSION, self::DEMANDER, self::REINITIALISER_SITE, self::BIBLIOTHEQUE, self::REGIMES_SESSIONS,
+            self::ACTUALISER_RELEVE,
         ],
         'administratif' => [
             self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT, self::DEMANDER,
             self::REGIMES_SESSIONS, self::CHANGER_SESSION, // décisions du 07/11/2026
+            self::ACTUALISER_RELEVE,
         ],
         // Direction adjointe (libellé « Direction ») : suivi à distance (classes ; sites en
         // activité et alertes en V2, affichés dans le portail, jamais envoyés par e-mail), pas

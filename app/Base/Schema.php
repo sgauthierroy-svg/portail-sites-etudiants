@@ -234,6 +234,44 @@ final class Schema
                     releve_le   TEXT NOT NULL
                 );
                 SQL,
+            // V2, lot 1 (08/11/2026) : file d'attente des travaux sur le serveur.
+            // La page web ne fait qu'inscrire une demande ; le travailleur
+            // (bin/travaux.php, tâche planifiée chaque minute) l'exécute, une étape
+            // (un étudiant) à la fois. Liste fermée des types : un nouveau type
+            // demande une nouvelle version de la base.
+            5 => <<<SQL
+                CREATE TABLE travaux (
+                    id              INTEGER PRIMARY KEY,
+                    type            TEXT NOT NULL CHECK (type IN (
+                                        'releve', 'creer_prestashop', 'deployer_sujet_wp', 'creer_wordpress',
+                                        'reinitialiser_wordpress', 'reinitialiser_prestashop', 'supprimer_site',
+                                        'supprimer_etudiant', 'restaurer', 'deployer_sujet_prestashop')),
+                    parametres      TEXT NOT NULL DEFAULT '{}' CHECK (length(parametres) <= 2000),
+                    etat            TEXT NOT NULL DEFAULT 'en_attente'
+                                    CHECK (etat IN ('en_attente', 'en_cours', 'termine', 'annule')),
+                    demande_le      TEXT NOT NULL DEFAULT ({$maintenant}),
+                    demande_par     INTEGER NULL REFERENCES comptes (id) ON DELETE SET NULL,
+                    demande_par_nom TEXT NOT NULL CHECK (length(demande_par_nom) BETWEEN 1 AND 100),
+                    commence_le     TEXT NULL,
+                    termine_le      TEXT NULL
+                );
+                CREATE INDEX travaux_par_etat ON travaux (etat, id);
+
+                CREATE TABLE travaux_etapes (
+                    id          INTEGER PRIMARY KEY,
+                    travail_id  INTEGER NOT NULL REFERENCES travaux (id) ON DELETE CASCADE,
+                    rang        INTEGER NOT NULL CHECK (rang >= 1),
+                    cible       TEXT NOT NULL CHECK (length(cible) BETWEEN 1 AND 63 AND cible NOT GLOB '*[^a-z0-9]*'),
+                    libelle     TEXT NOT NULL CHECK (length(libelle) BETWEEN 1 AND 150),
+                    etat        TEXT NOT NULL DEFAULT 'en_attente'
+                                CHECK (etat IN ('en_attente', 'en_cours', 'reussi', 'echec', 'ignore', 'annule')),
+                    message     TEXT NULL CHECK (message IS NULL OR length(message) <= 1000),
+                    commence_le TEXT NULL,
+                    termine_le  TEXT NULL,
+                    UNIQUE (travail_id, rang),
+                    UNIQUE (travail_id, cible)
+                );
+                SQL,
         ];
     }
 
@@ -290,6 +328,7 @@ final class Schema
             "DELETE FROM journal WHERE categorie = 'site' AND date < {$limiteSites}",
             "DELETE FROM tentatives_connexion WHERE date < {$limiteConnexions}",
             "DELETE FROM historique_etudiants WHERE date < {$limiteSites}",
+            "DELETE FROM travaux WHERE etat IN ('termine', 'annule') AND demande_le < {$limiteSites}",
         ] as $requete) {
             // Requêtes fixes écrites ci-dessus, sans aucune donnée extérieure.
             $effacees = $pdo->exec($requete); // nosemgrep: outils.semgrep.requete-sql-construite-par-concatenation

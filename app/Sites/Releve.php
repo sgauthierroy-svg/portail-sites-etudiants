@@ -91,7 +91,7 @@ final class Releve
      * @param array<string, list<array{dossier: string, logiciel: string, version: ?string}>> $sites
      * @return array{sous_domaines: int, sites: int}
      */
-    public static function enregistrer(PDO $pdo, array $sousDomaines, array $sites, string $date): array
+    public static function enregistrer(PDO $pdo, array $sousDomaines, array $sites, string $date, string $auteur = 'commande de relevé (SSH)'): array
     {
         $pdo->beginTransaction();
         try {
@@ -107,7 +107,7 @@ final class Releve
                     $nombreSites++;
                 }
             }
-            (new Journal($pdo))->ecrire('site', 'relevé des sous-domaines', 'succes', null, 'commande de relevé (SSH)', null, null,
+            (new Journal($pdo))->ecrire('site', 'relevé des sous-domaines', 'succes', null, $auteur, null, null,
                 count($sousDomaines) . ' sous-domaines, ' . $nombreSites . ' sites');
             $pdo->commit();
         } catch (\Throwable $e) {
@@ -116,6 +116,59 @@ final class Releve
         }
 
         return ['sous_domaines' => count($sousDomaines), 'sites' => $nombreSites];
+    }
+
+    /**
+     * Relevé complet : demande la liste à CPanel, puis lit chaque dossier.
+     * Commande fixe, sans aucune donnée venue de l'extérieur.
+     *
+     * @param (callable(): string)|null $lireCpanel Remplaçable dans les tests
+     * @return array{sous_domaines: int, sites: int}
+     */
+    public static function lancer(PDO $pdo, string $auteur, ?callable $lireCpanel = null): array
+    {
+        $lireCpanel ??= static function (): string {
+            $resultat = \Portail\Systeme\Commande::lancer(['uapi', '--output=json', 'DomainInfo', 'domains_data'], 120);
+            if ($resultat['code'] !== 0) {
+                throw new ErreurSaisie('CPanel n\'a pas répondu (uapi, code ' . $resultat['code'] . ') : relevé abandonné, rien n\'a été modifié.');
+            }
+
+            return $resultat['sortie'];
+        };
+        $sousDomaines = self::sousDomaines($lireCpanel());
+        $sites = [];
+        foreach ($sousDomaines as $identifiant => $dossier) {
+            $sites[$identifiant] = self::sites($dossier);
+        }
+
+        return self::enregistrer($pdo, $sousDomaines, $sites, gmdate('Y-m-d\TH:i:s\Z'), $auteur);
+    }
+
+    /**
+     * Sites relevés, par identifiant.
+     *
+     * @return array<string, array<string, array{logiciel: ?string, version: ?string}>> identifiant => dossier => site
+     */
+    public static function parIdentifiant(PDO $pdo): array
+    {
+        $resultat = $pdo->query('SELECT identifiant, dossier, logiciel, version FROM releve_sites ORDER BY identifiant, dossier');
+        $sites = [];
+        foreach (Lecture::lignes($resultat) as $ligne) {
+            $sites[(string) Lecture::texte($ligne['identifiant'])][(string) Lecture::texte($ligne['dossier'])] = [
+                'logiciel' => Lecture::texte($ligne['logiciel']),
+                'version' => Lecture::texte($ligne['version']),
+            ];
+        }
+
+        return $sites;
+    }
+
+    /** @return list<string> Identifiants des sous-domaines relevés */
+    public static function identifiants(PDO $pdo): array
+    {
+        $resultat = $pdo->query('SELECT identifiant FROM sous_domaines ORDER BY identifiant');
+
+        return array_values(array_filter(array_map(static fn (array $l): ?string => Lecture::texte($l['identifiant']), Lecture::lignes($resultat))));
     }
 
     /** Date du dernier relevé, ou null s'il n'y en a jamais eu. */

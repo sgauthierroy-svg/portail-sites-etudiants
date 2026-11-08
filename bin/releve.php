@@ -23,25 +23,8 @@ umask(0077);
 $config = \Portail\Noyau\Config::charger($racine . '/data/config.php');
 $pdo = \Portail\Noyau\Demarrage::base($config);
 
-// Commande fixe, sans aucune donnée venue de l'extérieur, et sans passer par un shell.
-// nosemgrep: outils..cache.semgrep-rules.php.lang.security.exec-use
-$processus = proc_open(['uapi', '--output=json', 'DomainInfo', 'domains_data'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $tubes);
-if (!is_resource($processus)) {
-    fwrite(STDERR, 'Impossible de lancer uapi : relevé abandonné, rien n\'a été modifié.' . PHP_EOL);
-    exit(1);
-}
-$json = (string) stream_get_contents($tubes[1]);
-fclose($tubes[1]);
-fclose($tubes[2]);
-proc_close($processus);
-
 try {
-    $sousDomaines = \Portail\Sites\Releve::sousDomaines($json);
-    $sites = [];
-    foreach ($sousDomaines as $identifiant => $dossier) {
-        $sites[$identifiant] = \Portail\Sites\Releve::sites($dossier);
-    }
-    $bilan = \Portail\Sites\Releve::enregistrer($pdo, $sousDomaines, $sites, gmdate('Y-m-d\TH:i:s\Z'));
+    $bilan = \Portail\Sites\Releve::lancer($pdo, 'commande de relevé (SSH)');
 } catch (\Portail\Noyau\ErreurSaisie $e) {
     fwrite(STDERR, $e->getMessage() . PHP_EOL);
     exit(1);

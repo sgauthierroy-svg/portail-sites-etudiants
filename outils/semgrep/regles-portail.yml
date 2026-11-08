@@ -20,11 +20,13 @@ rules:
     severity: ERROR
     message: >-
       Les commandes système sont interdites dans le code accessible depuis le web.
-      Elles ne sont permises que dans bin/ (tâches lancées en SSH ou par cron),
-      avec escapeshellarg() sur chaque argument.
+      Elles ne sont permises que dans bin/ (tâches lancées en SSH ou par cron) et dans
+      app/Systeme/Commande.php, qui refuse de s'exécuter hors ligne de commande et passe
+      le programme et ses arguments en liste, sans shell.
     paths:
       exclude:
         - "bin/"
+        - "app/Systeme/Commande.php"
     pattern-either:
       - pattern: exec(...)
       - pattern: shell_exec(...)
@@ -33,6 +35,24 @@ rules:
       - pattern: popen(...)
       - pattern: proc_open(...)
       - pattern: pcntl_exec(...)
+
+  - id: commande-depuis-le-web
+    languages: [php]
+    severity: ERROR
+    message: >-
+      La partie web du portail inscrit des demandes dans la file des travaux ; elle
+      ne lance jamais de commande ni d'exécutant (V2, lot 1).
+    paths:
+      include:
+        - "app/Web/"
+        - "public/"
+    pattern-either:
+      - pattern: \Portail\Systeme\Commande::$F(...)
+      - pattern: Commande::$F(...)
+      - pattern: \Portail\Sites\Releve::lancer(...)
+      - pattern: Releve::lancer(...)
+      - pattern: new \Portail\Travaux\Travailleur(...)
+      - pattern: new Travailleur(...)
 
   - id: deserialisation-dangereuse
     languages: [php]
