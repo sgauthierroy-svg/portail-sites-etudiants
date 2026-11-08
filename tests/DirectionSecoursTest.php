@@ -74,6 +74,25 @@ final class DirectionSecoursTest extends TestCase
         self::assertSame(1, $this->nombre("SELECT count(*) FROM journal WHERE action = '" . GestionComptes::ACTION_SECOURS . "'"));
     }
 
+    public function testUnAdministrateurConfirmeLaVerificationEtLeMessageDisparait(): void
+    {
+        $id = (int) $this->texte("SELECT id FROM comptes WHERE identifiant = 'cpetit'");
+        $this->en('adirection', 'POST', '/comptes/' . $id, ['action' => 'double_auth']);
+        $jusqua = $this->texte("SELECT max(id) FROM journal WHERE action = '" . GestionComptes::ACTION_SECOURS . "'");
+        self::assertStringContainsString('Vérification effectuée', $this->en('mzanelli', 'GET', '/')->corps);
+
+        // Seul un administrateur confirme ; un enseignant est refusé.
+        self::assertSame(403, $this->en('cpetit', 'POST', '/', ['action' => 'secours_verifies', 'jusqua' => $jusqua])->statut);
+        self::assertSame(303, $this->en('mzanelli', 'POST', '/', ['action' => 'secours_verifies', 'jusqua' => $jusqua])->statut);
+        self::assertStringNotContainsString('Actions de secours', $this->en('mzanelli', 'GET', '/')->corps);
+        self::assertSame(1, $this->nombre("SELECT count(*) FROM journal WHERE action = 'actions de secours vérifiées'"));
+        self::assertSame(1, $this->nombre("SELECT count(*) FROM journal WHERE action = '" . GestionComptes::ACTION_SECOURS . "'"), 'La trace reste');
+
+        // Une nouvelle action de secours fait réapparaître le message.
+        $this->en('adirection', 'POST', '/comptes/' . $id, ['action' => 'double_auth']);
+        self::assertStringContainsString('Actions de secours', $this->en('mzanelli', 'GET', '/')->corps);
+    }
+
     public function testLaDirectionNeTouchePasAuxEtudiants(): void
     {
         $referentiel = new RegimesSessions($this->pdo);

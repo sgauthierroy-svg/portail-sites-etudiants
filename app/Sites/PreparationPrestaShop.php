@@ -144,23 +144,4 @@ final class PreparationPrestaShop
         return (new FileTravaux($this->pdo))->demander('creer_prestashop', ['paquet_id' => $paquet, 'nom_boutique' => self::NOM_BOUTIQUE],
             $etapes, $auteur, $adresseIp);
     }
-
-    /** @return list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_le: string}> Sites créés par le portail */
-    public function sitesDe(string $identifiant): array
-    {
-        $requete = $this->pdo->prepare('SELECT dossier, logiciel, version, dossier_admin, cree_le FROM sites WHERE identifiant = :i ORDER BY dossier');
-        $requete->execute([':i' => $identifiant]);
-        $liste = [];
-        foreach (Lecture::lignes($requete) as $ligne) {
-            $liste[] = [
-                'dossier' => (string) Lecture::texte($ligne['dossier']),
-                'logiciel' => (string) Lecture::texte($ligne['logiciel']),
-                'version' => Lecture::texte($ligne['version']),
-                'dossier_admin' => Lecture::texte($ligne['dossier_admin']),
-                'cree_le' => (string) Lecture::texte($ligne['cree_le']),
-            ];
-        }
-
-        return $liste;
-    }
 }

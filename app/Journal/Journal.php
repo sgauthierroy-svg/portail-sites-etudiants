@@ -59,16 +59,18 @@ final class Journal
     /**
      * Entrées récentes pour une action donnée (alertes de la page d'accueil).
      *
-     * @return list<array{date: string, auteur: string, cible: string, detail: string}>
+     * @return list<array{id: int, date: string, auteur: string, cible: string, detail: string}>
      */
     public function recentes(string $action, string $depuis): array
     {
-        $requete = $this->pdo->prepare('SELECT date, compte_nom, cible, detail FROM journal
-            WHERE action = :action AND date >= :depuis ORDER BY date DESC, id DESC LIMIT 50');
+        $requete = $this->pdo->prepare('SELECT id, date, compte_nom, cible, detail FROM journal
+            WHERE action = :action AND date >= :depuis AND id NOT IN (SELECT journal_id FROM secours_verifies)
+            ORDER BY date DESC, id DESC LIMIT 50');
         $requete->execute([':action' => $action, ':depuis' => $depuis]);
         $liste = [];
         foreach (\Portail\Base\Lecture::lignes($requete) as $ligne) {
             $liste[] = [
+                'id' => \Portail\Base\Lecture::entier($ligne['id'] ?? null) ?? 0,
                 'date' => \Portail\Base\Lecture::texte($ligne['date'] ?? null) ?? '',
                 'auteur' => \Portail\Base\Lecture::texte($ligne['compte_nom'] ?? null) ?? '',
                 'cible' => \Portail\Base\Lecture::texte($ligne['cible'] ?? null) ?? '',
@@ -77,6 +79,22 @@ final class Journal
         }
 
         return $liste;
+    }
+
+    /**
+     * Un administrateur confirme avoir vérifié les actions de secours affichées (jusqu'à l'entrée $jusqua).
+     *
+     * @return int Nombre d'entrées marquées
+     */
+    public function verifierSecours(string $action, int $jusqua, string $verifiePar, ?int $compteId, ?string $adresseIp): int
+    {
+        $requete = $this->pdo->prepare('INSERT OR IGNORE INTO secours_verifies (journal_id, verifie_par_nom)
+            SELECT id, :n FROM journal WHERE action = :a AND id <= :j');
+        $requete->execute([':n' => $verifiePar, ':a' => $action, ':j' => $jusqua]);
+        $nombre = $requete->rowCount();
+        $this->ecrire('administration', 'actions de secours vérifiées', 'succes', $compteId, $verifiePar, $adresseIp, null, $nombre . ' action(s)');
+
+        return $nombre;
     }
 
     /** Catégories du journal, dans l'ordre d'affichage du filtre. */

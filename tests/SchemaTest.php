@@ -23,15 +23,15 @@ final class SchemaTest extends TestCase
         Schema::mettreAJour($this->pdo);
     }
 
-    public function testLesQuinzeTablesExistent(): void
+    public function testLesSeizeTablesExistent(): void
     {
         $tables = $this->pdo->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name <> 'schema_versions' ORDER BY name")
             ?->fetchAll(PDO::FETCH_COLUMN);
         self::assertSame([
             'comptes', 'documents', 'etudiants', 'historique_etudiants', 'journal', 'paquets', 'parametres',
-            'regimes', 'releve_sites', 'sessions', 'sites', 'sous_domaines', 'tentatives_connexion',
+            'regimes', 'releve_sites', 'secours_verifies', 'sessions', 'sites', 'sous_domaines', 'tentatives_connexion',
             'travaux', 'travaux_etapes',
-        ], $tables, 'v7 (08/11/2026) : sites créés par le portail');
+        ], $tables, 'v9 (08/11/2026) : actions de secours vérifiées');
     }
 
     public function testLaMiseAJourPeutEtreRelanceeSansEffet(): void

@@ -165,6 +165,34 @@ final class Releve
         return $sites;
     }
 
+    /**
+     * Sites d'un étudiant pour sa fiche : ceux du dernier relevé et ceux créés par le portail.
+     *
+     * @return list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool, date: string}>
+     */
+    public static function sitesEtudiant(PDO $pdo, string $identifiant): array
+    {
+        $sites = [];
+        $releve = $pdo->prepare('SELECT dossier, logiciel, version, releve_le FROM releve_sites WHERE identifiant = :i');
+        $releve->execute([':i' => $identifiant]);
+        foreach (Lecture::lignes($releve) as $ligne) {
+            $dossier = (string) Lecture::texte($ligne['dossier']);
+            $sites[$dossier] = ['dossier' => $dossier, 'logiciel' => (string) Lecture::texte($ligne['logiciel']), 'version' => Lecture::texte($ligne['version']),
+                'dossier_admin' => null, 'cree_par_portail' => false, 'date' => (string) Lecture::texte($ligne['releve_le'])];
+        }
+        $crees = $pdo->prepare('SELECT dossier, logiciel, version, dossier_admin, cree_le FROM sites WHERE identifiant = :i');
+        $crees->execute([':i' => $identifiant]);
+        foreach (Lecture::lignes($crees) as $ligne) {
+            $dossier = (string) Lecture::texte($ligne['dossier']);
+            $sites[$dossier] = ['dossier' => $dossier, 'logiciel' => (string) Lecture::texte($ligne['logiciel']),
+                'version' => Lecture::texte($ligne['version']) ?? ($sites[$dossier]['version'] ?? null),
+                'dossier_admin' => Lecture::texte($ligne['dossier_admin']), 'cree_par_portail' => true, 'date' => (string) Lecture::texte($ligne['cree_le'])];
+        }
+        ksort($sites);
+
+        return array_values($sites);
+    }
+
     /** @return list<string> Identifiants des sous-domaines relevés */
     public static function identifiants(PDO $pdo): array
     {

@@ -86,7 +86,7 @@ final class PagesTravaux
             . '<label for="session">Session</label> <select id="session" name="session">' . self::options(array_map(static fn (int $a): string => 'Session ' . $a, array_column($sessions, 'annee', 'id')), $sessionChoisie, 'Toutes les sessions') . '</select> '
             . '<button type="submit">Afficher</button></form>'
             . '<p>' . count($etudiants) . ' étudiant' . (count($etudiants) > 1 ? 's' : '') . '. Même filtre que la liste des étudiants.</p>'
-            . '<table><thead><tr>' . $entete . '</tr></thead><tbody>' . $lignes . '</tbody></table>'
+            . '<table class="triable"><thead><tr>' . $entete . '</tr></thead><tbody>' . $lignes . '</tbody></table>'
             . $orphelins);
     }
 

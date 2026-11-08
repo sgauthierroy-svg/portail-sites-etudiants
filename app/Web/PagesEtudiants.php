@@ -56,7 +56,8 @@ final class PagesEtudiants
             . '<label for="session">Session</label> <select id="session" name="session">' . $optionsSessions . '</select> '
             . '<button type="submit">Afficher</button></form>'
             . '<p>' . count($etudiants) . ' étudiant' . (count($etudiants) > 1 ? 's' : '') . '. Ce filtre est gardé pour votre prochaine connexion.</p>'
-            . '<table><thead><tr><th>Étudiant</th><th>Régime</th><th>Session</th><th>Année</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
+            . '<p class="discret">Cliquez sur le titre d\'une colonne pour trier.</p>'
+            . '<table class="triable"><thead><tr><th>Étudiant</th><th>Régime</th><th>Session</th><th>Année</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
             );
     }
 
@@ -112,7 +113,7 @@ final class PagesEtudiants
      * @param list<array{id: int, nom: string, actif: bool}> $regimes
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
      * @param list<array{date: string, champ: string, ancienne: ?string, nouvelle: ?string, auteur: ?string}> $historique
-     * @param list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_le: string}> $sites
+     * @param list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool, date: string}> $sites
      */
     public static function fiche(string $jeton, Compte $moi, Etudiant $etudiant, array $regimes, array $sessions, array $historique,
         int $maintenant, ?string $erreur, ?string $information, array $sites = []): string
@@ -167,22 +168,26 @@ final class PagesEtudiants
                 . '<td>' . Html::e($trace['ancienne'] ?? '') . ' → ' . Html::e($trace['nouvelle'] ?? '') . '</td>'
                 . '<td>' . Html::e($trace['auteur'] ?? '') . '</td></tr>';
         }
-        if ($sites !== []) {
-            $voirAcces = Droits::peut($moi->role, Droits::VOIR_ACCES_SITES);
-            $lignesSites = '';
-            foreach ($sites as $site) {
-                $adresse = 'https://' . $etudiant->identifiant . '.bts-sup-sallanches.com' . $site['dossier'] . '/';
-                $lignesSites .= '<tr><td><a href="' . Html::e($adresse) . '" rel="noopener noreferrer">' . Html::e($site['dossier']) . '</a></td>'
-                    . '<td>' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ' ' . ($site['version'] ?? '')) . '</td>'
-                    . '<td>' . ($voirAcces && $site['dossier_admin'] !== null
-                        ? '<a href="' . Html::e($adresse . $site['dossier_admin'] . '/') . '" rel="noopener noreferrer">' . Html::e($site['dossier_admin']) . '</a>'
-                        : '—') . '</td>'
-                    . '<td>' . Html::e(self::date($site['cree_le'])) . '</td></tr>';
-            }
-            $contenu .= '<h2>Sites créés par le portail</h2>'
-                . '<table><thead><tr><th>Site</th><th>Logiciel</th><th>Administration</th><th>Créé le</th></tr></thead><tbody>' . $lignesSites . '</tbody></table>'
-                . ($voirAcces ? '<p class="discret">Le lien d\'administration est personnel à l\'étudiant : ne le diffusez pas.</p>' : '');
+        $voirAcces = Droits::peut($moi->role, Droits::VOIR_ACCES_SITES);
+        $lignesSites = '';
+        foreach ($sites as $site) {
+            $adresse = 'https://' . $etudiant->identifiant . '.bts-sup-sallanches.com' . $site['dossier'] . '/';
+            // Administration : lien connu pour WordPress (wp-admin) et pour les boutiques créées par le portail.
+            $admin = match (true) {
+                $site['logiciel'] === 'wordpress' => $adresse . 'wp-admin/',
+                $site['dossier_admin'] !== null => $adresse . $site['dossier_admin'] . '/',
+                default => null,
+            };
+            $lignesSites .= '<tr><td><a href="' . Html::e($adresse) . '" rel="noopener noreferrer">' . Html::e($site['dossier']) . '</a></td>'
+                . '<td>' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ' ' . ($site['version'] ?? '')) . '</td>'
+                . '<td>' . ($voirAcces && $admin !== null ? '<a href="' . Html::e($admin) . '" rel="noopener noreferrer">administration</a>' : '—') . '</td>'
+                . '<td>' . ($site['cree_par_portail'] ? 'créé par le portail le ' : 'relevé le ') . Html::e(self::date($site['date'])) . '</td></tr>';
         }
+        $contenu .= '<h2>Sites</h2>'
+            . ($lignesSites === '' ? '<p>Aucun site trouvé au dernier relevé.</p>'
+                : '<table><thead><tr><th>Site</th><th>Logiciel</th><th>Administration</th><th>Origine</th></tr></thead><tbody>' . $lignesSites . '</tbody></table>'
+                    . ($voirAcces ? '<p class="discret">Le lien d\'administration d\'une boutique est personnel à l\'étudiant : ne le diffusez pas. '
+                        . 'Pour une boutique créée avant le portail, il n\'est pas connu.</p>' : ''));
         $contenu .= '<h2>Parcours</h2>'
             . ($lignes === '' ? '<p>Aucun changement depuis l\'ajout.</p>'
                 : '<table><thead><tr><th>Date</th><th>Changement</th><th>Avant → après</th><th>Par</th></tr></thead><tbody>' . $lignes . '</tbody></table>')

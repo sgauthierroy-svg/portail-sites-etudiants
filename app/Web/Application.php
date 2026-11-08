@@ -531,7 +531,7 @@ final class Application
 
         return new Reponse(200, PagesEtudiants::fiche($this->session->jeton(), $moi, $etudiant, $referentiel->regimes(), $referentiel->sessions(),
             $gestion->historique($etudiant->identifiant), $this->horloge->maintenant(), $erreur, $information,
-            (new PreparationPrestaShop($this->pdo))->sitesDe($etudiant->identifiant)));
+            Releve::sitesEtudiant($this->pdo, $etudiant->identifiant)));
     }
 
     private function regimesSessions(Requete $requete, Compte $moi): Reponse
@@ -851,6 +851,15 @@ final class Application
         $this->session->noterActivite();
 
         Pages::cadre($compte, $this->session->jeton(), $requete->chemin);
+        if ($requete->methode === 'POST') {
+            if ($requete->champ('action') !== 'secours_verifies' || $compte->role !== 'administrateur') {
+                return $this->refuser($requete, $compte);
+            }
+            (new Journal($this->pdo))->verifierSecours(GestionComptes::ACTION_SECOURS, self::idFacultatif($requete->champ('jusqua')) ?? 0,
+                $compte->nomAffiche, $compte->id, $requete->adresseIp);
+
+            return Reponse::redirection('/');
+        }
         $maintenant = $this->horloge->maintenant();
         $aRevoir = Droits::peut($compte->role, Droits::GERER_COMPTES)
             ? (new GestionComptes($this->pdo, $compte, $requete->adresseIp))->aRevoir($maintenant) : [];

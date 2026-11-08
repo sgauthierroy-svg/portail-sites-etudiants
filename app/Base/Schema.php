@@ -333,6 +333,15 @@ final class Schema
             8 => <<<SQL
                 ALTER TABLE releve_sites ADD COLUMN module_mise_a_jour INTEGER NULL CHECK (module_mise_a_jour IS NULL OR module_mise_a_jour IN (0, 1));
                 SQL,
+            // Actions de secours de la direction vérifiées par un administrateur (décision du 08/11/2026) :
+            // elles quittent alors l'accueil. L'entrée du journal elle-même ne change jamais.
+            9 => <<<SQL
+                CREATE TABLE secours_verifies (
+                    journal_id      INTEGER PRIMARY KEY,
+                    verifie_par_nom TEXT NOT NULL CHECK (length(verifie_par_nom) BETWEEN 1 AND 100),
+                    verifie_le      TEXT NOT NULL DEFAULT ({$maintenant})
+                );
+                SQL,
         ];
     }
 

@@ -24,7 +24,7 @@ final class InstallationTest extends TestCase
             self::assertSame(0700, fileperms($dossier->racine . '/' . $relatif) & 0777, $relatif);
         }
         self::assertSame(0600, fileperms($dossier->racine . '/data/portail.sqlite') & 0777);
-        self::assertContains('Base : version(s) 1, 2, 3, 4, 5, 6, 7, 8 appliquée(s) ✓', $compteRendu);
+        self::assertContains('Base : version(s) 1, 2, 3, 4, 5, 6, 7, 8, 9 appliquée(s) ✓', $compteRendu);
 
         $pdo = Connexion::ouvrir($dossier->racine . '/data/portail.sqlite');
         $parametres = $pdo->query('SELECT cle, valeur FROM parametres ORDER BY cle')?->fetchAll(PDO::FETCH_KEY_PAIR);

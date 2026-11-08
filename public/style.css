@@ -153,6 +153,13 @@ tbody tr:nth-child(even) td { background: #fcfcfb; }
 td form { margin: 0; }
 td ul { margin: 0; padding-left: 18px; min-width: 13rem; }
 
+/* ===== Tri des colonnes (tri.js) ===== */
+th button.tri { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; color: inherit; }
+th button.tri::after { content: '↕'; font-size: 12px; opacity: .5; }
+th[aria-sort="ascending"] button.tri::after { content: '▲'; opacity: 1; }
+th[aria-sort="descending"] button.tri::after { content: '▼'; opacity: 1; }
+th button.tri:focus-visible { outline: 3px solid var(--texte); outline-offset: 2px; border-radius: 4px; }
+
 /* ===== Téléphone ===== */
 @media (max-width: 760px) {
   .menu { border-right: 0; border-bottom: 1px solid var(--trait); padding: 16px; gap: 16px; }

@@ -195,6 +195,14 @@ final class PrestaShopTest extends TestCase
         self::assertStringContainsString('/Presta/admin-martinel-', $this->en('cpetit', 'GET', '/etudiants/' . $etudiant)->corps);
         self::assertStringNotContainsString('/Presta/admin-martinel-', $this->en('jroux', 'GET', '/etudiants/' . $etudiant)->corps);
         self::assertStringContainsString('PrestaShop 9.1.5', $this->en('cpetit', 'GET', '/sites')->corps);
+
+        // La fiche montre aussi les sites existants trouvés au relevé, avec l'administration WordPress.
+        $this->pdo->exec("INSERT INTO releve_sites (identifiant, dossier, logiciel, version, releve_le) VALUES ('martinel', '/WP', 'wordpress', '7.1.4', '2026-11-08T12:00:00Z')");
+        $fiche = $this->en('cpetit', 'GET', '/etudiants/' . $etudiant)->corps;
+        self::assertStringContainsString('WordPress 7.1.4', $fiche);
+        self::assertStringContainsString('https://martinel.bts-sup-sallanches.com/WP/wp-admin/', $fiche);
+        self::assertStringContainsString('relevé le 08/11/2026', $fiche);
+        self::assertStringContainsString('créé par le portail le', $fiche);
     }
 
     public function testUnEchecDInstallationEffaceCeQueLEtapeACree(): void

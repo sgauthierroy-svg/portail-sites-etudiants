@@ -44,6 +44,7 @@ final class Pages
             . '<meta name="robots" content="noindex, nofollow">'
             . (self::$rafraichir > 0 ? '<meta http-equiv="refresh" content="' . self::$rafraichir . '">' : '')
             . '<link rel="stylesheet" href="/style.css">'
+            . '<script src="/tri.js" defer></script>'
             . '<title>' . Html::e($titre) . ' – Portail Sup\'Sallanches</title></head>';
         $marque = '<a class="marque" href="/"><img src="/logo.png" alt="Enseignement Catholique de Sallanches – Sup’Sallanches" width="240" height="160">'
             . '<span class="marque-sous">Portail des sites étudiants</span></a>';
@@ -205,7 +206,7 @@ final class Pages
 
     /**
      * @param list<array{id: int, identifiant: string, nom: string, depuis: string}> $aRevoir
-     * @param list<array{date: string, auteur: string, cible: string, detail: string}> $secours
+     * @param list<array{id: int, date: string, auteur: string, cible: string, detail: string}> $secours
      */
     public static function accueil(string $jeton, Compte $compte, array $aRevoir = [], array $secours = []): string
     {
@@ -216,9 +217,13 @@ final class Pages
                 $lignes .= '<li>' . Html::e(self::jour($trace['date'])) . ' – ' . Html::e($trace['auteur']) . ' : '
                     . Html::e($trace['detail']) . ' – compte ' . Html::e($trace['cible']) . '</li>';
             }
+            $jusqua = max(array_column($secours, 'id'));
             $alertes .= '<section role="alert"><h2>Actions de secours de la direction (30 derniers jours)</h2>'
                 . '<p>Vérifiez qu\'elles étaient attendues. Sinon, désactivez le compte concerné et prévenez la direction.</p>'
-                . '<ul>' . $lignes . '</ul></section>';
+                . '<ul>' . $lignes . '</ul>'
+                . '<form method="post" action="/">' . self::jeton($jeton) . '<input type="hidden" name="action" value="secours_verifies">'
+                . '<input type="hidden" name="jusqua" value="' . $jusqua . '">'
+                . '<button type="submit">Vérification effectuée</button> <span>Le message disparaît pour tous les administrateurs ; la trace reste au journal.</span></form></section>';
         }
         if ($aRevoir !== []) {
             $lignes = '';
