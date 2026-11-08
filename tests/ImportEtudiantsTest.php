@@ -214,6 +214,7 @@ final class ImportEtudiantsTest extends TestCase
         $apercu = $this->en('jroux', 'POST', '/etudiants/import', ['action' => 'apercu', 'texte' => $texte]);
         self::assertStringContainsString('Rien n\'est encore enregistré', $apercu->corps);
         self::assertStringNotContainsString('<script>', $apercu->corps);
+        self::assertStringContainsString('Annuler : quitter sans rien enregistrer', $apercu->corps);
         self::assertSame(0, $this->nombre('SELECT count(*) FROM etudiants'));
 
         $fin = $this->en('jroux', 'POST', '/etudiants/import', ['action' => 'importer', 'texte' => $texte]);

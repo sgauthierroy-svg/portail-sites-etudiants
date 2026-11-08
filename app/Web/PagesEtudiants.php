@@ -275,7 +275,8 @@ final class PagesEtudiants
             return Pages::page('Importer des étudiants', $contenu . $releve
                 . '<p>Le texte collé est lu en mémoire, jamais enregistré sur le serveur. Colonnes attendues : NomPrénom, Classe, Session, '
                 . 'Identifiant, Identifiant WordPress, E-mail. Un texte qui contient une colonne de mot de passe, de date de naissance '
-                . 'ou de code chiffré est refusé en entier.</p>' . $formulaire . '<p><a href="/etudiants">Retour aux étudiants</a></p>');
+                . 'ou de code chiffré est refusé en entier.</p>' . $formulaire
+                . '<p><a href="/etudiants">Retour aux étudiants</a> · <a href="/">Accueil</a></p>');
         }
 
         $compte = ['vert' => 0, 'orange' => 0, 'gris' => 0, 'rouge' => 0];
@@ -312,8 +313,10 @@ final class PagesEtudiants
             . '<th>Classe – session</th><th>E-mail</th><th>Remarques</th></tr></thead><tbody>' . $rangees . '</tbody></table>'
             . '<p>À la validation, le texte est vérifié de nouveau, puis les lignes « À importer » et les lignes « À vérifier » cochées '
             . 'sont enregistrées toutes ensemble. Aucun site n\'est créé.</p>'
-            . '<button type="submit">Importer</button></form>'
-            . '<h2>Corriger le texte</h2>' . $formulaire);
+            . '<button type="submit">Importer</button> '
+            . '<a href="/etudiants">Annuler : quitter sans rien enregistrer</a></form>'
+            . '<h2>Corriger le texte</h2>' . $formulaire
+            . '<p><a href="/etudiants">Retour aux étudiants</a> · <a href="/">Accueil</a></p>');
     }
 
     private static function option(string $valeur, string $libelle, bool $choisi): string
