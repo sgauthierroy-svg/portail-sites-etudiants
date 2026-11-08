@@ -53,6 +53,24 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
 
     public function executer(string $cible, array $parametres): array
     {
+        // Le travailleur crée ses propres fichiers en privé (umask 077). Un site, lui, doit
+        // être lisible par le serveur web (.htaccess, images, styles) : droits habituels
+        // 755 pour les dossiers et 644 pour les fichiers, le temps de cette étape seulement
+        // (constaté le 08/11/2026 : « Server unable to read htaccess file »).
+        $masque = umask(0022);
+        try {
+            return $this->creer($cible, $parametres);
+        } finally {
+            umask($masque);
+        }
+    }
+
+    /**
+     * @param array<array-key, mixed> $parametres
+     * @return array{etat: 'reussi'|'ignore', message: string, secret?: string}
+     */
+    private function creer(string $cible, array $parametres): array
+    {
         $etudiant = $this->etudiant($cible);
         $racine = $this->racine($cible);
         $presta = $racine . '/Presta';

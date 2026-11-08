@@ -156,7 +156,9 @@ final class PrestaShopTest extends TestCase
     public function testUneBoutiqueEstCreeeEtLesAccesEnvoyes(): void
     {
         $id = (new PreparationPrestaShop($this->pdo))->lancer($this->session, $this->paquet, ['martinel', 'durandca'], $this->compte('cpetit'), null);
+        $masque = umask(0077); // comme bin/travaux.php
         $this->travailleur()->tourner(50);
+        umask($masque);
 
         $travail = (new FileTravaux($this->pdo))->detail($id);
         self::assertNotNull($travail);
@@ -167,6 +169,8 @@ final class PrestaShopTest extends TestCase
         self::assertCount(1, $admins);
         self::assertMatchesRegularExpression('#/admin-martinel-[a-z2-9]{6}$#', $admins[0]);
         self::assertDirectoryExists($presta . '/admin-api', 'admin-api n\'est pas le dossier d\'administration');
+        self::assertSame(0755, fileperms($presta) & 0777, 'Dossiers lisibles par le serveur web');
+        self::assertSame(0644, fileperms($presta . '/index.php') & 0777, 'Fichiers lisibles par le serveur web (.htaccess…)');
         self::assertContains('creerUtilisateur jafl3067_martinel_presta', $this->cpanel['appels']);
         self::assertContains('donnerDroits jafl3067_martinel_presta jafl3067_martinel_Presta', $this->cpanel['appels']);
 
