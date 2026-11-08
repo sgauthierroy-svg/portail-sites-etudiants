@@ -68,7 +68,8 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
 
         $base = self::PREFIXE . $cible . '_Presta';
         $utilisateur = self::PREFIXE . $cible . '_presta';
-        $motDePasseBdd = bin2hex(random_bytes(16));
+        // Majuscules, minuscules et chiffres (CPanel exige un mot de passe « fort »), sans caractère spécial.
+        $motDePasseBdd = str_replace('-', '', MotsDePasse::provisoire() . MotsDePasse::provisoire());
         $motDePasse = MotsDePasse::provisoire();
         $crees = ['dossier' => false, 'base' => false, 'utilisateur' => false];
         $dossierExistait = is_dir($presta);
