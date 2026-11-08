@@ -52,6 +52,12 @@ Comme la feuille, le portail prend le **dernier mot** du prénom (« Jean Pierre
 
 Le portail refuse de démarrer si `config.php` est lisible par un autre compte, si une valeur manque ou si la base n'est pas installée. Le visiteur voit alors une page d'erreur neutre avec un numéro de référence ; le détail est dans `~/portail/logs/php_errors.log`.
 
+### Vérifications faites sur le serveur (08/11/2026)
+
+- Le portail voit l'adresse IP réelle des visiteurs, et non celle du relais d'O2switch : le blocage par adresse et le journal fonctionnent.
+- Les mots de passe sont chiffrés en Argon2id (le repli bcrypt ne sert pas).
+- Ne pas remettre `Referrer-Policy: no-referrer` : avec cette valeur, les navigateurs envoient « Origin: null » sur les formulaires du portail, qui sont alors tous refusés.
+
 ### Mise à jour
 
 Copier les nouveaux fichiers, puis relancer `php ~/portail/bin/installer.php`. Il applique les nouvelles versions de la base sans rien écraser.
@@ -67,7 +73,7 @@ php ~/portail/bin/comptes.php creer-admin mzanelli "Marc ZANELLI" informatique@e
 php ~/portail/bin/comptes.php creer-admin sgauthierroy "Stéphanie GAUTHIER-ROY" s.gauthier.roy@gmail.com
 ```
 
-La commande affiche **une seule fois** un mot de passe provisoire, à transmettre à la personne. À sa première connexion, elle relie l'application d'authentification de son téléphone, puis choisit son mot de passe (12 caractères au moins).
+La commande affiche **une seule fois** un mot de passe provisoire, à transmettre à la personne. À sa première connexion, elle relie l'application d'authentification de son téléphone, puis choisit son mot de passe, sous l'une des trois formes recommandées par la CNIL (délibération n° 2022-100) : 12 caractères au moins avec majuscules, minuscules, chiffres et caractères spéciaux ; 14 caractères au moins avec majuscules, minuscules et chiffres ; ou une phrase d'au moins 7 mots.
 
 Le compte `sgauthierroy` est temporaire (développement et tests) : à la remise du portail, le passer en enseignant ou le désactiver.
 

@@ -8,10 +8,14 @@ namespace Portail\Securite;
  * Mots de passe des comptes du portail.
  *
  * Hachage Argon2id (bcrypt si le serveur n'en dispose pas), jamais réversible.
- * Règles : 12 caractères au moins (OWASP ASVS 4.0, exigence 2.1.1), 128 au
- * plus, différent de l'identifiant, absent de la liste des plus courants.
- * Pas de règle de composition imposée (ASVS 2.1.9) : une phrase longue vaut
- * mieux qu'un mot court compliqué.
+ * Règles : 128 caractères au plus, différent de l'identifiant, absent de la
+ * liste des plus courants, et l'une des trois formes données en exemple par
+ * la CNIL (délibération n° 2022-100 du 21/07/2022 ; décision du 08/11/2026) :
+ *   A. 12 caractères au moins : majuscules, minuscules, chiffres et caractères spéciaux ;
+ *   B. 14 caractères au moins : majuscules, minuscules et chiffres ;
+ *   C. une phrase de passe d'au moins 7 mots (mot = 2 caractères au moins).
+ * Note : OWASP ASVS 4.0 (2.1.9) déconseille les règles de composition ; la
+ * forme C laisse la liberté d'une phrase longue sans composition.
  */
 final class MotsDePasse
 {
@@ -28,12 +32,13 @@ final class MotsDePasse
 
     /**
      * Mot de passe provisoire, à transmettre puis à changer à la première connexion :
-     * 4 groupes de 4 caractères sans lettres ambiguës (ni l, ni o, ni 0, ni 1), soit
-     * environ 79 bits de hasard. Exemple : « kq7m-vx3d-p9ta-hc4w ».
+     * 4 groupes de 4 caractères sans caractères ambigus (ni l, I, o, O, 0, 1), soit
+     * environ 92 bits de hasard (seuil CNIL : 80). Exemple : « kQ7m-Vx3d-p9TA-hc4W ».
+     * Les tirets en font un mot de passe de forme A (GestionComptes vérifie la forme).
      */
     public static function provisoire(): string
     {
-        $alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+        $alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
         $groupes = [];
         for ($g = 0; $g < 4; ++$g) {
             $groupe = '';
@@ -92,8 +97,35 @@ final class MotsDePasse
         if (in_array($minuscule, self::COURANTS, true) || count(array_unique(mb_str_split($motDePasse))) < 4) {
             return 'Ce mot de passe est trop courant ou trop simple.';
         }
+        if (!self::formeCnil($motDePasse, $longueur)) {
+            return self::FORMES;
+        }
 
         return null;
+    }
+
+    /** Les trois formes acceptées, telles qu'affichées aux utilisateurs. */
+    public const FORMES = 'Choisissez l\'une des trois formes recommandées par la CNIL : '
+        . '12 caractères au moins avec majuscules, minuscules, chiffres et caractères spéciaux ; '
+        . 'ou 14 caractères au moins avec majuscules, minuscules et chiffres ; '
+        . 'ou une phrase d\'au moins 7 mots.';
+
+    private static function formeCnil(string $motDePasse, int $longueur): bool
+    {
+        $minuscules = preg_match('/\p{Ll}/u', $motDePasse) === 1;
+        $majuscules = preg_match('/\p{Lu}/u', $motDePasse) === 1;
+        $chiffres = preg_match('/\p{N}/u', $motDePasse) === 1;
+        $speciaux = preg_match('/[^\p{L}\p{N}\s]/u', $motDePasse) === 1;
+        if ($longueur >= 12 && $minuscules && $majuscules && $chiffres && $speciaux) {
+            return true;
+        }
+        if ($longueur >= 14 && $minuscules && $majuscules && $chiffres) {
+            return true;
+        }
+        $mots = preg_split('/\s+/u', trim($motDePasse), -1, PREG_SPLIT_NO_EMPTY);
+        $mots = $mots === false ? [] : $mots;
+
+        return count(array_filter($mots, static fn (string $mot): bool => mb_strlen($mot, 'UTF-8') >= 2)) >= 7;
     }
 
     private static function algorithme(): string

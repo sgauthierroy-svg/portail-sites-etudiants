@@ -27,7 +27,7 @@ final class ConnexionTest extends TestCase
 {
     private const URL = 'https://portail.bts-sup-sallanches.com';
     private const MDP_PROVISOIRE = 'provisoire-recu-par-mail';
-    private const MDP_CHOISI = 'le lac de Passy en hiver';
+    private const MDP_CHOISI = 'le lac de Passy gèle chaque hiver ici';
     private const IP = '192.0.2.10';
 
     private DossierTemporaire $dossier;

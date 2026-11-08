@@ -67,8 +67,11 @@ final class Pages
     {
         return self::page('Choisir un nouveau mot de passe', self::alerte($erreur, null)
             . ($impose ? '<p>Le mot de passe que vous avez reçu est provisoire : choisissez le vôtre pour continuer.</p>' : '')
-            . '<p>Au moins ' . MotsDePasse::LONGUEUR_MIN . ' caractères. Une phrase facile à retenir est un bon choix, '
-            . 'par exemple quatre mots sans rapport entre eux.</p>'
+            . '<p>Trois formes possibles, au choix (recommandation de la CNIL) :</p><ul>'
+            . '<li>12 caractères au moins, avec majuscules, minuscules, chiffres et caractères spéciaux (! ? - _ …) ;</li>'
+            . '<li>14 caractères au moins, avec majuscules, minuscules et chiffres ;</li>'
+            . '<li>une phrase d\'au moins 7 mots, facile à retenir pour vous seul, séparés par des espaces.</li></ul>'
+            . '<p>Jamais votre identifiant, ni un mot de passe déjà utilisé ailleurs.</p>'
             . '<form method="post" action="/mot-de-passe">' . self::jeton($jeton)
             . self::champ('actuel', 'Mot de passe actuel', 'password', 'current-password', true)
             . self::champ('nouveau', 'Nouveau mot de passe', 'password', 'new-password')

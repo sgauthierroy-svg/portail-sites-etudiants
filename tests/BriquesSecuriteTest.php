@@ -128,7 +128,9 @@ final class BriquesSecuriteTest extends TestCase
     public function motsDePasseRefuses(): array
     {
         return ['trop court' => ['Court!2026'], 'contient l\'identifiant' => ['Mzanelli-2026-ok'],
-            'courant' => ['Motdepasse1234'], 'répétitif' => ['abababababababab'], 'trop long' => [str_repeat('abcd', 33)]];
+            'courant' => ['Motdepasse1234'], 'répétitif' => ['abababababababab'], 'trop long' => [str_repeat('abcd', 33)],
+            'forme A sans caractère spécial' => ['Lacdepassy74'], 'forme B sans majuscule' => ['lacdepassy2026x'],
+            'phrase de 6 mots' => ['le lac de Passy en hiver'], 'phrase de mots d\'une lettre' => ['a b c d e f g h i j k']];
     }
 
     /** @dataProvider motsDePasseRefuses */
@@ -137,8 +139,28 @@ final class BriquesSecuriteTest extends TestCase
         self::assertNotNull(MotsDePasse::refus($motDePasse, 'mzanelli'));
     }
 
-    public function testUnePhraseLongueEstAcceptee(): void
+    /** @return array<string, array{string}> */
+    public function formesCnil(): array
     {
-        self::assertNull(MotsDePasse::refus('le lac de Passy en hiver', 'mzanelli'));
+        return [
+            'A : 12 caractères, 4 types' => ['Lac-Passy-74'],
+            'B : 14 caractères, 3 types' => ['LacDePassy2026'],
+            'C : phrase de 7 mots' => ['le lac de Passy gèle en hiver'],
+            'C : avec accents et ponctuation' => ['Élèves, sites et sujets : tout part en juin !'],
+        ];
+    }
+
+    /** @dataProvider formesCnil */
+    public function testLesTroisFormesDeLaCnilSontAcceptees(string $motDePasse): void
+    {
+        self::assertNull(MotsDePasse::refus($motDePasse, 'mzanelli'));
+    }
+
+    public function testLeMotDePasseProvisoireRespecteLaFormeA(): void
+    {
+        for ($i = 0; $i < 50; $i++) {
+            $provisoire = MotsDePasse::provisoire();
+            self::assertSame(1, preg_match('/^[a-km-np-zA-HJ-KM-NP-Z2-9]{4}(-[a-km-np-zA-HJ-KM-NP-Z2-9]{4}){3}$/D', $provisoire), $provisoire);
+        }
     }
 }

@@ -110,7 +110,7 @@ final class RolesEtComptesTest extends TestCase
     {
         $page = $this->en('mzanelli', 'POST', '/comptes/nouveau', ['identifiant' => 'sgauthierroy', 'nom' => 'Stéphanie GAUTHIER-ROY', 'email' => 's.gauthier.roy@gmail.com', 'role' => 'administrateur']);
         self::assertSame(200, $page->statut);
-        self::assertSame(1, preg_match('#<code>([a-z2-9]{4}(-[a-z2-9]{4}){3})</code>#', $page->corps, $trouve));
+        self::assertSame(1, preg_match('#<code>([a-zA-Z2-9]{4}(-[a-zA-Z2-9]{4}){3})</code>#', $page->corps, $trouve));
         $cree = (new DepotComptes($this->pdo))->parIdentifiant('sgauthierroy');
         self::assertNotNull($cree);
         self::assertTrue(MotsDePasse::verifier($trouve[1], $cree->motDePasseHache));
