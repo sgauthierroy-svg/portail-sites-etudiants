@@ -66,6 +66,7 @@ final class Application
             '/etudiants' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->etudiants($requete, $moi)),
             '/etudiants/import' => $this->pageConnectee($requete, Droits::IMPORTER, fn (Compte $moi) => $this->importEtudiants($requete, $moi)),
             '/etudiants/nouveau' => $this->pageConnectee($requete, Droits::CREER_ETUDIANT, fn (Compte $moi) => $this->nouvelEtudiant($requete, $moi)),
+            '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
             default => $this->pageNumerotee($requete),
         };
@@ -276,6 +277,27 @@ final class Application
         }
 
         return new Reponse(200, PagesEtudiants::regimesSessions($this->session->jeton(), $referentiel->regimes(), $referentiel->sessions(), $erreur, $information));
+    }
+
+    private function journal(Requete $requete, Compte $moi): Reponse
+    {
+        if ($requete->methode !== 'POST' && ($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        if ($requete->methode === 'POST' && $requete->champ('action') !== 'filtrer') {
+            return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+        }
+        // Connexions (adresses IP, échecs) : administrateur et direction seulement (décision du 07/11/2026).
+        $voirConnexions = Droits::peut($moi->role, Droits::JOURNAL_CONNEXIONS);
+        $autorisees = $voirConnexions ? Journal::LIBELLES : array_diff_key(Journal::LIBELLES, ['connexion' => true]);
+        $choisie = $requete->champ('categorie');
+        $categories = isset($autorisees[$choisie]) ? [$choisie] : array_keys($autorisees);
+        $avant = self::idFacultatif($requete->champ('avant'));
+        $entrees = (new Journal($this->pdo))->lister(array_map('strval', $categories), $avant, 101);
+        $suite = count($entrees) > 100;
+
+        return new Reponse(200, Pages::journal($this->session->jeton(), $autorisees, isset($autorisees[$choisie]) ? $choisie : '',
+            array_slice($entrees, 0, 100), $voirConnexions, $suite));
     }
 
     private function refuser(Requete $requete, Compte $moi): Reponse

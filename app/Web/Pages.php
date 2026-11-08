@@ -120,6 +120,9 @@ final class Pages
         if (Droits::peut($compte->role, Droits::REGIMES_SESSIONS)) {
             $liens[] = '<li><a href="/regimes-sessions">Régimes et sessions</a></li>';
         }
+        if (Droits::peut($compte->role, Droits::JOURNAL)) {
+            $liens[] = '<li><a href="/journal">Journal</a></li>';
+        }
         if (Droits::peut($compte->role, Droits::GERER_COMPTES)) {
             $liens[] = '<li><a href="/comptes">Comptes du portail</a></li>';
         }
@@ -261,6 +264,53 @@ final class Pages
         return '<p><label for="code">Code à 6 chiffres</label><br>'
             . '<input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7"'
             . ' autocomplete="one-time-code" required autofocus></p>';
+    }
+
+    /**
+     * Journal : filtre par catégorie, entrées les plus récentes d'abord, 100 par page.
+     *
+     * @param array<string, string> $categories Catégories que ce lecteur a le droit de voir (clé => libellé)
+     * @param list<array{id: int, date: string, categorie: string, auteur: string, ip: string, action: string, cible: string, resultat: string, detail: string}> $entrees
+     */
+    public static function journal(string $jeton, array $categories, string $choisie, array $entrees, bool $voirIp, bool $suite): string
+    {
+        $options = '<option value="">Toutes</option>';
+        foreach ($categories as $cle => $libelle) {
+            $options .= '<option value="' . Html::e($cle) . '"' . ($cle === $choisie ? ' selected' : '') . '>' . Html::e($libelle) . '</option>';
+        }
+        $resultats = ['succes' => 'réussi', 'echec' => 'échec', 'refus' => 'refusé'];
+        $lignes = '';
+        foreach ($entrees as $e) {
+            $lignes .= '<tr><td>' . Html::e(self::heureLocale($e['date'])) . '</td><td>' . Html::e($categories[$e['categorie']] ?? $e['categorie']) . '</td>'
+                . '<td>' . Html::e($e['auteur']) . '</td><td>' . Html::e($e['action']) . '</td><td>' . Html::e($e['cible']) . '</td>'
+                . '<td>' . Html::e($resultats[$e['resultat']] ?? $e['resultat']) . '</td><td>' . Html::e($e['detail']) . '</td>'
+                . ($voirIp ? '<td>' . Html::e($e['ip']) . '</td>' : '') . '</tr>';
+        }
+        $derniere = $entrees === [] ? null : $entrees[count($entrees) - 1]['id'];
+
+        return self::page('Journal', '<p>Heures de Paris. Les connexions sont conservées 1 an, les actions sur les sites 2 ans.</p>'
+            . '<form method="post" action="/journal">' . self::jeton($jeton) . '<input type="hidden" name="action" value="filtrer">'
+            . '<label for="categorie">Catégorie</label> <select id="categorie" name="categorie">' . $options . '</select> '
+            . '<button type="submit">Afficher</button></form>'
+            . ($entrees === [] ? '<p>Aucune entrée.</p>'
+                : '<table><thead><tr><th>Date</th><th>Catégorie</th><th>Par</th><th>Action</th><th>Sur</th><th>Résultat</th><th>Détail</th>'
+                    . ($voirIp ? '<th>Adresse IP</th>' : '') . '</tr></thead><tbody>' . $lignes . '</tbody></table>')
+            . ($suite && $derniere !== null
+                ? '<form method="post" action="/journal">' . self::jeton($jeton) . '<input type="hidden" name="action" value="filtrer">'
+                    . '<input type="hidden" name="categorie" value="' . Html::e($choisie) . '"><input type="hidden" name="avant" value="' . $derniere . '">'
+                    . '<button type="submit">Entrées plus anciennes</button></form>'
+                : '')
+            . '<p><a href="/">Accueil</a></p>');
+    }
+
+    /** « 2026-11-08T09:12:37Z » → « 08/11/2026 10:12:37 » (heure de Paris) */
+    private static function heureLocale(string $date): string
+    {
+        try {
+            return (new \DateTimeImmutable($date))->setTimezone(new \DateTimeZone('Europe/Paris'))->format('d/m/Y H:i:s');
+        } catch (\Exception) {
+            return $date;
+        }
     }
 
     /** « 2026-11-07T13:45:00Z » → « 07/11/2026 » */

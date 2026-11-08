@@ -27,6 +27,10 @@ Page **Étudiants → Importer des étudiants** (administrateur, enseignant, adm
 
 Un identifiant hors de la règle de la feuille (étudiants de la session 2027, ancien format) n'est accepté que si son sous-domaine figure dans le dernier relevé. Avant toute réinitialisation ou suppression d'un site de ces étudiants (V2), le portail vérifiera en plus que le site leur appartient. Un texte qui contient une colonne de mot de passe, de date de naissance ou de code chiffré est refusé en entier.
 
+**E-mails manquants.** Une ligne sans e-mail est refusée. On peut donc coller l'onglet entier : seuls les étudiants complets entrent. Une fois les e-mails récupérés et reportés dans la feuille, on recolle l'onglet entier : les étudiants déjà importés sont ignorés, les nouveaux complets sont importés. Tant que des étudiants sont en attente, faire entrer les nouveaux étudiants par l'import plutôt que par le formulaire « Ajouter un étudiant », pour que leur identifiant reste celui de la feuille.
+
+**Étudiants dont les sites existent déjà** (session 2028, créés hors du portail). Ils entrent par l'import, après un relevé : leur ligne indique « Sous-domaine déjà présent sur le serveur ✓ ». Le formulaire « Ajouter un étudiant » refuse leur identifiant, puisqu'il est déjà utilisé sur le serveur.
+
 ### Archiver les sessions terminées
 
 Une session dont tous les étudiants sont partis (sous-domaines supprimés) est archivée, sur la même page. Un régime ou une session n'est jamais supprimé : on le désactive ou on l'archive, et on peut le réactiver. On ne peut plus y placer d'étudiant tant qu'il est désactivé ou archivé.
