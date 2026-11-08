@@ -272,6 +272,41 @@ final class Schema
                     UNIQUE (travail_id, cible)
                 );
                 SQL,
+            // V2, lot 2 (08/11/2026) : bibliothèque (paquets PrestaShop, sujets) et
+            // espace documentaire (PDF). Les fichiers sont rangés sous le nom de leur
+            // empreinte SHA-256 dans data/bibliotheque et data/documents, hors d'atteinte du web.
+            6 => <<<SQL
+                CREATE TABLE paquets (
+                    id                  INTEGER PRIMARY KEY,
+                    type                TEXT NOT NULL CHECK (type IN ('prestashop', 'sujet_wordpress', 'sujet_prestashop')),
+                    nom                 TEXT NOT NULL CHECK (length(nom) BETWEEN 1 AND 100),
+                    version             TEXT NULL CHECK (version IS NULL OR (length(version) <= 20
+                                            AND version GLOB '[0-9]*.[0-9]*' AND version NOT GLOB '*[^0-9.]*')),
+                    version_wordpress   TEXT NULL CHECK (version_wordpress IS NULL OR (length(version_wordpress) <= 20
+                                            AND version_wordpress NOT GLOB '*[^0-9.]*')),
+                    empreinte           TEXT NOT NULL UNIQUE CHECK (length(empreinte) = 64 AND empreinte NOT GLOB '*[^0-9a-f]*'),
+                    taille              INTEGER NOT NULL CHECK (taille > 0),
+                    depose_le           TEXT NOT NULL DEFAULT ({$maintenant}),
+                    depose_par          INTEGER NULL REFERENCES comptes (id) ON DELETE SET NULL,
+                    depose_par_nom      TEXT NOT NULL CHECK (length(depose_par_nom) BETWEEN 1 AND 100),
+                    CHECK (type <> 'prestashop' OR version IS NOT NULL)
+                );
+                CREATE UNIQUE INDEX paquets_une_version_prestashop ON paquets (version) WHERE type = 'prestashop';
+
+                -- La session porte sa version PrestaShop (décision du 08/11/2026) :
+                -- un paquet utilisé par une session ne peut pas être retiré.
+                ALTER TABLE sessions ADD COLUMN paquet_prestashop_id INTEGER NULL REFERENCES paquets (id) ON DELETE RESTRICT;
+
+                CREATE TABLE documents (
+                    id              INTEGER PRIMARY KEY,
+                    titre           TEXT NOT NULL CHECK (length(titre) BETWEEN 1 AND 150),
+                    empreinte       TEXT NOT NULL UNIQUE CHECK (length(empreinte) = 64 AND empreinte NOT GLOB '*[^0-9a-f]*'),
+                    taille          INTEGER NOT NULL CHECK (taille > 0),
+                    depose_le       TEXT NOT NULL DEFAULT ({$maintenant}),
+                    depose_par      INTEGER NULL REFERENCES comptes (id) ON DELETE SET NULL,
+                    depose_par_nom  TEXT NOT NULL CHECK (length(depose_par_nom) BETWEEN 1 AND 100)
+                );
+                SQL,
         ];
     }
 

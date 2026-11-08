@@ -139,6 +139,10 @@ label.badge { cursor: pointer; border: 1px solid var(--warn-trait); white-space:
 .badge.err { background: var(--err-fond); color: var(--err-texte); }
 .badge.neutre { background: var(--puce); color: #3f3c39; }
 
+/* ===== Dépôt par CPanel (bibliothèque, documents) ===== */
+.carte-depot { border: 1px solid var(--trait); border-radius: 16px; padding: 16px 18px; margin: 0 0 16px; background: var(--panneau); }
+td form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
 /* ===== Tableaux ===== */
 .tableau { overflow-x: auto; border: 1px solid var(--trait); border-radius: 16px; margin: 0 0 20px; }
 table { border-collapse: collapse; width: 100%; }

@@ -7,6 +7,7 @@ namespace Portail\Web;
 use PDO;
 use Portail\Alertes\Alertes;
 use Portail\Authentification\Authentification;
+use Portail\Bibliotheque\Bibliotheque;
 use Portail\Comptes\Compte;
 use Portail\Comptes\DepotComptes;
 use Portail\Comptes\Droits;
@@ -49,6 +50,7 @@ final class Application
         private readonly Session $session,
         private readonly string $urlPortail,
         ?Alertes $alertes = null,
+        private readonly ?string $dossierDonnees = null,
     ) {
         // Sans expéditeur (tests), les alertes sont préparées mais jamais envoyées.
         $this->alertes = $alertes ?? new Alertes($pdo, null, $urlPortail);
@@ -59,6 +61,11 @@ final class Application
     public function traiter(Requete $requete): Reponse
     {
         Pages::sansCadre();
+        if ($requete->tropGros) {
+            return new Reponse(413, Pages::message('Fichier trop gros',
+                'Le serveur refuse les envois de cette taille par la page. Déposez le fichier avec le gestionnaire de fichiers de CPanel, '
+                . 'dans portail/data/depot, puis enregistrez-le depuis la bibliothèque ou les documents.'));
+        }
         if ($requete->methode === 'POST' && !$this->formulaireAuthentique($requete)) {
             return new Reponse(403, Pages::message('Action refusée', 'Le formulaire a expiré ou ne vient pas du portail. Rechargez la page et recommencez.'));
         }
@@ -76,6 +83,8 @@ final class Application
             '/etudiants/nouveau' => $this->pageConnectee($requete, Droits::CREER_ETUDIANT, fn (Compte $moi) => $this->nouvelEtudiant($requete, $moi)),
             '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
             '/sites' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->voirTout($requete, $moi)),
+            '/bibliotheque' => $this->pageConnectee($requete, Droits::BIBLIOTHEQUE, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
+            '/documents' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->documents($requete, $moi)),
             '/travaux' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travaux($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
             default => $this->pageNumerotee($requete),
@@ -91,11 +100,146 @@ final class Application
             return $this->pageConnectee($requete, Droits::VOIR_FICHE, fn (Compte $moi) => $this->ficheEtudiant($requete, $moi, (int) $trouve[1]));
         }
 
+        if (preg_match('#^/documents/([1-9][0-9]{0,9})$#', $requete->chemin, $trouve) === 1) {
+            return $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->telechargerDocument($requete, (int) $trouve[1]));
+        }
         if (preg_match('#^/travaux/([1-9][0-9]{0,9})$#', $requete->chemin, $trouve) === 1) {
             return $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travail($requete, $moi, (int) $trouve[1]));
         }
 
         return new Reponse(404, Pages::message('Page introuvable', 'Cette page n\'existe pas.'));
+    }
+
+    // ===== V2, lot 2 : bibliothèque et documents =====
+
+    private function bibliotheque(Requete $requete, Compte $moi): Reponse
+    {
+        if ($this->dossierDonnees === null) {
+            return new Reponse(503, Pages::message('Bibliothèque indisponible', 'Dossier des données non configuré.'));
+        }
+        $bibliotheque = new Bibliotheque($this->pdo, $this->dossierDonnees, $moi, $requete->adresseIp);
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            try {
+                switch ($requete->champ('action')) {
+                    case 'deposer':
+                        $fichier = $this->fichierEnvoye($requete);
+                        $bibliotheque->ajouterPaquet($fichier['chemin'], $fichier['nom'], $requete->champ('type'), $requete->champ('nom'), $requete->champ('version'), true);
+                        $information = 'Paquet ajouté à la bibliothèque.';
+                        break;
+                    case 'enregistrer_depot':
+                        $nom = $requete->champ('fichier_depot');
+                        $bibliotheque->ajouterPaquet($bibliotheque->cheminDepot($nom, 'zip'), $nom, $requete->champ('type'), $requete->champ('nom'), $requete->champ('version'), false);
+                        $information = 'Paquet enregistré depuis le dossier de dépôt.';
+                        break;
+                    case 'retirer':
+                        $this->confirmationObligatoire($requete);
+                        $bibliotheque->retirerPaquet(self::idFacultatif($requete->champ('id')) ?? 0);
+                        $information = 'Paquet retiré de la bibliothèque.';
+                        break;
+                    default:
+                        return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+                }
+            } catch (ErreurSaisie $e) {
+                $erreur = $e->getMessage();
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+
+        return new Reponse(200, PagesBibliotheque::bibliotheque($this->session->jeton(), $moi, $bibliotheque, $bibliotheque->paquets(),
+            $bibliotheque->depot(), self::limiteEnvoi(), $erreur, $information));
+    }
+
+    private function documents(Requete $requete, Compte $moi): Reponse
+    {
+        if ($this->dossierDonnees === null) {
+            return new Reponse(503, Pages::message('Documents indisponibles', 'Dossier des données non configuré.'));
+        }
+        $bibliotheque = new Bibliotheque($this->pdo, $this->dossierDonnees, $moi, $requete->adresseIp);
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            try {
+                switch ($requete->champ('action')) {
+                    case 'deposer':
+                        $bibliotheque->ajouterDocument($this->fichierEnvoye($requete)['chemin'], $requete->champ('titre'), true);
+                        $information = 'Document ajouté.';
+                        break;
+                    case 'enregistrer_depot':
+                        $bibliotheque->ajouterDocument($bibliotheque->cheminDepot($requete->champ('fichier_depot'), 'pdf'), $requete->champ('titre'), false);
+                        $information = 'Document enregistré depuis le dossier de dépôt.';
+                        break;
+                    case 'retirer':
+                        $this->confirmationObligatoire($requete);
+                        $bibliotheque->retirerDocument(self::idFacultatif($requete->champ('id')) ?? 0);
+                        $information = 'Document retiré.';
+                        break;
+                    default:
+                        return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+                }
+            } catch (ErreurSaisie $e) {
+                $erreur = $e->getMessage();
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+
+        return new Reponse(200, PagesBibliotheque::documents($this->session->jeton(), $moi, $bibliotheque, $bibliotheque->documents(),
+            $bibliotheque->depot(), self::limiteEnvoi(), $erreur, $information));
+    }
+
+    private function telechargerDocument(Requete $requete, int $id): Reponse
+    {
+        if (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        $document = $this->dossierDonnees === null ? null : (new Bibliotheque($this->pdo, $this->dossierDonnees))->lireDocument($id);
+        if ($document === null) {
+            return new Reponse(404, Pages::message('Document introuvable', 'Ce document n\'existe pas.'));
+        }
+        $nomFichier = trim((string) preg_replace('/[^A-Za-z0-9]+/', '-', (string) iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $document['titre'])), '-');
+
+        // Téléchargé et non affiché dans la page : un PDF ne s'exécute jamais avec les droits du portail.
+        return new Reponse(200, $document['contenu'], [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . ($nomFichier === '' ? 'document' : substr($nomFichier, 0, 80)) . '.pdf"',
+            'Content-Security-Policy' => 'sandbox',
+        ]);
+    }
+
+    /** @return array{chemin: string, nom: string, taille: int} */
+    private function fichierEnvoye(Requete $requete): array
+    {
+        $fichier = $requete->fichier('fichier');
+        if (is_array($fichier)) {
+            return $fichier;
+        }
+        throw new ErreurSaisie(match ($fichier) {
+            null => 'Choisissez un fichier.',
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Fichier trop gros pour un envoi par la page : utilisez le dépôt par CPanel.',
+            default => 'L\'envoi du fichier a été interrompu : recommencez.',
+        });
+    }
+
+    private function confirmationObligatoire(Requete $requete): void
+    {
+        if ($requete->champ('confirmer') !== '1') {
+            throw new ErreurSaisie('Cochez « définitivement » pour confirmer le retrait.');
+        }
+    }
+
+    /** Taille maximale d'un envoi par la page, d'après les réglages PHP du serveur (0 : pas de limite). */
+    private static function limiteEnvoi(): int
+    {
+        $envoi = Requete::octets((string) ini_get('upload_max_filesize'));
+        $formulaire = Requete::octets((string) ini_get('post_max_size'));
+        if ($envoi === 0 || $formulaire === 0) {
+            return max($envoi, $formulaire);
+        }
+
+        return min($envoi, $formulaire);
     }
 
     // ===== V2, lot 1 : « Voir tout » et travaux en arrière-plan =====

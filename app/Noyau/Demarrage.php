@@ -41,7 +41,7 @@ final class Demarrage
         $alertes = self::alertes($config, $pdo);
         Erreurs::surErreur(static fn (string $reference) => self::signalerErreur($config, $alertes, $reference));
 
-        (new Application($pdo, new Chiffrement($config->cleBinaire()), $horloge, new Session(new SessionPhp(), $horloge), $config->urlPortail, $alertes))
+        (new Application($pdo, new Chiffrement($config->cleBinaire()), $horloge, new Session(new SessionPhp(), $horloge), $config->urlPortail, $alertes, $config->dossierDonnees))
             ->traiter(Requete::depuisServeur())
             ->envoyer();
         // La page est d'abord remise au visiteur, puis les alertes partent : un envoi lent ne le fait pas attendre.

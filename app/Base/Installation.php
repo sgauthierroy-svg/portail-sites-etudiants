@@ -29,7 +29,7 @@ final class Installation
     ];
 
     /** Dossiers privés à créer, en droits 700. */
-    public const DOSSIERS_PRIVES = ['data', 'data/sessions', 'data/tmp', 'logs'];
+    public const DOSSIERS_PRIVES = ['data', 'data/sessions', 'data/tmp', 'data/bibliotheque', 'data/documents', 'data/depot', 'logs'];
 
     /** @return list<string> Compte rendu, ligne par ligne */
     public static function installer(string $racine): array
@@ -48,6 +48,10 @@ final class Installation
 
         $config = Config::charger($racine . '/data/config.php');
         $compteRendu[] = 'Configuration lue et vérifiée ✓';
+        // Bibliothèque (V2, lot 2) : contrôle des archives ZIP déposées.
+        $compteRendu[] = class_exists(\ZipArchive::class)
+            ? 'Extension zip de PHP : présente ✓'
+            : 'Extension zip de PHP : ABSENTE ✗ (la bibliothèque refusera les dépôts ; à activer dans CPanel, « Sélectionner une version de PHP »)';
 
         $pdo = Connexion::ouvrir($config->dossierDonnees . '/portail.sqlite');
         $versions = Schema::mettreAJour($pdo);

@@ -105,6 +105,15 @@ Les pages du portail ne touchent jamais le serveur : elles inscrivent une demand
 - Suivi dans le portail : menu « Travaux en cours » (avancement étudiant par étudiant, bouton « Arrêter » pour le demandeur et l'administrateur) et « Voir tout » (une ligne par étudiant, une colonne par site, d'après le dernier relevé).
 - « Actualiser le relevé » (administrateur, enseignant, administratif) inscrit un relevé dans la file : lecture seule, rien n'est modifié.
 
+## Bibliothèque et documents (V2)
+
+- **Bibliothèque** (administrateur, enseignants) : paquets d'installation PrestaShop (un par version, numéro indiqué au dépôt), sujets WordPress (archive ZIP de Duplicator). Les sujets PrestaShop arrivent avec le lot 6.
+- **Documents** (tous les comptes) : PDF seulement, 30 Mo au plus. Téléchargés, jamais affichés dans la page.
+- Fichiers rangés sous le nom de leur empreinte SHA-256 dans `~/portail/data/bibliotheque` et `~/portail/data/documents` (droits 700, hors d'atteinte du web). L'empreinte d'un paquet est revérifiée avant chaque installation : un fichier modifié est refusé.
+- Archives refusées au dépôt : contenu non reconnu, ou chemin qui sortirait du dossier du site (`../`, chemin absolu).
+- **Gros fichiers** : la taille acceptée par la page dépend des réglages PHP du serveur (affichée sur la page). Au-delà, déposer le fichier avec le gestionnaire de fichiers de CPanel dans `~/portail/data/depot`, puis cliquer « Enregistrer ce fichier » dans le portail. Seuls les noms simples (lettres, chiffres, espace, `. _ - ( )`) finissant par `.zip` ou `.pdf` sont proposés.
+- Retrait : la personne qui a déposé, ou l'administrateur, avec la case « définitivement ». Un paquet utilisé par une session ne peut pas être retiré.
+
 ## Alertes par e-mail
 
 Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la boîte `portail@bts-sup-sallanches.com`, par le serveur d'envoi d'O2switch (port 465, chiffré, certificat vérifié). Les e-mails partent juste après l'affichage de la page : ils ne ralentissent personne. Un échec d'envoi ne bloque jamais le portail ; il est inscrit au journal (« échec d'envoi d'alerte », avec la raison).

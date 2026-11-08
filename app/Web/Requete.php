@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Portail\Web;
 
+use Portail\Base\Lecture;
+
 /**
  * Requête reçue, réduite à ce dont le portail a besoin.
  * Seules les valeurs textuelles des formulaires sont gardées.
@@ -16,6 +18,9 @@ final class Requete
     /**
      * @param array<string, string> $formulaire
      * @param array<string, list<string>> $listes Cases à cocher multiples (nom[] dans le formulaire)
+     * @param array<string, array{chemin: string, nom: string, taille: int}|int> $fichiers Fichiers envoyés :
+     *        vérifiés par is_uploaded_file(), ou code d'erreur PHP de l'envoi (UPLOAD_ERR_…)
+     * @param bool $tropGros Envoi plus gros que ce que le serveur accepte : le formulaire a été vidé par PHP
      */
     public function __construct(
         public readonly string $methode,
@@ -24,7 +29,15 @@ final class Requete
         public readonly string $adresseIp = '0.0.0.0',
         public readonly ?string $origine = null,
         public readonly array $listes = [],
+        public readonly array $fichiers = [],
+        public readonly bool $tropGros = false,
     ) {
+    }
+
+    /** @return array{chemin: string, nom: string, taille: int}|int|null */
+    public function fichier(string $nom): array|int|null
+    {
+        return $this->fichiers[$nom] ?? null;
     }
 
     public function champ(string $nom): string
@@ -52,6 +65,26 @@ final class Requete
                 $listes[$cle] = array_values(array_filter($valeur, static fn (mixed $v): bool => is_string($v) && strlen($v) <= 100));
             }
         }
+        $fichiers = [];
+        /** @var array<array-key, mixed> $envois Contenu fourni par PHP, vérifié champ par champ ci-dessous. */
+        $envois = $_FILES;
+        foreach (array_keys($envois) as $cle) {
+            $fichier = Lecture::tableau($envois[$cle]);
+            $erreur = Lecture::entier($fichier['error'] ?? null);
+            if (!is_string($cle) || $fichier === null || $erreur === null) {
+                continue; // Envois multiples (nom[]) : jamais utilisés par le portail.
+            }
+            $temporaire = Lecture::texte($fichier['tmp_name'] ?? null);
+            $nomOrigine = Lecture::texte($fichier['name'] ?? null);
+            if ($erreur === UPLOAD_ERR_OK && $temporaire !== null && $nomOrigine !== null && is_uploaded_file($temporaire)) {
+                $fichiers[$cle] = ['chemin' => $temporaire, 'nom' => mb_substr($nomOrigine, 0, 200, 'UTF-8'), 'taille' => (int) filesize($temporaire)];
+            } elseif ($erreur !== UPLOAD_ERR_NO_FILE) {
+                $fichiers[$cle] = $erreur;
+            }
+        }
+        $longueur = (int) self::serveur('CONTENT_LENGTH', '0');
+        $limite = self::octets((string) ini_get('post_max_size'));
+        $tropGros = strtoupper(self::serveur('REQUEST_METHOD', 'GET')) === 'POST' && $limite > 0 && $longueur > $limite;
         $chemin = parse_url(self::serveur('REQUEST_URI', '/'), PHP_URL_PATH);
         $ip = self::serveur('REMOTE_ADDR', '0.0.0.0');
         $origine = self::serveur('HTTP_ORIGIN', '');
@@ -63,7 +96,26 @@ final class Requete
             filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '0.0.0.0',
             $origine === '' ? null : $origine,
             $listes,
+            $fichiers,
+            $tropGros,
         );
+    }
+
+    /** « 128M » → 134217728 (notation des réglages PHP). 0 : pas de limite. */
+    public static function octets(string $reglage): int
+    {
+        $reglage = trim($reglage);
+        if (preg_match('/^([0-9]+)\s*([KMG]?)$/i', $reglage, $parties) !== 1) {
+            return 0;
+        }
+        $facteur = match (strtoupper($parties[2])) {
+            'K' => 1024,
+            'M' => 1024 * 1024,
+            'G' => 1024 * 1024 * 1024,
+            default => 1,
+        };
+
+        return (int) $parties[1] * $facteur;
     }
 
     /** Valeur de $_SERVER, toujours vérifiée : elle vient du visiteur ou du serveur web. */

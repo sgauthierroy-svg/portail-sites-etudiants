@@ -71,8 +71,11 @@ final class RolesEtComptesTest extends TestCase
             self::assertTrue(Droits::peut($role, Droits::REGIMES_SESSIONS), $role . ' crée régimes et sessions');
         }
         self::assertFalse(Droits::peut('consultation', Droits::REGIMES_SESSIONS));
-        self::assertSame([Droits::CONSULTER, Droits::JOURNAL, Droits::JOURNAL_CONNEXIONS, Droits::GERER_COMPTES], Droits::de('consultation'),
-            'Direction : suivi et secours sur les comptes (07/11/2026)');
+        self::assertSame([Droits::CONSULTER, Droits::JOURNAL, Droits::JOURNAL_CONNEXIONS, Droits::GERER_COMPTES, Droits::DOCUMENTS], Droits::de('consultation'),
+            'Direction : suivi et secours sur les comptes (07/11/2026), documents (08/11/2026)');
+        foreach (['administrateur', 'enseignant', 'administratif', 'consultation'] as $role) {
+            self::assertTrue(Droits::peut($role, Droits::DOCUMENTS), $role . ' dépose et lit les documents (08/11/2026)');
+        }
         self::assertTrue(Droits::peut('administrateur', Droits::SUPPRIMER), 'Seul l\'administrateur supprime');
         self::assertFalse(Droits::peut('superadmin', Droits::CONSULTER));
         self::assertFalse(Droits::peut('administrateur', 'droit_inexistant'));

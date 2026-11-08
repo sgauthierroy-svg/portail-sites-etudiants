@@ -78,6 +78,8 @@ final class Pages
         'journal' => '<path d="M6 3h10l4 4v14H6z"/><path d="M10 11h6M10 15h6"/>',
         'sites' => '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>',
         'travaux' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+        'bibliotheque' => '<path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16 5l4 1-3 14-4-1z"/>',
+        'documents' => '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
         'motdepasse' => '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/>',
     ];
 
@@ -96,6 +98,12 @@ final class Pages
         if (Droits::peut($compte->role, Droits::CONSULTER)) {
             $liste[] = ['/sites', 'sites', 'Voir tout', 'Une ligne par étudiant, une colonne par site, d’après le dernier relevé du serveur.'];
             $liste[] = ['/travaux', 'travaux', 'Travaux en cours', 'Les travaux demandés au serveur et leur avancement, étudiant par étudiant.'];
+        }
+        if (Droits::peut($compte->role, Droits::BIBLIOTHEQUE)) {
+            $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', 'Paquets PrestaShop et sujets d’examen, vérifiés à chaque utilisation.'];
+        }
+        if (Droits::peut($compte->role, Droits::DOCUMENTS)) {
+            $liste[] = ['/documents', 'documents', 'Documents', 'Référentiel et documents de l’équipe, en PDF.'];
         }
         if (Droits::peut($compte->role, Droits::IMPORTER)) {
             $liste[] = ['/etudiants/import', 'import', 'Importer des étudiants', 'Ajoute une classe entière depuis la Google Sheets, avec un aperçu à vérifier.'];
