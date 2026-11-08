@@ -171,6 +171,22 @@ final class RolesEtComptesTest extends TestCase
         self::assertSame(0, $this->nombre("SELECT actif FROM comptes WHERE identifiant = 'jroux'"));
     }
 
+    public function testUnCompteDesactiveDoitEtreReactiveAvantToutReinitialisation(): void
+    {
+        $this->en('mzanelli', 'POST', '/comptes/' . $this->ids['jroux'], ['action' => 'desactiver']);
+        $fiche = $this->en('mzanelli', 'GET', '/comptes/' . $this->ids['jroux'])->corps;
+        self::assertStringContainsString('Ce compte est désactivé', $fiche);
+        self::assertStringNotContainsString('value="mot_de_passe"', $fiche);
+        $avant = $this->texte("SELECT mot_de_passe_hache FROM comptes WHERE identifiant = 'jroux'");
+        foreach (['mot_de_passe', 'double_auth'] as $action) {
+            $page = $this->en('mzanelli', 'POST', '/comptes/' . $this->ids['jroux'], ['action' => $action]);
+            self::assertStringContainsString('réactivez-le avant', $page->corps, $action . ' par formulaire forgé');
+        }
+        self::assertSame($avant, $this->texte("SELECT mot_de_passe_hache FROM comptes WHERE identifiant = 'jroux'"));
+        $this->en('mzanelli', 'POST', '/comptes/' . $this->ids['jroux'], ['action' => 'reactiver']);
+        self::assertStringContainsString('plus jamais affiché', $this->en('mzanelli', 'POST', '/comptes/' . $this->ids['jroux'], ['action' => 'mot_de_passe'])->corps);
+    }
+
     public function testReinitialiserLeMotDePasseEtLeTelephone(): void
     {
         $this->pdo->exec("UPDATE comptes SET double_auth_active = 1, secret_2fa_chiffre = 'v1:x', echecs_consecutifs = 3, bloque_jusqu_a = '2099-01-01T00:00:00Z' WHERE identifiant = 'cpetit'");

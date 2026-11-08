@@ -323,6 +323,11 @@ final class Application
         $gestion = $this->gestion($moi, $requete);
         $information = '';
         try {
+            // Un compte désactivé ne peut pas se connecter : le réinitialiser ne servirait à rien
+            // et laisserait croire le contraire (constat du 08/11/2026). On le réactive d'abord.
+            if (!$compte->actif && in_array($requete->champ('action'), ['mot_de_passe', 'double_auth'], true)) {
+                throw new ErreurSaisie('Ce compte est désactivé : réactivez-le avant de réinitialiser son mot de passe ou son code.');
+            }
             switch ($requete->champ('action')) {
                 case 'modifier':
                     $gestion->modifier($id, $requete->champ('nom'), $requete->champ('email'), $requete->champ('role'));

@@ -187,9 +187,12 @@ final class Pages
             . self::choixRole($compte->role)
             . '<button type="submit">Enregistrer</button></form>'
             . '<h2>Actions</h2>'
-            . '<p>Double authentification : ' . ($compte->doubleAuthActive ? 'activée' : 'à activer à la prochaine connexion') . '.</p>'
-            . $bouton('mot_de_passe', 'Réinitialiser le mot de passe')
-            . $bouton('double_auth', 'Réinitialiser le code à 6 chiffres (téléphone perdu ou changé)')
+            . ($compte->actif
+                ? '<p>Double authentification : ' . ($compte->doubleAuthActive ? 'activée' : 'à activer à la prochaine connexion') . '.</p>'
+                    . $bouton('mot_de_passe', 'Réinitialiser le mot de passe')
+                    . $bouton('double_auth', 'Réinitialiser le code à 6 chiffres (téléphone perdu ou changé)')
+                : '<p role="status"><strong>Ce compte est désactivé : il ne peut pas se connecter.</strong> '
+                    . 'Réactivez-le avant de réinitialiser son mot de passe ou son code à 6 chiffres.</p>')
             . ($compte->actif && $revuLe !== null
                 ? '<p>Dernière confirmation que ce compte est nécessaire : ' . Html::e(self::jour($revuLe))
                     . ' (création ou revue). Le portail le signale au bout de 6 mois.</p>'
