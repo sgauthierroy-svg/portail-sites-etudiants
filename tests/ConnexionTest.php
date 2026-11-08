@@ -58,6 +58,8 @@ final class ConnexionTest extends TestCase
         self::assertStringContainsString('Activer la double authentification', $page->corps);
         $cle = $this->cleAffichee($page);
         self::assertStringContainsString(implode(' ', str_split($cle, 4)), $page->corps);
+        self::assertStringContainsString('<svg', $page->corps, 'QR code d\'activation affiché');
+        self::assertStringNotContainsString('otpauth', $page->corps, 'Le lien n\'apparaît pas en clair dans la page');
 
         $page = $this->post('/connexion/activation', ['code' => '000000']);
         self::assertStringContainsString('Code incorrect', $page->corps);

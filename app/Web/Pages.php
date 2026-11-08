@@ -6,7 +6,10 @@ namespace Portail\Web;
 
 use Portail\Comptes\Compte;
 use Portail\Comptes\Droits;
+use Portail\Securite\Base32;
 use Portail\Securite\MotsDePasse;
+use Portail\Securite\QrCode;
+use Portail\Securite\Totp;
 
 /**
  * Pages HTML du portail. Tout texte variable passe par Html::e().
@@ -46,18 +49,22 @@ final class Pages
             . '<button type="submit">Se connecter</button></form>');
     }
 
-    public static function activation(string $jeton, string $cleLisible, ?string $erreur): string
+    public static function activation(string $jeton, string $cleLisible, string $identifiant, ?string $erreur): string
     {
         $cle = implode(' ', str_split($cleLisible, 4));
+        // QR code dessiné sur le serveur (aucun service extérieur) : il contient la même clé que le texte.
+        $qr = QrCode::svg(Totp::adresse(Base32::decoder($cleLisible), $identifiant), 'QR code d\'activation du compte ' . $identifiant);
 
         return self::page('Activer la double authentification', self::alerte($erreur, null)
             . '<p>Première connexion : reliez votre compte à une application d\'authentification sur <strong>votre</strong> téléphone '
             . '(par exemple Google Authenticator, Microsoft Authenticator ou FreeOTP).</p>'
-            . '<ol><li>Dans l\'application, choisissez d\'ajouter un compte en <strong>saisissant une clé</strong>.</li>'
-            . '<li>Nom du compte : <strong>Portail Sup\'Sallanches</strong>. Clé :</li></ol>'
+            . '<ol><li>Dans l\'application, choisissez d\'ajouter un compte en <strong>scannant un QR code</strong>, puis visez celui-ci :</li></ol>'
+            . '<p>' . $qr . '</p>'
+            . '<p>Impossible de scanner ? Ajoutez le compte en <strong>saisissant une clé</strong> : nom <strong>Portail Sup\'Sallanches</strong>, '
+            . 'type « basé sur l\'heure », clé :</p>'
             . '<p><code>' . Html::e($cle) . '</code></p>'
-            . '<ol start="3"><li>Choisissez le type « basé sur l\'heure », puis saisissez ci-dessous le code à 6 chiffres affiché.</li></ol>'
-            . '<p>Cette clé ne sera plus jamais affichée. Ne la communiquez à personne.</p>'
+            . '<ol start="2"><li>Saisissez ci-dessous le code à 6 chiffres affiché par l\'application.</li></ol>'
+            . '<p>Ce QR code et cette clé ne seront plus jamais affichés. Ne les montrez et ne les communiquez à personne.</p>'
             . '<form method="post" action="/connexion/activation">' . self::jeton($jeton)
             . self::champCode()
             . '<button type="submit">Activer et se connecter</button></form>');

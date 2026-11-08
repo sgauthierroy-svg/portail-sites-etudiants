@@ -422,7 +422,7 @@ final class Application
         }
         if ($requete->methode !== 'POST') {
             return $this->seulementGet($requete)
-                ?? new Reponse(200, Pages::activation($this->session->jeton(), $this->authentification->secretLisible($compteId, $secret), null));
+                ?? new Reponse(200, Pages::activation($this->session->jeton(), $this->authentification->secretLisible($compteId, $secret), $compte->identifiant, null));
         }
         $active = $this->authentification->activer($compteId, $secret, $requete->champ('code'), $requete->adresseIp);
         if ($active === null) {
@@ -431,7 +431,7 @@ final class Application
                 return $bloque;
             }
 
-            return new Reponse(200, Pages::activation($this->session->jeton(), $this->authentification->secretLisible($compteId, $secret),
+            return new Reponse(200, Pages::activation($this->session->jeton(), $this->authentification->secretLisible($compteId, $secret), $compte->identifiant,
                 'Code incorrect. Vérifiez que l\'heure de votre téléphone est réglée automatiquement.'));
         }
 
