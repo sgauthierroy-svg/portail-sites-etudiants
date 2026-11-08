@@ -81,6 +81,37 @@ Le portail refuse de démarrer si `config.php` est lisible par un autre compte, 
 
 Copier les nouveaux fichiers, puis relancer `php ~/portail/bin/installer.php`. Il applique les nouvelles versions de la base sans rien écraser.
 
+## Alertes par e-mail
+
+Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la boîte `portail@bts-sup-sallanches.com`, par le serveur d'envoi d'O2switch (port 465, chiffré, certificat vérifié). Les e-mails partent juste après l'affichage de la page : ils ne ralentissent personne. Un échec d'envoi ne bloque jamais le portail ; il est inscrit au journal (« échec d'envoi d'alerte », avec la raison).
+
+| Événement | Destinataires |
+| --- | --- |
+| Action de secours de la direction sur un compte | adresse d'alerte + personne du compte touché |
+| Compte bloqué après 5 échecs | adresse d'alerte + personne du compte |
+| Adresse IP bloquée après 30 échecs en 15 minutes | adresse d'alerte |
+| Connexion d'un compte Direction | adresse d'alerte |
+| Rôle Administrateur attribué (y compris par la commande de secours) | adresse d'alerte |
+| Erreur technique du portail (une alerte par heure au plus) | adresse d'alerte |
+| Comptes non confirmés depuis 6 mois (le lundi) | adresse d'alerte |
+
+Aucun e-mail ne contient de mot de passe ni de donnée d'étudiant.
+
+- Tester l'envoi : `php ~/portail/bin/alertes.php test`.
+- Rappel du lundi : tâche planifiée de CPanel (Tâches Cron), chaque lundi à 7 h 13 : `php ~/portail/bin/alertes.php hebdo`.
+- Mot de passe de la boîte `portail@` changé : le reporter dans `~/portail/data/config.php` (`smtp.mot_de_passe`), puis lancer le test.
+
+## Ports réseau (pare-feu de l'établissement)
+
+| Qui se connecte | Vers quoi | Port | Pare-feu de l'établissement |
+| --- | --- | --- | --- |
+| Navigateurs des utilisateurs | portail.bts-sup-sallanches.com | 443 (HTTPS) | à autoriser en sortie (en général déjà ouvert) |
+| Navigateurs, adresse en `http://` | portail | 80 | utile seulement pour être renvoyé vers 443 |
+| Administrateur | CPanel d'O2switch | 2083 (HTTPS de CPanel) | à autoriser en sortie depuis son poste ; si bloqué, adresse de secours `https://cpanel.` suivi du domaine |
+| Administrateur avec un logiciel SSH | serveur O2switch | 22 | seulement s'il n'utilise pas le Terminal de CPanel |
+| Serveur O2switch | son serveur d'envoi mail.bts-sup-sallanches.com | 465 | non concerné : tout se passe chez O2switch |
+| Téléphones (code à 6 chiffres) | aucun | aucun | non concerné : le code est calculé sans connexion |
+
 ## Comptes du portail
 
 ### Premiers administrateurs (une seule fois, en SSH)

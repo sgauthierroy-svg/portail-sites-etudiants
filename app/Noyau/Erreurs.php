@@ -13,6 +13,15 @@ use Throwable;
  */
 final class Erreurs
 {
+    /** @var (callable(string): void)|null Appelé après la page d'erreur (alerte e-mail), jamais bloquant */
+    private static $surErreur = null;
+
+    /** @param callable(string): void $action */
+    public static function surErreur(callable $action): void
+    {
+        self::$surErreur = $action;
+    }
+
     public static function installer(bool $web): void
     {
         // Tout avertissement PHP devient une erreur : pas de fonctionnement dégradé en silence.
@@ -35,6 +44,13 @@ final class Erreurs
             ));
             if ($web) {
                 self::pageErreur($reference);
+                if (self::$surErreur !== null) {
+                    try {
+                        (self::$surErreur)($reference);
+                    } catch (Throwable) {
+                        // L'alerte est un plus : son échec ne doit rien changer pour le visiteur.
+                    }
+                }
             } else {
                 fwrite(STDERR, 'Erreur (référence ' . $reference . ') : ' . $e->getMessage() . PHP_EOL);
                 exit(1);

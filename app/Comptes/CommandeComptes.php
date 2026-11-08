@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Portail\Comptes;
 
 use PDO;
+use Portail\Alertes\Alertes;
 use Portail\Noyau\ErreurSaisie;
 
 /**
@@ -26,7 +27,7 @@ final class CommandeComptes
         'authentification (téléphone à relier de nouveau), débloque et réactive le compte.',
     ];
 
-    public function __construct(private readonly PDO $pdo)
+    public function __construct(private readonly PDO $pdo, private readonly ?Alertes $alertes = null)
     {
     }
 
@@ -36,7 +37,7 @@ final class CommandeComptes
      */
     public function executer(array $arguments): array
     {
-        $gestion = new GestionComptes($this->pdo, null, null);
+        $gestion = new GestionComptes($this->pdo, null, null, $this->alertes);
         $depot = new DepotComptes($this->pdo);
 
         switch ($arguments[0] ?? '') {

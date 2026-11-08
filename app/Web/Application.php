@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Portail\Web;
 
 use PDO;
+use Portail\Alertes\Alertes;
 use Portail\Authentification\Authentification;
 use Portail\Comptes\Compte;
 use Portail\Comptes\DepotComptes;
@@ -38,14 +39,19 @@ final class Application
     private readonly Authentification $authentification;
     private readonly DepotComptes $comptes;
 
+    private readonly Alertes $alertes;
+
     public function __construct(
         private readonly PDO $pdo,
         Chiffrement $chiffrement,
         private readonly Horloge $horloge,
         private readonly Session $session,
         private readonly string $urlPortail,
+        ?Alertes $alertes = null,
     ) {
-        $this->authentification = new Authentification($pdo, $chiffrement, $horloge);
+        // Sans expéditeur (tests), les alertes sont préparées mais jamais envoyées.
+        $this->alertes = $alertes ?? new Alertes($pdo, null, $urlPortail);
+        $this->authentification = new Authentification($pdo, $chiffrement, $horloge, $this->alertes);
         $this->comptes = new DepotComptes($pdo);
     }
 
@@ -423,7 +429,7 @@ final class Application
 
     private function gestion(Compte $moi, Requete $requete): GestionComptes
     {
-        return new GestionComptes($this->pdo, $moi, $requete->adresseIp);
+        return new GestionComptes($this->pdo, $moi, $requete->adresseIp, $this->alertes);
     }
 
     private function connexion(Requete $requete): Reponse

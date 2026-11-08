@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Portail\Comptes;
 
 use PDO;
+use Portail\Alertes\Alertes;
 use PDOException;
 use Portail\Journal\Journal;
 use Portail\Noyau\ErreurSaisie;
@@ -31,7 +32,8 @@ final class GestionComptes
     /**
      * @param Compte|null $auteur Compte qui agit ; null pour la commande de secours en SSH
      */
-    public function __construct(PDO $pdo, private readonly ?Compte $auteur, private readonly ?string $adresseIp)
+    public function __construct(PDO $pdo, private readonly ?Compte $auteur, private readonly ?string $adresseIp,
+        private readonly ?Alertes $alertes = null)
     {
         $this->comptes = new DepotComptes($pdo);
         $this->journal = new Journal($pdo);
@@ -51,6 +53,9 @@ final class GestionComptes
         $provisoire = self::provisoirePour($identifiant);
         $id = $this->comptes->creer($identifiant, $nomAffiche, $email, $role, MotsDePasse::hacher($provisoire));
         $this->tracer('création de compte', $identifiant, 'rôle : ' . Compte::LIBELLES_ROLES[$role]);
+        if ($role === 'administrateur') {
+            $this->alertes?->roleAdministrateur($identifiant, $nomAffiche, $this->nomAuteur());
+        }
 
         return ['id' => $id, 'provisoire' => $provisoire];
     }
@@ -62,6 +67,9 @@ final class GestionComptes
         $this->protegerDernierAdmin(fn () => $this->comptes->modifier($id, $nomAffiche, $email, $role));
         $this->tracer('modification de compte', $compte->identifiant,
             $compte->role === $role ? null : 'rôle : ' . $compte->libelleRole() . ' → ' . Compte::LIBELLES_ROLES[$role]);
+        if ($role === 'administrateur' && $compte->role !== 'administrateur') {
+            $this->alertes?->roleAdministrateur($compte->identifiant, $nomAffiche, $this->nomAuteur());
+        }
     }
 
     public function desactiver(int $id): void
@@ -172,6 +180,13 @@ final class GestionComptes
         if ($this->auteur !== null && $this->auteur->role === 'consultation') {
             $this->journal->ecrire('administration', self::ACTION_SECOURS, 'succes', $this->auteur->id,
                 $this->auteur->nomAffiche, $this->adresseIp, $cible, $action . ($detail === null ? '' : ' (' . $detail . ')'));
+            $this->alertes?->secoursDirection($this->auteur, $action . ($detail === null ? '' : ' (' . $detail . ')'), $cible,
+                $this->comptes->parIdentifiant($cible)?->email);
         }
+    }
+
+    private function nomAuteur(): string
+    {
+        return $this->auteur === null ? 'commande de secours (SSH)' : $this->auteur->nomAffiche . ' (' . $this->auteur->libelleRole() . ')';
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Portail\Authentification;
 
 use PDO;
+use Portail\Alertes\Alertes;
 use Portail\Comptes\Compte;
 use Portail\Comptes\DepotComptes;
 use Portail\Journal\Journal;
@@ -37,6 +38,7 @@ final class Authentification
         private readonly PDO $pdo,
         private readonly Chiffrement $chiffrement,
         private readonly Horloge $horloge,
+        private readonly ?Alertes $alertes = null,
     ) {
         $this->comptes = new DepotComptes($pdo);
         $this->journal = new Journal($pdo);
@@ -44,10 +46,15 @@ final class Authentification
 
     public function adresseBloquee(string $ip): bool
     {
+        return $this->echecsAdresse($ip) >= self::ECHECS_MAX_ADRESSE;
+    }
+
+    private function echecsAdresse(string $ip): int
+    {
         $requete = $this->pdo->prepare('SELECT count(*) FROM tentatives_connexion WHERE adresse_ip = :ip AND reussie = 0 AND date > :depuis');
         $requete->execute([':ip' => $ip, ':depuis' => Compte::date($this->horloge->maintenant() - self::DUREE_BLOCAGE)]);
 
-        return (int) $requete->fetchColumn() >= self::ECHECS_MAX_ADRESSE;
+        return (int) $requete->fetchColumn();
     }
 
     /** Première étape. @return Compte|null Le compte si le mot de passe est juste et le compte utilisable */
@@ -177,6 +184,7 @@ final class Authentification
         if ($bloque) {
             $this->journal->ecrire('connexion', 'blocage du compte', 'refus', $compte->id, $compte->nomAffiche, $ip, null,
                 self::ECHECS_MAX . ' échecs consécutifs : bloqué ' . intdiv(self::DUREE_BLOCAGE, 60) . ' minutes');
+            $this->alertes?->compteBloque($compte, $ip, intdiv(self::DUREE_BLOCAGE, 60));
         }
     }
 
@@ -185,6 +193,9 @@ final class Authentification
         $this->tentative($compte->identifiant, $ip, true);
         $this->comptes->enregistrerConnexion($compte->id, $pas, $this->horloge->maintenant());
         $this->journal->ecrire('connexion', 'connexion', 'succes', $compte->id, $compte->nomAffiche, $ip, null, $detail);
+        if ($compte->role === 'consultation') {
+            $this->alertes?->connexionDirection($compte, $ip);
+        }
     }
 
     private function tentative(string $identifiantSaisi, string $ip, bool $reussie): void
@@ -194,6 +205,12 @@ final class Authentification
         );
         $requete->execute([':date' => Compte::date($this->horloge->maintenant()), ':ip' => $ip,
             ':identifiant' => mb_substr($identifiantSaisi, 0, 64, 'UTF-8'), ':reussie' => $reussie ? 1 : 0]);
+        // Alerte une seule fois, quand l'adresse atteint exactement le seuil de blocage.
+        if (!$reussie && $this->echecsAdresse($ip) === self::ECHECS_MAX_ADRESSE) {
+            $this->journal->ecrire('connexion', 'blocage de l\'adresse', 'refus', null, null, $ip, null,
+                self::ECHECS_MAX_ADRESSE . ' échecs en ' . intdiv(self::DUREE_BLOCAGE, 60) . ' minutes');
+            $this->alertes?->adresseBloquee($ip, self::ECHECS_MAX_ADRESSE, intdiv(self::DUREE_BLOCAGE, 60));
+        }
     }
 
     private static function contexte(int $compteId): string

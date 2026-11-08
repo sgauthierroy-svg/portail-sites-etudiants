@@ -22,7 +22,9 @@ $pdo = \Portail\Noyau\Demarrage::base($config);
 
 try {
     /** @var list<string> $argv Arguments de la ligne de commande, toujours des textes. */
-    $lignes = (new \Portail\Comptes\CommandeComptes($pdo))->executer(array_slice($argv, 1));
+    $alertes = \Portail\Noyau\Demarrage::alertes($config, $pdo);
+    $lignes = (new \Portail\Comptes\CommandeComptes($pdo, $alertes))->executer(array_slice($argv, 1));
+    $alertes->expedier();
 } catch (\Portail\Noyau\ErreurSaisie $e) {
     fwrite(STDERR, $e->getMessage() . PHP_EOL);
     exit(1);
