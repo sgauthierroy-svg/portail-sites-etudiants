@@ -236,6 +236,20 @@ final class EtudiantsTest extends TestCase
         self::assertStringNotContainsString('<script>', $this->en('pmoreau', 'GET', '/etudiants')->corps);
     }
 
+    public function testUnFormulaireVenuDAilleursOuDOrigineNulleEstRefuse(): void
+    {
+        $compte = (new DepotComptes($this->pdo))->parIdentifiant('cpetit');
+        self::assertNotNull($compte);
+        foreach (['null' => 403, 'https://pirate.exemple' => 403, self::URL => 200] as $origine => $attendu) {
+            $session = new Session(new SessionMemoire(), $this->horloge);
+            $session->connecter($compte->id, $compte->generation);
+            $reponse = (new Application($this->pdo, $this->chiffrement, $this->horloge, $session, self::URL))
+                ->traiter(new Requete('POST', '/regimes-sessions', ['action' => 'creer_session', 'annee' => '2031', 'jeton' => $session->jeton()], '192.0.2.1', $origine));
+            self::assertSame($attendu, $reponse->statut, 'Origine ' . $origine);
+        }
+        self::assertSame(1, $this->nombre('SELECT count(*) FROM sessions WHERE annee = 2031'));
+    }
+
     // ===== Aides =====
 
     private function ajouter(string $nom, string $prenom, string $identifiant, ?int $session = null): int

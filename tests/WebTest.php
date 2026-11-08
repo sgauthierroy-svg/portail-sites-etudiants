@@ -34,6 +34,14 @@ final class WebTest extends TestCase
         self::assertStringNotContainsString('*', $csp);
     }
 
+    public function testLaPolitiqueDeReferentLaisseLeNavigateurDonnerLOriginePortail(): void
+    {
+        // Avec « no-referrer », un formulaire envoyé au portail lui-même porte
+        // « Origin: null » (norme Fetch, tests web-platform fetch/origin) et la
+        // vérification d'origine le refuse : bogue constaté au premier essai du 08/11/2026.
+        self::assertSame('same-origin', EnTetes::securite()['Referrer-Policy']);
+    }
+
     public function testAucunePageNEstGardeeEnCache(): void
     {
         self::assertStringContainsString('no-store', EnTetes::securite()['Cache-Control']);

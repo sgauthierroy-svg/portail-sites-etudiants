@@ -20,7 +20,11 @@ final class EnTetes
                 . "font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
             'X-Content-Type-Options' => 'nosniff',
             'X-Frame-Options' => 'DENY',
-            'Referrer-Policy' => 'no-referrer',
+            // same-origin et non no-referrer : avec no-referrer, le navigateur envoie
+            // « Origin: null » sur les formulaires du portail lui-même, que la
+            // vérification d'origine refuse (norme Fetch ; constaté le 08/11/2026).
+            // Aucune adresse du portail n'est transmise aux autres sites.
+            'Referrer-Policy' => 'same-origin',
             'Permissions-Policy' => 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
             'Cross-Origin-Opener-Policy' => 'same-origin',
             'Cross-Origin-Resource-Policy' => 'same-origin',
