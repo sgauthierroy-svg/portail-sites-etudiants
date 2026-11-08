@@ -79,7 +79,18 @@ Le portail refuse de démarrer si `config.php` est lisible par un autre compte, 
 
 ### Mise à jour
 
-Copier les nouveaux fichiers, puis relancer `php ~/portail/bin/installer.php`. Il applique les nouvelles versions de la base sans rien écraser.
+Le paquet `portail_maj.zip` contient `VERSION`, `app`, `bin` et `public` (dont `style.css`, `logo.png` et `polices/`). Il ne contient ni `data` (base, configuration), ni `.htaccess`, ni `index.html` : ils ne sont jamais écrasés.
+
+1. Déposer `portail_maj.zip` dans `/home/jafl3067` (le dossier qui contient `portail`, pas `portail` lui-même).
+2. Vérifier l'empreinte annoncée avec le paquet : `cd ~ && sha256sum portail_maj.zip`. Si elle diffère, ne rien installer.
+3. Décompresser à côté : `rm -rf ~/maj_portail && mkdir ~/maj_portail && unzip -q portail_maj.zip -d ~/maj_portail && cat ~/maj_portail/VERSION` (affiche la version attendue).
+4. Remplacer : `cp -r ~/maj_portail/app ~/maj_portail/bin ~/portail/ && cp -r ~/maj_portail/public/. ~/portail/public/ && php ~/portail/bin/installer.php`. L'installateur applique les nouvelles versions de la base sans rien écraser et finit par « Installation terminée. ».
+5. Ouvrir le portail et recharger avec Ctrl + F5 (sinon le navigateur garde l'ancien style).
+6. Ménage : `rm -rf ~/maj_portail ~/portail_maj.zip`.
+
+Revenir en arrière : même procédure avec le paquet précédent.
+
+Si le portail s'affiche sans couleurs ni logo, le `.htaccess` de `public` empêche de servir les fichiers existants (style, logo, polices) : il doit laisser passer les fichiers réels et n'envoyer vers `index.php` que le reste.
 
 ## Alertes par e-mail
 
@@ -99,7 +110,13 @@ Aucun e-mail ne contient de mot de passe ni de donnée d'étudiant.
 
 - Tester l'envoi : `php ~/portail/bin/alertes.php test`.
 - Rappel du lundi : tâche planifiée de CPanel (Tâches Cron), chaque lundi à 7 h 13 : `php ~/portail/bin/alertes.php hebdo`.
-- Mot de passe de la boîte `portail@` changé : le reporter dans `~/portail/data/config.php` (`smtp.mot_de_passe`), puis lancer le test.
+- Mot de passe de la boîte `portail@` changé : le reporter dans `~/portail/data/config.php` (`smtp.mot_de_passe`), puis lancer le test. Attention : c'est le mot de passe **de la boîte e-mail** `portail@bts-sup-sallanches.com` (celle qui envoie les alertes), ni celui de la porte d'entrée, ni celui d'un compte du portail. Commande à lancer seule ; la saisie ne s'affiche pas et n'est pas gardée dans l'historique :
+
+```
+IFS= read -r -s -p "Mot de passe de la boîte e-mail portail@ (celle qui envoie les alertes) : " MDP && echo && MDP="$MDP" php -r '$f=$argv[1];$t=file_get_contents($f);$n=0;$t=preg_replace_callback("/(\x27mot_de_passe\x27\s*=>\s*)\x27(?:[^\x27\\\\]|\\\\.)*\x27/",fn($m)=>$m[1].var_export(getenv("MDP"),true),$t,1,$n);if($n!==1){fwrite(STDERR,"Ligne mot_de_passe introuvable, rien modifié.\n");exit(1);}file_put_contents($f,$t);echo "Mot de passe enregistré.\n";' ~/portail/data/config.php; unset MDP
+```
+
+  Résultat attendu : « Mot de passe enregistré. », puis `php ~/portail/bin/alertes.php test`. Une erreur 535 au test signifie que le mot de passe saisi n'est pas celui de la boîte.
 
 ## Ports réseau (pare-feu de l'établissement)
 
