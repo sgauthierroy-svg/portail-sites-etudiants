@@ -63,7 +63,7 @@ final class Travailleur
             }
             $etape = $this->prochaineEtape($travail['id']);
             if ($etape === null) {
-                $this->terminer($travail['id'], $travail['type']);
+                $this->terminer($travail['id'], $travail['type'], $travail['parametres']);
                 continue;
             }
             if ($traitees > 0) {
@@ -135,19 +135,31 @@ final class Travailleur
             $resultat = $executant->executer($etape['cible'], $travail['parametres']);
             $etat = $resultat['etat'];
             $message = $resultat['message'];
+            $secret = $resultat['secret'] ?? null;
         } catch (Throwable $e) {
             $etat = 'echec';
             $message = $e->getMessage() !== '' ? $e->getMessage() : 'Échec sans explication.';
+            $secret = null;
         }
-        $this->pdo->prepare('UPDATE travaux_etapes SET etat = :e, message = :msg, termine_le = :m WHERE id = :id')
-            ->execute([':e' => $etat, ':msg' => mb_substr($message, 0, 1000, 'UTF-8'), ':m' => self::maintenant(), ':id' => $etape['id']]);
+        $this->pdo->prepare('UPDATE travaux_etapes SET etat = :e, message = :msg, termine_le = :m, secret = :s WHERE id = :id')
+            ->execute([':e' => $etat, ':msg' => mb_substr($message, 0, 1000, 'UTF-8'), ':m' => self::maintenant(), ':s' => $secret, ':id' => $etape['id']]);
         (new Journal($this->pdo))->ecrire('site', FileTravaux::LIBELLES[$travail['type']] ?? $travail['type'],
             $etat === 'echec' ? 'echec' : 'succes', null, 'travailleur', null, $etape['cible'],
             'travail n° ' . $travail['id'] . ' : ' . mb_substr($message, 0, 300, 'UTF-8'));
     }
 
-    private function terminer(int $id, string $type): void
+    /** @param array<array-key, mixed> $parametres */
+    private function terminer(int $id, string $type, array $parametres): void
     {
+        $executant = $this->executants[$type] ?? null;
+        if ($executant instanceof ApresTravail) {
+            try {
+                $executant->apresTravail($id, $parametres);
+            } catch (Throwable $e) {
+                (new Journal($this->pdo))->ecrire('site', 'fin de travail incomplète', 'echec', null, 'travailleur', null, 'travail n° ' . $id,
+                    mb_substr($e->getMessage(), 0, 300, 'UTF-8'));
+            }
+        }
         $this->pdo->prepare("UPDATE travaux SET etat = 'termine', termine_le = :m WHERE id = :id AND etat = 'en_cours'")
             ->execute([':m' => self::maintenant(), ':id' => $id]);
         $requete = $this->pdo->prepare("SELECT count(*) AS total, sum(etat = 'echec') AS echecs FROM travaux_etapes WHERE travail_id = :id");

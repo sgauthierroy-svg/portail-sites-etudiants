@@ -297,8 +297,40 @@ final class Bibliotheque
         return is_string($contenu) && preg_match('/\$wp_version\s*=\s*\'([0-9.]{1,20})\'/', $contenu, $trouve) === 1 ? $trouve[1] : null;
     }
 
+    /**
+     * Décompresse une archive dans un dossier, après le même contrôle des chemins qu'au dépôt.
+     * Les liens symboliques éventuels de l'archive ne sont pas recréés (ZipArchive écrit des fichiers).
+     */
+    public static function extraire(string $zip, string $dossier): void
+    {
+        self::nomsZip($zip);
+        $archive = new ZipArchive();
+        if ($archive->open($zip, ZipArchive::RDONLY) !== true || !$archive->extractTo($dossier)) {
+            throw new ErreurSaisie('Décompression impossible.');
+        }
+        $archive->close();
+    }
+
+    /** Copie une entrée d'une archive vers un fichier (ex. prestashop.zip dans le paquet officiel). */
+    public static function extraireEntree(string $zip, string $entree, string $cible): void
+    {
+        self::nomsZip($zip);
+        $archive = new ZipArchive();
+        if ($archive->open($zip, ZipArchive::RDONLY) !== true) {
+            throw new ErreurSaisie('Archive illisible.');
+        }
+        $flux = $archive->getStream($entree);
+        $sortie = fopen($cible, 'xb');
+        if ($flux === false || $sortie === false || stream_copy_to_stream($flux, $sortie) === false) {
+            throw new ErreurSaisie('Extraction de ' . $entree . ' impossible.');
+        }
+        fclose($flux);
+        fclose($sortie);
+        $archive->close();
+    }
+
     /** @return list<string> Noms des entrées, après refus de tout chemin dangereux */
-    private static function nomsZip(string $chemin): array
+    public static function nomsZip(string $chemin): array
     {
         if (!class_exists(ZipArchive::class)) {
             throw new ErreurSaisie('L\'extension zip de PHP est absente du serveur : dépôt impossible (voir le guide d\'administration).');

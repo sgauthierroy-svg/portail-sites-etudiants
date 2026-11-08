@@ -15,7 +15,7 @@ interface Executant
 {
     /**
      * @param array<array-key, mixed> $parametres Paramètres du travail (lus depuis la base)
-     * @return array{etat: 'reussi'|'ignore', message: string}
+     * @return array{etat: 'reussi'|'ignore', message: string, secret?: string} secret : déjà chiffré, effacé après le travail
      */
     public function executer(string $cible, array $parametres): array;
 }

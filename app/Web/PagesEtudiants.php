@@ -112,9 +112,10 @@ final class PagesEtudiants
      * @param list<array{id: int, nom: string, actif: bool}> $regimes
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
      * @param list<array{date: string, champ: string, ancienne: ?string, nouvelle: ?string, auteur: ?string}> $historique
+     * @param list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_le: string}> $sites
      */
     public static function fiche(string $jeton, Compte $moi, Etudiant $etudiant, array $regimes, array $sessions, array $historique,
-        int $maintenant, ?string $erreur, ?string $information): string
+        int $maintenant, ?string $erreur, ?string $information, array $sites = []): string
     {
         $action = '/etudiants/' . $etudiant->id;
         $contenu = Pages::alerte($erreur, $information)
@@ -165,6 +166,22 @@ final class PagesEtudiants
             $lignes .= '<tr><td>' . Html::e(self::date($trace['date'])) . '</td><td>' . Html::e($libelles[$trace['champ']] ?? $trace['champ']) . '</td>'
                 . '<td>' . Html::e($trace['ancienne'] ?? '') . ' → ' . Html::e($trace['nouvelle'] ?? '') . '</td>'
                 . '<td>' . Html::e($trace['auteur'] ?? '') . '</td></tr>';
+        }
+        if ($sites !== []) {
+            $voirAcces = Droits::peut($moi->role, Droits::VOIR_ACCES_SITES);
+            $lignesSites = '';
+            foreach ($sites as $site) {
+                $adresse = 'https://' . $etudiant->identifiant . '.bts-sup-sallanches.com' . $site['dossier'] . '/';
+                $lignesSites .= '<tr><td><a href="' . Html::e($adresse) . '" rel="noopener noreferrer">' . Html::e($site['dossier']) . '</a></td>'
+                    . '<td>' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ' ' . ($site['version'] ?? '')) . '</td>'
+                    . '<td>' . ($voirAcces && $site['dossier_admin'] !== null
+                        ? '<a href="' . Html::e($adresse . $site['dossier_admin'] . '/') . '" rel="noopener noreferrer">' . Html::e($site['dossier_admin']) . '</a>'
+                        : '—') . '</td>'
+                    . '<td>' . Html::e(self::date($site['cree_le'])) . '</td></tr>';
+            }
+            $contenu .= '<h2>Sites créés par le portail</h2>'
+                . '<table><thead><tr><th>Site</th><th>Logiciel</th><th>Administration</th><th>Créé le</th></tr></thead><tbody>' . $lignesSites . '</tbody></table>'
+                . ($voirAcces ? '<p class="discret">Le lien d\'administration est personnel à l\'étudiant : ne le diffusez pas.</p>' : '');
         }
         $contenu .= '<h2>Parcours</h2>'
             . ($lignes === '' ? '<p>Aucun changement depuis l\'ajout.</p>'

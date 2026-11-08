@@ -105,6 +105,16 @@ Les pages du portail ne touchent jamais le serveur : elles inscrivent une demand
 - Suivi dans le portail : menu « Travaux en cours » (avancement étudiant par étudiant, bouton « Arrêter » pour le demandeur et l'administrateur) et « Voir tout » (une ligne par étudiant, une colonne par site, d'après le dernier relevé).
 - « Actualiser le relevé » (administrateur, enseignant, administratif) inscrit un relevé dans la file : lecture seule, rien n'est modifié.
 
+## Boutiques PrestaShop d'entraînement (V2)
+
+Menu « Créer des boutiques » (administrateur, enseignants, administratif) : choisir la session, cocher les étudiants, lancer. Ne sont proposés que les étudiants dont le sous-domaine figure au dernier relevé et qui n'ont pas déjà de boutique.
+
+- La première création d'une session lui fixe sa version PrestaShop (paquet de la bibliothèque) : toutes ses boutiques auront la même.
+- Pour chaque étudiant, le travailleur : vérifie le dossier du sous-domaine auprès de CPanel (il doit être `~/identifiant.bts-sup-sallanches.com`) et que `/Presta` est vide ; crée la base `jafl3067_identifiant_Presta` et l'utilisateur `jafl3067_identifiant_presta` (mot de passe tiré au hasard, écrit seulement dans `app/config/parameters.php` de la boutique) ; décompresse le paquet après vérification de son empreinte ; installe la boutique par défaut, en français, en https ; renomme le dossier d'administration en `admin-identifiant-` + 6 caractères au hasard ; efface le dossier d'installation.
+- En cas d'échec, ce que l'étape a créé (dossier, base, utilisateur) est effacé ; rien d'autre n'est touché. Un dossier `/Presta` non vide n'est jamais modifié.
+- Accès : e-mail à l'étudiant (boutique, administration, identifiant = son e-mail, mot de passe) ; à la fin du travail, un e-mail à l'adresse d'alerte avec les lignes à coller dans la feuille des accès. Le mot de passe est gardé chiffré le temps de ce récapitulatif, puis effacé. Supprimer ce récapitulatif une fois la feuille à jour.
+- Le lien d'administration figure sur la fiche de l'étudiant (administrateur et enseignants).
+
 ## Bibliothèque et documents (V2)
 
 - **Bibliothèque** (administrateur, enseignants) : paquets d'installation PrestaShop (un par version, numéro indiqué au dépôt), sujets WordPress (archive ZIP de Duplicator). Les sujets PrestaShop arrivent avec le lot 6.

@@ -307,6 +307,27 @@ final class Schema
                     depose_par_nom  TEXT NOT NULL CHECK (length(depose_par_nom) BETWEEN 1 AND 100)
                 );
                 SQL,
+            // V2, lot 3 (08/11/2026) : sites créés par le portail, et secret chiffré
+            // d'une étape (mot de passe de l'étudiant) gardé le temps d'envoyer le
+            // récapitulatif à l'administrateur, puis effacé.
+            7 => <<<SQL
+                ALTER TABLE travaux_etapes ADD COLUMN secret TEXT NULL CHECK (secret IS NULL OR length(secret) <= 1000);
+
+                CREATE TABLE sites (
+                    id              INTEGER PRIMARY KEY,
+                    identifiant     TEXT NOT NULL CHECK (length(identifiant) BETWEEN 2 AND 63 AND identifiant NOT GLOB '*[^a-z0-9]*'),
+                    dossier         TEXT NOT NULL CHECK (dossier GLOB '/[A-Za-z]*' AND dossier NOT GLOB '*[^A-Za-z0-9/]*'),
+                    logiciel        TEXT NOT NULL CHECK (logiciel IN ('wordpress', 'prestashop')),
+                    version         TEXT NULL CHECK (version IS NULL OR (length(version) <= 20 AND version NOT GLOB '*[^0-9.]*')),
+                    dossier_admin   TEXT NULL CHECK (dossier_admin IS NULL OR (length(dossier_admin) <= 90
+                                        AND dossier_admin GLOB 'admin-*' AND dossier_admin NOT GLOB '*[^a-z0-9-]*')),
+                    base            TEXT NOT NULL CHECK (length(base) <= 64 AND base NOT GLOB '*[^A-Za-z0-9_]*'),
+                    utilisateur_bdd TEXT NOT NULL CHECK (length(utilisateur_bdd) <= 47 AND utilisateur_bdd NOT GLOB '*[^a-z0-9_]*'),
+                    cree_le         TEXT NOT NULL DEFAULT ({$maintenant}),
+                    travail_id      INTEGER NULL REFERENCES travaux (id) ON DELETE SET NULL,
+                    UNIQUE (identifiant, dossier)
+                );
+                SQL,
         ];
     }
 

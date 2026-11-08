@@ -29,8 +29,12 @@ $config = \Portail\Noyau\Config::charger($racine . '/data/config.php');
 $pdo = \Portail\Noyau\Demarrage::base($config);
 $alertes = \Portail\Noyau\Demarrage::alertes($config, $pdo);
 
+$expediteur = new \Portail\Courriel\ExpediteurSmtp($config->smtpHote, $config->smtpPort, $config->smtpUtilisateur, $config->smtpMotDePasse);
 $travailleur = new \Portail\Travaux\Travailleur($pdo, $alertes, [
     'releve' => new \Portail\Travaux\ExecutantReleve($pdo),
+    'creer_prestashop' => new \Portail\Travaux\ExecutantCreerPrestaShop($pdo, new \Portail\Sites\Cpanel(),
+        new \Portail\Bibliotheque\Bibliotheque($pdo, $config->dossierDonnees), new \Portail\Sites\InstallateurPrestaShop(),
+        new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, dirname($racine), $config->dossierDonnees . '/tmp'),
 ]);
 // 50 secondes de nouvelles étapes au plus : la tâche suivante (dans une minute) reprend la suite.
 $faites = $travailleur->tourner(50);

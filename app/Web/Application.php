@@ -20,6 +20,7 @@ use Portail\Journal\Journal;
 use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\Horloge;
+use Portail\Sites\PreparationPrestaShop;
 use Portail\Sites\Releve;
 use Portail\Travaux\FileTravaux;
 
@@ -83,6 +84,7 @@ final class Application
             '/etudiants/nouveau' => $this->pageConnectee($requete, Droits::CREER_ETUDIANT, fn (Compte $moi) => $this->nouvelEtudiant($requete, $moi)),
             '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
             '/sites' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->voirTout($requete, $moi)),
+            '/sites/prestashop' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerPrestaShop($requete, $moi)),
             '/bibliotheque' => $this->pageConnectee($requete, Droits::BIBLIOTHEQUE, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
             '/documents' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->documents($requete, $moi)),
             '/travaux' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travaux($requete, $moi)),
@@ -108,6 +110,39 @@ final class Application
         }
 
         return new Reponse(404, Pages::message('Page introuvable', 'Cette page n\'existe pas.'));
+    }
+
+    // ===== V2, lot 3 : boutiques PrestaShop =====
+
+    private function creerPrestaShop(Requete $requete, Compte $moi): Reponse
+    {
+        $preparation = new PreparationPrestaShop($this->pdo);
+        $sessionChoisie = null;
+        $erreur = null;
+        if ($requete->methode === 'POST') {
+            $sessionChoisie = self::idFacultatif($requete->champ('session'));
+            switch ($requete->champ('action')) {
+                case 'afficher':
+                    break;
+                case 'lancer':
+                    try {
+                        $id = $preparation->lancer($sessionChoisie ?? 0, self::idFacultatif($requete->champ('paquet')),
+                            $requete->liste('coches'), $moi, $requete->adresseIp);
+
+                        return Reponse::redirection('/travaux/' . $id);
+                    } catch (ErreurSaisie $e) {
+                        $erreur = $e->getMessage();
+                    }
+                    break;
+                default:
+                    return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+
+        return new Reponse(200, PagesSites::creerPrestaShop($this->session->jeton(), $preparation->sessions(), $preparation->paquets(), $sessionChoisie,
+            $sessionChoisie === null ? null : $preparation->etudiants($sessionChoisie), Releve::dernier($this->pdo), $erreur));
     }
 
     // ===== V2, lot 2 : bibliothèque et documents =====
@@ -495,7 +530,8 @@ final class Application
         $referentiel = new RegimesSessions($this->pdo);
 
         return new Reponse(200, PagesEtudiants::fiche($this->session->jeton(), $moi, $etudiant, $referentiel->regimes(), $referentiel->sessions(),
-            $gestion->historique($etudiant->identifiant), $this->horloge->maintenant(), $erreur, $information));
+            $gestion->historique($etudiant->identifiant), $this->horloge->maintenant(), $erreur, $information,
+            (new PreparationPrestaShop($this->pdo))->sitesDe($etudiant->identifiant)));
     }
 
     private function regimesSessions(Requete $requete, Compte $moi): Reponse
