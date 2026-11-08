@@ -62,7 +62,7 @@ final class BibliothequeTest extends TestCase
     {
         $zip = $this->zip('prestashop_9.1.5.zip', ['index.php' => '<?php', 'prestashop.zip' => 'interne', 'Install_PrestaShop.html' => 'x']);
         $empreinte = (string) hash_file('sha256', $zip);
-        $id = $this->bibliotheque('cpetit')->ajouterPaquet($zip, 'prestashop_9.1.5.zip', 'prestashop', 'PrestaShop', '9.1.5', false);
+        $id = $this->bibliotheque('cpetit')->ajouterPaquet($zip, 'prestashop_9.1.5.zip', 'prestashop', 'PrestaShop', '9.1.5');
 
         self::assertFileExists($this->donnees . '/bibliotheque/' . $empreinte . '.zip');
         self::assertFileDoesNotExist($zip, 'Le fichier quitte le dossier de dépôt');
@@ -75,7 +75,7 @@ final class BibliothequeTest extends TestCase
     public function testUnPaquetModifieApresDepotNEstPlusUtilise(): void
     {
         $zip = $this->zip('ps.zip', ['index.php' => '<?php', 'prestashop.zip' => 'interne']);
-        $id = $this->bibliotheque('cpetit')->ajouterPaquet($zip, 'ps.zip', 'prestashop', 'PrestaShop', '9.1.5', false);
+        $id = $this->bibliotheque('cpetit')->ajouterPaquet($zip, 'ps.zip', 'prestashop', 'PrestaShop', '9.1.5');
         $empreinte = $this->pdo->query('SELECT empreinte FROM paquets')?->fetchColumn();
         file_put_contents($this->donnees . '/bibliotheque/' . $empreinte . '.zip', 'modifié', FILE_APPEND);
 
@@ -104,7 +104,7 @@ final class BibliothequeTest extends TestCase
     {
         $zip = $this->zip('depose.zip', $contenu);
         try {
-            $this->bibliotheque('cpetit')->ajouterPaquet($zip, $nomFichier, 'prestashop', 'PrestaShop', $version, false);
+            $this->bibliotheque('cpetit')->ajouterPaquet($zip, $nomFichier, 'prestashop', 'PrestaShop', $version);
             self::fail('Paquet accepté à tort');
         } catch (ErreurSaisie $e) {
             self::assertStringContainsString($message, $e->getMessage());
@@ -115,14 +115,14 @@ final class BibliothequeTest extends TestCase
 
     public function testUneVersionPrestaShopNeSeDeposeQuUneFois(): void
     {
-        $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('a.zip', ['install/index_cli.php' => '<?php']), 'a.zip', 'prestashop', 'PrestaShop', '9.1.5', false);
+        $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('a.zip', ['install/index_cli.php' => '<?php']), 'a.zip', 'prestashop', 'PrestaShop', '9.1.5');
         $this->expectExceptionMessage('déjà dans la bibliothèque');
-        $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('b.zip', ['install/index_cli.php' => '<?php // autre']), 'b.zip', 'prestashop', 'PrestaShop', '9.1.5', false);
+        $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('b.zip', ['install/index_cli.php' => '<?php // autre']), 'b.zip', 'prestashop', 'PrestaShop', '9.1.5');
     }
 
     public function testUnPaquetUtiliseParUneSessionNePeutPasEtreRetire(): void
     {
-        $id = $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('a.zip', ['install/index_cli.php' => '<?php']), 'a.zip', 'prestashop', 'PrestaShop', '9.1.5', false);
+        $id = $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('a.zip', ['install/index_cli.php' => '<?php']), 'a.zip', 'prestashop', 'PrestaShop', '9.1.5');
         $session = (new RegimesSessions($this->pdo))->creerSession('2027');
         $this->pdo->prepare('UPDATE sessions SET paquet_prestashop_id = :p WHERE id = :s')->execute([':p' => $id, ':s' => $session]);
 
@@ -132,7 +132,7 @@ final class BibliothequeTest extends TestCase
 
     public function testSeulsLeDeposantEtLAdministrateurRetirent(): void
     {
-        $id = $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('a.zip', ['install/index_cli.php' => '<?php']), 'a.zip', 'prestashop', 'PrestaShop', '9.1.5', false);
+        $id = $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('a.zip', ['install/index_cli.php' => '<?php']), 'a.zip', 'prestashop', 'PrestaShop', '9.1.5');
         try {
             $this->bibliotheque('lbernard')->retirerPaquet($id);
             self::fail('Retrait accepté à tort');
@@ -153,7 +153,7 @@ final class BibliothequeTest extends TestCase
             'wp-includes/version.php' => "<?php\n\$wp_version = '7.1.4';",
             'wp-config-sample.php' => '<?php',
         ]);
-        $this->bibliotheque('cpetit')->ajouterPaquet($zip, 'chocosup_archive.zip', 'sujet_wordpress', 'Chocosup', '', false);
+        $this->bibliotheque('cpetit')->ajouterPaquet($zip, 'chocosup_archive.zip', 'sujet_wordpress', 'Chocosup', '');
         $paquet = $this->bibliotheque('cpetit')->paquets()[0];
         self::assertSame('7.1.4', $paquet['version_wordpress']);
         self::assertNull($paquet['version']);
@@ -162,13 +162,13 @@ final class BibliothequeTest extends TestCase
     public function testUnZipQuelconqueNEstPasUnSujet(): void
     {
         $this->expectExceptionMessage('pas un paquet Duplicator');
-        $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('x.zip', ['wp-includes/version.php' => '<?php']), 'x.zip', 'sujet_wordpress', 'Sujet', '', false);
+        $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('x.zip', ['wp-includes/version.php' => '<?php']), 'x.zip', 'sujet_wordpress', 'Sujet', '');
     }
 
     public function testLesSujetsPrestaShopArriventAvecLeLot6(): void
     {
         $this->expectExceptionMessage('lot 6');
-        $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('x.zip', ['a' => 'b']), 'x.zip', 'sujet_prestashop', 'Sujet', '', false);
+        $this->bibliotheque('cpetit')->ajouterPaquet($this->zip('x.zip', ['a' => 'b']), 'x.zip', 'sujet_prestashop', 'Sujet', '');
     }
 
     // ===== Documents =====
@@ -178,7 +178,7 @@ final class BibliothequeTest extends TestCase
         $faux = $this->donnees . '/depot/faux.pdf';
         file_put_contents($faux, '<html><script>alert(1)</script>');
         $this->expectExceptionMessage('n\'est pas un PDF');
-        $this->bibliotheque('pmoreau')->ajouterDocument($faux, 'Référentiel', false);
+        $this->bibliotheque('pmoreau')->ajouterDocument($faux, 'Référentiel');
     }
 
     public function testToutLeMondeDeposeEtLitUnDocumentQuiSeTelecharge(): void
@@ -246,6 +246,12 @@ final class BibliothequeTest extends TestCase
         self::assertStringContainsString('Choisissez un fichier', $sansFichier->corps);
         $trop = $this->en('cpetit', 'POST', '/bibliotheque', ['action' => 'deposer', 'type' => 'prestashop', 'nom' => 'PS', 'version' => '9.1.5'], ['fichier' => UPLOAD_ERR_INI_SIZE]);
         self::assertStringContainsString('dépôt par CPanel', $trop->corps);
+        // Fichier qui ne vient pas d'un vrai envoi : move_uploaded_file() refuse, rien n'est lu ailleurs.
+        $faux = $this->en('cpetit', 'POST', '/documents', ['action' => 'deposer', 'titre' => 'X'],
+            ['fichier' => ['chemin' => $this->donnees . '/portail.sqlite', 'nom' => 'x.pdf', 'taille' => 10]]);
+        self::assertStringContainsString('n&apos;a pas pu être reçu', $faux->corps);
+        self::assertSame(0, (int) $this->pdo->query('SELECT count(*) FROM documents')?->fetchColumn());
+        self::assertFileExists($this->donnees . '/portail.sqlite');
     }
 
     public function testLaVersionSixDeLaBaseRefuseUnTypeInconnu(): void

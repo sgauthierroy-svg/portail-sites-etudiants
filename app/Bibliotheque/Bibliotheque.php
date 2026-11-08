@@ -49,10 +49,10 @@ final class Bibliotheque
     // ===== Paquets =====
 
     /**
-     * Ajoute un paquet. $televerse : le fichier vient d'un envoi par la page
-     * (move_uploaded_file), sinon du dossier de dépôt (déplacé).
+     * Ajoute un paquet. $source est déjà dans le dossier du portail (data/tmp pour un
+     * envoi par la page, data/depot pour un dépôt par CPanel) : il est déplacé.
      */
-    public function ajouterPaquet(string $source, string $nomOrigine, string $type, string $nom, string $version, bool $televerse): int
+    public function ajouterPaquet(string $source, string $nomOrigine, string $type, string $nom, string $version): int
     {
         $auteur = $this->auteurObligatoire();
         if (!isset(self::TYPES[$type])) {
@@ -80,7 +80,7 @@ final class Bibliotheque
             $version = '';
             $versionWordPress = self::analyserSujetWordPress($source);
         }
-        $empreinte = $this->ranger($source, 'bibliotheque', 'zip', $televerse);
+        $empreinte = $this->ranger($source, 'bibliotheque', 'zip');
         try {
             $this->pdo->prepare(
                 'INSERT INTO paquets (type, nom, version, version_wordpress, empreinte, taille, depose_par, depose_par_nom)
@@ -165,7 +165,7 @@ final class Bibliotheque
 
     // ===== Documents =====
 
-    public function ajouterDocument(string $source, string $titre, bool $televerse): int
+    public function ajouterDocument(string $source, string $titre): int
     {
         $auteur = $this->auteurObligatoire();
         $titre = self::texteCourt($titre, 150, 'Le titre');
@@ -174,7 +174,7 @@ final class Bibliotheque
         if ($debut !== '%PDF-') {
             throw new ErreurSaisie('Ce fichier n\'est pas un PDF : seuls les PDF sont acceptés.');
         }
-        $empreinte = $this->ranger($source, 'documents', 'pdf', $televerse);
+        $empreinte = $this->ranger($source, 'documents', 'pdf');
         try {
             $this->pdo->prepare('INSERT INTO documents (titre, empreinte, taille, depose_par, depose_par_nom) VALUES (:t, :e, :s, :c, :cn)')
                 ->execute([':t' => $titre, ':e' => $empreinte, ':s' => $taille, ':c' => $auteur->id, ':cn' => $auteur->nomAffiche]);
@@ -327,7 +327,7 @@ final class Bibliotheque
     // ===== Outils =====
 
     /** Range le fichier sous le nom de son empreinte. @return string Empreinte */
-    private function ranger(string $source, string $sousDossier, string $extension, bool $televerse): string
+    private function ranger(string $source, string $sousDossier, string $extension): string
     {
         $empreinte = hash_file('sha256', $source);
         if ($empreinte === false) {
@@ -337,7 +337,7 @@ final class Bibliotheque
         if (is_file($cible)) {
             throw new ErreurSaisie('Ce fichier est déjà enregistré (même contenu).');
         }
-        $deplace = $televerse ? move_uploaded_file($source, $cible) : rename($source, $cible);
+        $deplace = rename($source, $cible);
         if (!$deplace) {
             throw new ErreurSaisie('Le fichier n\'a pas pu être rangé sur le serveur.');
         }

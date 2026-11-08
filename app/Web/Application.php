@@ -124,13 +124,13 @@ final class Application
             try {
                 switch ($requete->champ('action')) {
                     case 'deposer':
-                        $fichier = $this->fichierEnvoye($requete);
-                        $bibliotheque->ajouterPaquet($fichier['chemin'], $fichier['nom'], $requete->champ('type'), $requete->champ('nom'), $requete->champ('version'), true);
+                        $this->avecFichierEnvoye($requete, fn (string $chemin, string $nomOrigine) => $bibliotheque->ajouterPaquet(
+                            $chemin, $nomOrigine, $requete->champ('type'), $requete->champ('nom'), $requete->champ('version')));
                         $information = 'Paquet ajouté à la bibliothèque.';
                         break;
                     case 'enregistrer_depot':
                         $nom = $requete->champ('fichier_depot');
-                        $bibliotheque->ajouterPaquet($bibliotheque->cheminDepot($nom, 'zip'), $nom, $requete->champ('type'), $requete->champ('nom'), $requete->champ('version'), false);
+                        $bibliotheque->ajouterPaquet($bibliotheque->cheminDepot($nom, 'zip'), $nom, $requete->champ('type'), $requete->champ('nom'), $requete->champ('version'));
                         $information = 'Paquet enregistré depuis le dossier de dépôt.';
                         break;
                     case 'retirer':
@@ -164,11 +164,11 @@ final class Application
             try {
                 switch ($requete->champ('action')) {
                     case 'deposer':
-                        $bibliotheque->ajouterDocument($this->fichierEnvoye($requete)['chemin'], $requete->champ('titre'), true);
+                        $this->avecFichierEnvoye($requete, fn (string $chemin) => $bibliotheque->ajouterDocument($chemin, $requete->champ('titre')));
                         $information = 'Document ajouté.';
                         break;
                     case 'enregistrer_depot':
-                        $bibliotheque->ajouterDocument($bibliotheque->cheminDepot($requete->champ('fichier_depot'), 'pdf'), $requete->champ('titre'), false);
+                        $bibliotheque->ajouterDocument($bibliotheque->cheminDepot($requete->champ('fichier_depot'), 'pdf'), $requete->champ('titre'));
                         $information = 'Document enregistré depuis le dossier de dépôt.';
                         break;
                     case 'retirer':
@@ -209,18 +209,37 @@ final class Application
         ]);
     }
 
-    /** @return array{chemin: string, nom: string, taille: int} */
-    private function fichierEnvoye(Requete $requete): array
+    /**
+     * Fichier envoyé par la page : d'abord rapatrié dans data/tmp (move_uploaded_file, seule
+     * opération permise sur le dossier temporaire du serveur), puis confié à $action, qui le
+     * déplace à sa place définitive. Ce qui reste dans data/tmp est effacé dans tous les cas.
+     *
+     * @param \Closure(string, string): mixed $action Chemin dans data/tmp, nom d'origine
+     */
+    private function avecFichierEnvoye(Requete $requete, \Closure $action): void
     {
         $fichier = $requete->fichier('fichier');
-        if (is_array($fichier)) {
-            return $fichier;
+        if (!is_array($fichier)) {
+            throw new ErreurSaisie(match ($fichier) {
+                null => 'Choisissez un fichier.',
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Fichier trop gros pour un envoi par la page : utilisez le dépôt par CPanel.',
+                default => 'L\'envoi du fichier a été interrompu : recommencez.',
+            });
         }
-        throw new ErreurSaisie(match ($fichier) {
-            null => 'Choisissez un fichier.',
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Fichier trop gros pour un envoi par la page : utilisez le dépôt par CPanel.',
-            default => 'L\'envoi du fichier a été interrompu : recommencez.',
-        });
+        if ($this->dossierDonnees === null) {
+            throw new ErreurSaisie('Dossier des données non configuré.');
+        }
+        $local = $this->dossierDonnees . '/tmp/envoi-' . bin2hex(random_bytes(12));
+        if (!move_uploaded_file($fichier['chemin'], $local)) {
+            throw new ErreurSaisie('Le fichier n\'a pas pu être reçu sur le serveur : recommencez, ou utilisez le dépôt par CPanel.');
+        }
+        try {
+            $action($local, $fichier['nom']);
+        } finally {
+            if (is_file($local)) {
+                unlink($local); // nosemgrep: outils..cache.semgrep-rules.php.lang.security.unlink-use
+            }
+        }
     }
 
     private function confirmationObligatoire(Requete $requete): void

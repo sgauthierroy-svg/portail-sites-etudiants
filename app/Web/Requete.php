@@ -76,8 +76,10 @@ final class Requete
             }
             $temporaire = Lecture::texte($fichier['tmp_name'] ?? null);
             $nomOrigine = Lecture::texte($fichier['name'] ?? null);
+            // Le fichier reçu est encore dans le dossier temporaire du serveur, hors du portail :
+            // seul is_uploaded_file() y touche ici (les autres lectures y sont interdites, open_basedir).
             if ($erreur === UPLOAD_ERR_OK && $temporaire !== null && $nomOrigine !== null && is_uploaded_file($temporaire)) {
-                $fichiers[$cle] = ['chemin' => $temporaire, 'nom' => mb_substr($nomOrigine, 0, 200, 'UTF-8'), 'taille' => (int) filesize($temporaire)];
+                $fichiers[$cle] = ['chemin' => $temporaire, 'nom' => mb_substr($nomOrigine, 0, 200, 'UTF-8'), 'taille' => (int) Lecture::entier($fichier['size'] ?? 0)];
             } elseif ($erreur !== UPLOAD_ERR_NO_FILE) {
                 $fichiers[$cle] = $erreur;
             }
