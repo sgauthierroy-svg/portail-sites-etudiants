@@ -57,7 +57,7 @@ final class PagesEtudiants
             . '<button type="submit">Afficher</button></form>'
             . '<p>' . count($etudiants) . ' étudiant' . (count($etudiants) > 1 ? 's' : '') . '. Ce filtre est gardé pour votre prochaine connexion.</p>'
             . '<table><thead><tr><th>Étudiant</th><th>Régime</th><th>Session</th><th>Année</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
-            . Pages::boutonDeconnexion($jeton));
+            );
     }
 
     /**
@@ -76,7 +76,7 @@ final class PagesEtudiants
             . '<p>Le nom et le prénom sont saisis séparément ; le portail propose ensuite l\'identifiant, que vous vérifiez avant d\'enregistrer.</p>'
             . '<form method="post" action="/etudiants/nouveau">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="apercu">'
             . self::champsEtudiant($regimes, $sessions, $valeurs)
-            . '<button type="submit">Calculer l\'identifiant</button></form><p><a href="/etudiants">Retour aux étudiants</a></p>');
+            . '<button type="submit" class="btn-main">Calculer l\'identifiant</button></form><p><a href="/etudiants">Retour aux étudiants</a></p>');
     }
 
     /**
@@ -103,7 +103,7 @@ final class PagesEtudiants
             . '<form method="post" action="/etudiants/nouveau">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="enregistrer">' . $caches
             . '<p><label for="identifiant">Identifiant</label><br><input id="identifiant" name="identifiant" type="text" required'
             . ' maxlength="14" pattern="[a-z]{2,13}[2-9]?" value="' . Html::e($valeurs['identifiant'] ?? '') . '"></p>'
-            . '<button type="submit">Enregistrer l\'étudiant</button></form>'
+            . '<button type="submit" class="btn-main">Enregistrer l\'étudiant</button></form>'
             . '<form method="post" action="/etudiants/nouveau">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="corriger">' . $caches
             . '<button type="submit">Corriger la saisie</button></form>');
     }
@@ -210,13 +210,13 @@ final class PagesEtudiants
             . '<h2>Régimes</h2>'
             . '<table><thead><tr><th>Nom</th><th>État</th><th></th></tr></thead><tbody>' . $lignesRegimes . '</tbody></table>'
             . '<form method="post" action="/regimes-sessions">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="creer_regime">'
-            . Pages::saisie('nom', 'Nouveau régime (ex. NDRC FI)', '') . '<button type="submit">Créer le régime</button></form>'
+            . Pages::saisie('nom', 'Nouveau régime (ex. NDRC FI)', '') . '<button type="submit" class="btn-main">Créer le régime</button></form>'
             . '<h2>Sessions</h2>'
             . '<p>La session est l\'année de l\'examen : à la rentrée 2026, la promotion qui arrive est la session 2028. '
             . 'Créez une session à chaque rentrée. La version WordPress gelée servira à la création des sites (V2) ; laissez vide si aucune.</p>'
             . '<table><thead><tr><th>Session</th><th>État</th><th>Version WordPress gelée</th><th></th></tr></thead><tbody>' . $lignesSessions . '</tbody></table>'
             . '<form method="post" action="/regimes-sessions">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="creer_session">'
-            . Pages::saisie('annee', 'Nouvelle session (année de l\'examen, ex. 2028)', '') . '<button type="submit">Créer la session</button></form>'
+            . Pages::saisie('annee', 'Nouvelle session (année de l\'examen, ex. 2028)', '') . '<button type="submit" class="btn-main">Créer la session</button></form>'
             . '<p><a href="/etudiants">Étudiants</a> · <a href="/">Accueil</a></p>');
     }
 
@@ -270,7 +270,7 @@ final class PagesEtudiants
             . '<p><label for="texte">Dans la Google Sheets, ouvrez l\'onglet « Export portail », sélectionnez tout (Ctrl + A), copiez (Ctrl + C), '
             . 'puis collez ici (Ctrl + V), ligne des titres comprise.</label></p>'
             . '<p><textarea id="texte" name="texte" rows="12" cols="100" required>' . Html::e($texte) . '</textarea></p>'
-            . '<button type="submit">Voir l\'aperçu (rien n\'est enregistré)</button></form>';
+            . '<button type="submit" class="btn-main">Voir l\'aperçu (rien n\'est enregistré)</button></form>';
         if ($lignes === null) {
             return Pages::page('Importer des étudiants', $contenu . $releve
                 . '<p>Le texte collé est lu en mémoire, jamais enregistré sur le serveur. Colonnes attendues : NomPrénom, Classe, Session, '
@@ -285,10 +285,10 @@ final class PagesEtudiants
         foreach ($lignes as $ligne) {
             $compte[$ligne['statut']] = ($compte[$ligne['statut']] ?? 0) + 1;
             $etat = match ($ligne['statut']) {
-                'vert' => '✓ À importer',
-                'orange' => '<label><input type="checkbox" name="coches[]" value="' . $ligne['numero'] . '"> ⚠ À vérifier : cocher pour importer</label>',
-                'gris' => '— Déjà présent',
-                default => '✗ Refusé',
+                'vert' => '<span class="badge ok">✓ À importer</span>',
+                'orange' => '<label class="badge warn"><input type="checkbox" name="coches[]" value="' . $ligne['numero'] . '"> ⚠ À vérifier : cocher pour importer</label>',
+                'gris' => '<span class="badge neutre">— Déjà présent</span>',
+                default => '<span class="badge err">✗ Refusé</span>',
             };
             $nom = $ligne['existantId'] !== null && $fiches
                 ? '<a href="/etudiants/' . $ligne['existantId'] . '">' . Html::e($ligne['nom']) . '</a>' : Html::e($ligne['nom']);
@@ -313,7 +313,7 @@ final class PagesEtudiants
             . '<th>Classe – session</th><th>E-mail</th><th>Remarques</th></tr></thead><tbody>' . $rangees . '</tbody></table>'
             . '<p>À la validation, le texte est vérifié de nouveau, puis les lignes « À importer » et les lignes « À vérifier » cochées '
             . 'sont enregistrées toutes ensemble. Aucun site n\'est créé.</p>'
-            . '<button type="submit">Importer</button> '
+            . '<button type="submit" class="btn-main">Importer</button> '
             . '<a href="/etudiants">Annuler : quitter sans rien enregistrer</a></form>'
             . '<h2>Corriger le texte</h2>' . $formulaire
             . '<p><a href="/etudiants">Retour aux étudiants</a> · <a href="/">Accueil</a></p>');

@@ -57,6 +57,7 @@ final class Application
 
     public function traiter(Requete $requete): Reponse
     {
+        Pages::sansCadre();
         if ($requete->methode === 'POST' && !$this->formulaireAuthentique($requete)) {
             return new Reponse(403, Pages::message('Action refusée', 'Le formulaire a expiré ou ne vient pas du portail. Rechargez la page et recommencez.'));
         }
@@ -343,6 +344,7 @@ final class Application
         if ($moi->doitChangerMotDePasse) {
             return Reponse::redirection('/mot-de-passe');
         }
+        Pages::cadre($moi, $this->session->jeton(), $requete->chemin);
         if (!Droits::peut($moi->role, $droit)) {
             (new Journal($this->pdo))->ecrire('administration', 'accès refusé', 'refus', $moi->id, $moi->nomAffiche, $requete->adresseIp, $requete->chemin);
 
@@ -511,6 +513,9 @@ final class Application
             return Reponse::redirection('/connexion');
         }
         $this->session->noterActivite();
+        if (!$compte->doitChangerMotDePasse) {
+            Pages::cadre($compte, $this->session->jeton(), $requete->chemin);
+        }
         if ($requete->methode !== 'POST') {
             return $this->seulementGet($requete)
                 ?? new Reponse(200, Pages::changementMotDePasse($this->session->jeton(), null, $compte->doitChangerMotDePasse));
@@ -553,6 +558,7 @@ final class Application
         }
         $this->session->noterActivite();
 
+        Pages::cadre($compte, $this->session->jeton(), $requete->chemin);
         $maintenant = $this->horloge->maintenant();
         $aRevoir = Droits::peut($compte->role, Droits::GERER_COMPTES)
             ? (new GestionComptes($this->pdo, $compte, $requete->adresseIp))->aRevoir($maintenant) : [];
