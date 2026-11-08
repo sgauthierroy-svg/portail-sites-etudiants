@@ -12,6 +12,21 @@ Les régimes (NDRC FI, NDRC ALT) existent déjà : la classe affichée, par exem
 
 Un fichier d'import qui cite une session ou un régime absent du portail est refusé, ligne par ligne.
 
+### Relever les sous-domaines du serveur (avant chaque import)
+
+En SSH : `php ~/portail/bin/releve.php`. La commande demande à CPanel la liste réelle des sous-domaines de `bts-sup-sallanches.com`, repère les sites WordPress et PrestaShop de chacun, et remplace le relevé précédent. Elle ne modifie rien sur le serveur. Le portail s'en sert pour vérifier les identifiants hors règle à l'import, et pour ne jamais proposer à un nouvel étudiant un identifiant déjà utilisé par un sous-domaine.
+
+### Importer les étudiants
+
+Page **Étudiants → Importer des étudiants** (administrateur, enseignant, administratif). Dans la Google Sheets, onglet « Export portail » : tout sélectionner, copier, coller dans le portail, ligne des titres comprise. Le texte collé n'est jamais enregistré sur le serveur. L'aperçu classe chaque ligne :
+
+- **À importer** : nouvel étudiant conforme ;
+- **À vérifier** (case à cocher, décochée par défaut) : importé seulement si la case est cochée après vérification ;
+- **Déjà présent** : jamais modifié par l'import ; les corrections se font sur la fiche ;
+- **Refusé** : avec la raison (classe ou session inexistante, e-mail mal formé, identifiant déjà pris, doublon, etc.).
+
+Un identifiant hors de la règle de la feuille (étudiants de la session 2027, ancien format) n'est accepté que si son sous-domaine figure dans le dernier relevé. Avant toute réinitialisation ou suppression d'un site de ces étudiants (V2), le portail vérifiera en plus que le site leur appartient. Un texte qui contient une colonne de mot de passe, de date de naissance ou de code chiffré est refusé en entier.
+
 ### Archiver les sessions terminées
 
 Une session dont tous les étudiants sont partis (sous-domaines supprimés) est archivée, sur la même page. Un régime ou une session n'est jamais supprimé : on le désactive ou on l'archive, et on peut le réactiver. On ne peut plus y placer d'étudiant tant qu'il est désactivé ou archivé.

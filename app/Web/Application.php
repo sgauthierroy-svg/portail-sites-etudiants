@@ -12,11 +12,13 @@ use Portail\Comptes\Droits;
 use Portail\Comptes\GestionComptes;
 use Portail\Etudiants\GestionEtudiants;
 use Portail\Etudiants\Identifiant;
+use Portail\Etudiants\ImportEtudiants;
 use Portail\Etudiants\RegimesSessions;
 use Portail\Journal\Journal;
 use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\Horloge;
+use Portail\Sites\Releve;
 
 /**
  * Aiguillage des requêtes vers les pages du portail.
@@ -62,6 +64,7 @@ final class Application
             '/' => $this->accueil($requete),
             '/comptes', '/comptes/nouveau' => $this->pageConnectee($requete, Droits::GERER_COMPTES, fn (Compte $moi) => $this->comptes($requete, $moi)),
             '/etudiants' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->etudiants($requete, $moi)),
+            '/etudiants/import' => $this->pageConnectee($requete, Droits::IMPORTER, fn (Compte $moi) => $this->importEtudiants($requete, $moi)),
             '/etudiants/nouveau' => $this->pageConnectee($requete, Droits::CREER_ETUDIANT, fn (Compte $moi) => $this->nouvelEtudiant($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
             default => $this->pageNumerotee($requete),
@@ -151,6 +154,36 @@ final class Application
         }
 
         return Reponse::redirection('/etudiants/' . $id);
+    }
+
+    private function importEtudiants(Requete $requete, Compte $moi): Reponse
+    {
+        $releve = Releve::dernier($this->pdo);
+        $jeton = $this->session->jeton();
+        if ($requete->methode !== 'POST') {
+            return $this->seulementGet($requete) ?? new Reponse(200, PagesEtudiants::import($jeton, $moi, '', null, null, null, $releve));
+        }
+        $texte = $requete->champ('texte');
+        $import = new ImportEtudiants($this->pdo, $moi, $requete->adresseIp);
+        try {
+            switch ($requete->champ('action')) {
+                case 'apercu':
+                    return new Reponse(200, PagesEtudiants::import($jeton, $moi, $texte, $import->analyser($texte), null, null, $releve));
+                case 'importer':
+                    $coches = [];
+                    foreach ($requete->liste('coches') as $valeur) {
+                        if (preg_match('/^[1-9][0-9]{0,3}$/D', $valeur) === 1) {
+                            $coches[] = (int) $valeur;
+                        }
+                    }
+
+                    return new Reponse(200, PagesEtudiants::import($jeton, $moi, $texte, null, null, $import->importer($texte, $coches), $releve));
+                default:
+                    return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+        } catch (ErreurSaisie $e) {
+            return new Reponse(200, PagesEtudiants::import($jeton, $moi, $texte, null, $e->getMessage(), null, $releve));
+        }
     }
 
     private function ficheEtudiant(Requete $requete, Compte $moi, int $id): Reponse

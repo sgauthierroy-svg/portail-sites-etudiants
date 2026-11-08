@@ -41,6 +41,9 @@ final class PagesEtudiants
         if (Droits::peut($moi->role, Droits::CREER_ETUDIANT)) {
             $actions[] = '<a href="/etudiants/nouveau">Ajouter un étudiant</a>';
         }
+        if (Droits::peut($moi->role, Droits::IMPORTER)) {
+            $actions[] = '<a href="/etudiants/import">Importer des étudiants</a>';
+        }
         if (Droits::peut($moi->role, Droits::REGIMES_SESSIONS)) {
             $actions[] = '<a href="/regimes-sessions">Régimes et sessions</a>';
         }
@@ -238,6 +241,79 @@ final class PagesEtudiants
             . Pages::saisie('email', 'E-mail de l\'étudiant', $valeurs['email'] ?? '', 'email')
             . '<p><label for="regime">Régime</label><br><select id="regime" name="regime">' . $optionsRegimes . '</select></p>'
             . '<p><label for="session">Session</label><br><select id="session" name="session">' . $optionsSessions . '</select></p>';
+    }
+
+    /**
+     * Import : zone de collage, puis aperçu ligne par ligne, puis bilan.
+     *
+     * @param list<array{numero: int, nom: string, classe: string, session: string, identifiant: string, wp: string, email: string,
+     *     statut: string, raisons: list<string>, notes: list<string>, regimeId: ?int, sessionId: ?int, existantId: ?int}>|null $lignes
+     * @param array{importes: int, presents: int, refuses: int, non_coches: int}|null $bilan
+     */
+    public static function import(string $jeton, Compte $moi, string $texte, ?array $lignes, ?string $erreur, ?array $bilan, ?string $releveLe): string
+    {
+        $contenu = Pages::alerte($erreur, null);
+        if ($bilan !== null) {
+            return Pages::page('Import terminé', '<p role="status"><strong>' . $bilan['importes'] . ' étudiant(s) importé(s).</strong></p>'
+                . '<ul><li>Déjà présents, non modifiés : ' . $bilan['presents'] . '</li>'
+                . '<li>Refusés : ' . $bilan['refuses'] . '</li>'
+                . '<li>À vérifier, non cochés donc non importés : ' . $bilan['non_coches'] . '</li></ul>'
+                . '<p>L\'import est inscrit au journal. Aucun site n\'a été créé ni modifié.</p>'
+                . '<p><a href="/etudiants">Voir les étudiants</a> · <a href="/etudiants/import">Nouvel import</a></p>');
+        }
+        $releve = $releveLe === null
+            ? '<p><strong>Aucun relevé des sous-domaines n\'a encore été fait.</strong> Les identifiants hors règle ne pourront pas être vérifiés '
+                . 'et seront refusés (commande de relevé : voir le guide d\'administration).</p>'
+            : '<p>Dernier relevé des sous-domaines du serveur : ' . Html::e(self::date($releveLe)) . '.</p>';
+        $formulaire = '<form method="post" action="/etudiants/import">' . Pages::jeton($jeton)
+            . '<input type="hidden" name="action" value="apercu">'
+            . '<p><label for="texte">Dans la Google Sheets, ouvrez l\'onglet « Export portail », sélectionnez tout (Ctrl + A), copiez (Ctrl + C), '
+            . 'puis collez ici (Ctrl + V), ligne des titres comprise.</label></p>'
+            . '<p><textarea id="texte" name="texte" rows="12" cols="100" required>' . Html::e($texte) . '</textarea></p>'
+            . '<button type="submit">Voir l\'aperçu (rien n\'est enregistré)</button></form>';
+        if ($lignes === null) {
+            return Pages::page('Importer des étudiants', $contenu . $releve
+                . '<p>Le texte collé est lu en mémoire, jamais enregistré sur le serveur. Colonnes attendues : NomPrénom, Classe, Session, '
+                . 'Identifiant, Identifiant WordPress, E-mail. Un texte qui contient une colonne de mot de passe, de date de naissance '
+                . 'ou de code chiffré est refusé en entier.</p>' . $formulaire . '<p><a href="/etudiants">Retour aux étudiants</a></p>');
+        }
+
+        $compte = ['vert' => 0, 'orange' => 0, 'gris' => 0, 'rouge' => 0];
+        $rangees = '';
+        $fiches = Droits::peut($moi->role, Droits::VOIR_FICHE);
+        foreach ($lignes as $ligne) {
+            $compte[$ligne['statut']] = ($compte[$ligne['statut']] ?? 0) + 1;
+            $etat = match ($ligne['statut']) {
+                'vert' => '✓ À importer',
+                'orange' => '<label><input type="checkbox" name="coches[]" value="' . $ligne['numero'] . '"> ⚠ À vérifier : cocher pour importer</label>',
+                'gris' => '— Déjà présent',
+                default => '✗ Refusé',
+            };
+            $nom = $ligne['existantId'] !== null && $fiches
+                ? '<a href="/etudiants/' . $ligne['existantId'] . '">' . Html::e($ligne['nom']) . '</a>' : Html::e($ligne['nom']);
+            $remarques = '';
+            foreach (array_merge($ligne['raisons'], $ligne['notes']) as $remarque) {
+                $remarques .= '<li>' . Html::e($remarque) . '</li>';
+            }
+            $rangees .= '<tr><td>' . $ligne['numero'] . '</td><td>' . $etat . '</td><td>' . $nom . '</td>'
+                . '<td><strong>' . Html::e($ligne['identifiant']) . '</strong></td><td>' . Html::e($ligne['wp']) . '</td>'
+                . '<td>' . Html::e($ligne['classe']) . ' – ' . Html::e($ligne['session']) . '</td><td>' . Html::e($ligne['email']) . '</td>'
+                . '<td>' . ($remarques === '' ? '' : '<ul>' . $remarques . '</ul>') . '</td></tr>';
+        }
+
+        return Pages::page('Aperçu de l\'import', $contenu . $releve
+            . '<p><strong>Rien n\'est encore enregistré.</strong> Vérifiez chaque identifiant à côté du nom : '
+            . $compte['vert'] . ' à importer, ' . $compte['orange'] . ' à vérifier, ' . $compte['gris'] . ' déjà présent(s), '
+            . $compte['rouge'] . ' refusé(s).</p>'
+            . '<form method="post" action="/etudiants/import">' . Pages::jeton($jeton)
+            . '<input type="hidden" name="action" value="importer">'
+            . '<textarea name="texte" hidden>' . Html::e($texte) . '</textarea>'
+            . '<table><thead><tr><th>Ligne</th><th>État</th><th>Nom complet</th><th>Identifiant</th><th>Identifiant WordPress</th>'
+            . '<th>Classe – session</th><th>E-mail</th><th>Remarques</th></tr></thead><tbody>' . $rangees . '</tbody></table>'
+            . '<p>À la validation, le texte est vérifié de nouveau, puis les lignes « À importer » et les lignes « À vérifier » cochées '
+            . 'sont enregistrées toutes ensemble. Aucun site n\'est créé.</p>'
+            . '<button type="submit">Importer</button></form>'
+            . '<h2>Corriger le texte</h2>' . $formulaire);
     }
 
     private static function option(string $valeur, string $libelle, bool $choisi): string

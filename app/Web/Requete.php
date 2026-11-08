@@ -10,13 +10,20 @@ namespace Portail\Web;
  */
 final class Requete
 {
-    /** @param array<string, string> $formulaire */
+    /** Champs autorisés à dépasser 10 000 caractères, avec leur limite (texte collé de l'import). */
+    private const CHAMPS_LONGS = ['texte' => 1_000_000];
+
+    /**
+     * @param array<string, string> $formulaire
+     * @param array<string, list<string>> $listes Cases à cocher multiples (nom[] dans le formulaire)
+     */
     public function __construct(
         public readonly string $methode,
         public readonly string $chemin,
         public readonly array $formulaire = [],
         public readonly string $adresseIp = '0.0.0.0',
         public readonly ?string $origine = null,
+        public readonly array $listes = [],
     ) {
     }
 
@@ -25,12 +32,24 @@ final class Requete
         return $this->formulaire[$nom] ?? '';
     }
 
+    /** @return list<string> */
+    public function liste(string $nom): array
+    {
+        return $this->listes[$nom] ?? [];
+    }
+
     public static function depuisServeur(): self
     {
         $formulaire = [];
+        $listes = [];
         foreach ($_POST as $cle => $valeur) {
-            if (is_string($cle) && is_string($valeur) && strlen($valeur) <= 10000) {
+            if (!is_string($cle)) {
+                continue;
+            }
+            if (is_string($valeur) && strlen($valeur) <= (self::CHAMPS_LONGS[$cle] ?? 10000)) {
                 $formulaire[$cle] = $valeur;
+            } elseif (is_array($valeur) && count($valeur) <= 1000) {
+                $listes[$cle] = array_values(array_filter($valeur, static fn (mixed $v): bool => is_string($v) && strlen($v) <= 100));
             }
         }
         $chemin = parse_url(self::serveur('REQUEST_URI', '/'), PHP_URL_PATH);
@@ -43,6 +62,7 @@ final class Requete
             $formulaire,
             filter_var($ip, FILTER_VALIDATE_IP) !== false ? $ip : '0.0.0.0',
             $origine === '' ? null : $origine,
+            $listes,
         );
     }
 

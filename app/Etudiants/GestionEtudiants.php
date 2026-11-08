@@ -63,8 +63,8 @@ final class GestionEtudiants
     }
 
     /**
-     * Un identifiant est pris s'il appartient déjà à un étudiant, à un site
-     * relevé sur le serveur ou à un site protégé.
+     * Un identifiant est pris s'il appartient déjà à un étudiant, à un
+     * sous-domaine ou un site relevé sur le serveur, ou à un site protégé.
      */
     public function identifiantPris(string $identifiant): bool
     {
@@ -72,8 +72,9 @@ final class GestionEtudiants
             return true;
         }
         $requete = $this->pdo->prepare('SELECT 1 FROM etudiants WHERE identifiant = :i
-            UNION SELECT 1 FROM releve_sites WHERE identifiant = :i2');
-        $requete->execute([':i' => $identifiant, ':i2' => $identifiant]);
+            UNION SELECT 1 FROM releve_sites WHERE identifiant = :i2
+            UNION SELECT 1 FROM sous_domaines WHERE identifiant = :i3');
+        $requete->execute([':i' => $identifiant, ':i2' => $identifiant, ':i3' => $identifiant]);
 
         return $requete->fetchColumn() !== false;
     }

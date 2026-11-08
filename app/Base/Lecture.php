@@ -47,7 +47,7 @@ final class Lecture
     }
 
     /** @return array<array-key, mixed>|null */
-    private static function tableau(mixed $valeur): ?array
+    public static function tableau(mixed $valeur): ?array
     {
         return is_array($valeur) ? $valeur : null;
     }

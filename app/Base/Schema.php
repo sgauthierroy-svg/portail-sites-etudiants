@@ -223,6 +223,17 @@ final class Schema
             3 => <<<SQL
                 ALTER TABLE comptes ADD COLUMN revu_le TEXT;
                 SQL,
+            // Relevé des sous-domaines réellement présents sur le serveur (08/11/2026) :
+            // l'import n'accepte un identifiant hors règle que s'il existe ici.
+            4 => <<<SQL
+                CREATE TABLE sous_domaines (
+                    identifiant TEXT PRIMARY KEY
+                                CHECK (length(identifiant) BETWEEN 2 AND 63
+                                       AND identifiant NOT GLOB '*[^a-z0-9]*'
+                                       AND identifiant GLOB '[a-z]*'),
+                    releve_le   TEXT NOT NULL
+                );
+                SQL,
         ];
     }
 
