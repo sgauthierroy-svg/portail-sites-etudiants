@@ -320,7 +320,7 @@ final class Application
 
         return new Reponse(200, PagesTravaux::voirTout($this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste($regime, $session),
             Releve::parIdentifiant($this->pdo), Releve::identifiants($this->pdo), Releve::dernier($this->pdo), $file->dejaPrevu('releve'),
-            $referentiel->regimes(), $referentiel->sessions(), $regime, $session, null));
+            $referentiel->regimes(), $referentiel->sessions(), $regime, $session, null, Releve::horsGel($this->pdo)));
     }
 
     private function travaux(Requete $requete, Compte $moi): Reponse

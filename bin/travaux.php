@@ -31,7 +31,7 @@ $alertes = \Portail\Noyau\Demarrage::alertes($config, $pdo);
 
 $expediteur = new \Portail\Courriel\ExpediteurSmtp($config->smtpHote, $config->smtpPort, $config->smtpUtilisateur, $config->smtpMotDePasse);
 $travailleur = new \Portail\Travaux\Travailleur($pdo, $alertes, [
-    'releve' => new \Portail\Travaux\ExecutantReleve($pdo),
+    'releve' => new \Portail\Travaux\ExecutantReleve($pdo, null, $alertes),
     'creer_prestashop' => new \Portail\Travaux\ExecutantCreerPrestaShop($pdo, new \Portail\Sites\Cpanel(),
         new \Portail\Bibliotheque\Bibliotheque($pdo, $config->dossierDonnees), new \Portail\Sites\InstallateurPrestaShop(),
         new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, dirname($racine), $config->dossierDonnees . '/tmp'),

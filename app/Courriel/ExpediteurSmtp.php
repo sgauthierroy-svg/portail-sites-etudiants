@@ -35,9 +35,9 @@ final class ExpediteurSmtp implements Expediteur
     ) {
     }
 
-    public function envoyer(array $destinataires, string $sujet, string $texte): void
+    public function envoyer(array $destinataires, string $sujet, string $texte, ?string $html = null): void
     {
-        $message = self::message($this->utilisateur, $this->nomAffiche, $destinataires, $sujet, $texte, time());
+        $message = self::message($this->utilisateur, $this->nomAffiche, $destinataires, $sujet, $texte, time(), $html);
         $this->ouvrir();
         try {
             $this->attendre(220);
@@ -63,7 +63,7 @@ final class ExpediteurSmtp implements Expediteur
      *
      * @param list<string> $destinataires
      */
-    public static function message(string $expediteur, string $nomAffiche, array $destinataires, string $sujet, string $texte, int $instant): string
+    public static function message(string $expediteur, string $nomAffiche, array $destinataires, string $sujet, string $texte, int $instant, ?string $html = null): string
     {
         if ($destinataires === []) {
             throw new InvalidArgumentException('Aucun destinataire.');
@@ -85,13 +85,23 @@ final class ExpediteurSmtp implements Expediteur
             'Date: ' . gmdate('D, d M Y H:i:s', $instant) . ' +0000',
             'Message-ID: <' . bin2hex(random_bytes(16)) . '@' . $domaine . '>',
             'MIME-Version: 1.0',
-            'Content-Type: text/plain; charset=UTF-8',
-            'Content-Transfer-Encoding: base64',
             'Auto-Submitted: auto-generated',
         ];
-        $corps = rtrim(chunk_split(base64_encode(str_replace(["\r\n", "\r"], "\n", $texte)), 76, "\r\n"), "\r\n");
+        $encoderCorps = static fn (string $contenu): string => rtrim(chunk_split(base64_encode(str_replace(["\r\n", "\r"], "\n", $contenu)), 76, "\r\n"), "\r\n");
+        if ($html === null) {
+            $entetes[] = 'Content-Type: text/plain; charset=UTF-8';
+            $entetes[] = 'Content-Transfer-Encoding: base64';
 
-        return implode("\r\n", $entetes) . "\r\n\r\n" . $corps;
+            return implode("\r\n", $entetes) . "\r\n\r\n" . $encoderCorps($texte);
+        }
+        // Deux versions du même message (RFC 2046, multipart/alternative) : la messagerie affiche le HTML.
+        // La frontière ne peut pas apparaître dans les parties, qui sont en base64.
+        $frontiere = 'portail-' . bin2hex(random_bytes(12));
+        $entetes[] = 'Content-Type: multipart/alternative; boundary="' . $frontiere . '"';
+        $partie = static fn (string $type, string $contenu): string => '--' . $frontiere . "\r\n"
+            . 'Content-Type: ' . $type . "; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . $encoderCorps($contenu) . "\r\n";
+
+        return implode("\r\n", $entetes) . "\r\n\r\n" . $partie('text/plain', $texte) . $partie('text/html', $html) . '--' . $frontiere . '--';
     }
 
     private function ouvrir(): void

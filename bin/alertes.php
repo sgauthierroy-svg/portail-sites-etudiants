@@ -5,7 +5,7 @@ declare(strict_types=1);
 /*
  * Alertes par e-mail, à lancer en SSH ou par une tâche planifiée de CPanel :
  *     php ~/portail/bin/alertes.php test     envoie un e-mail de test à l'adresse d'alerte
- *     php ~/portail/bin/alertes.php hebdo    rappel des comptes à revoir (tâche du lundi)
+ *     php ~/portail/bin/alertes.php hebdo    tâche du lundi : comptes à revoir, relevé des sites, boutiques hors gel
  */
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
@@ -29,6 +29,13 @@ switch ($argv[1] ?? '') {
         break;
     case 'hebdo':
         $alertes->revueHebdomadaire((new \Portail\Comptes\GestionComptes($pdo, null, null))->aRevoir(time()));
+        // Relevé du lundi, puis gel de PrestaShop par surveillance (décision du 08/11/2026).
+        try {
+            \Portail\Sites\Releve::lancer($pdo, 'tâche du lundi');
+            $alertes->boutiquesHorsGel(count(\Portail\Sites\Releve::horsGel($pdo)));
+        } catch (\Throwable $e) {
+            fwrite(STDERR, '  Relevé du lundi impossible : ' . $e->getMessage() . PHP_EOL);
+        }
         break;
     default:
         fwrite(STDERR, 'Utilisation : php ~/portail/bin/alertes.php test | hebdo' . PHP_EOL);

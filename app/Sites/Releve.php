@@ -62,7 +62,7 @@ final class Releve
     /**
      * Sites trouvés dans le dossier racine d'un sous-domaine (un niveau).
      *
-     * @return list<array{dossier: string, logiciel: string, version: ?string}>
+     * @return list<array{dossier: string, logiciel: string, version: ?string, module_mise_a_jour?: bool}>
      */
     public static function sites(string $racine): array
     {
@@ -77,7 +77,8 @@ final class Releve
             if (is_file($chemin . '/wp-config.php')) {
                 $sites[] = ['dossier' => '/' . $entree, 'logiciel' => 'wordpress', 'version' => self::versionWordPress($chemin)];
             } elseif (is_file($chemin . '/app/config/parameters.php') || is_file($chemin . '/config/settings.inc.php')) {
-                $sites[] = ['dossier' => '/' . $entree, 'logiciel' => 'prestashop', 'version' => null];
+                $sites[] = ['dossier' => '/' . $entree, 'logiciel' => 'prestashop', 'version' => self::versionPrestaShop($chemin),
+                    'module_mise_a_jour' => is_dir($chemin . '/modules/autoupgrade')];
             }
         }
 
@@ -88,7 +89,7 @@ final class Releve
      * Remplace le relevé précédent, en une seule opération.
      *
      * @param array<string, string> $sousDomaines identifiant => dossier racine
-     * @param array<string, list<array{dossier: string, logiciel: string, version: ?string}>> $sites
+     * @param array<string, list<array{dossier: string, logiciel: string, version: ?string, module_mise_a_jour?: bool}>> $sites
      * @return array{sous_domaines: int, sites: int}
      */
     public static function enregistrer(PDO $pdo, array $sousDomaines, array $sites, string $date, string $auteur = 'commande de relevé (SSH)'): array
@@ -98,12 +99,13 @@ final class Releve
             $pdo->exec('DELETE FROM sous_domaines');
             $pdo->exec('DELETE FROM releve_sites');
             $ajoutSousDomaine = $pdo->prepare('INSERT INTO sous_domaines (identifiant, releve_le) VALUES (:i, :d)');
-            $ajoutSite = $pdo->prepare('INSERT INTO releve_sites (identifiant, dossier, logiciel, version, releve_le) VALUES (:i, :dossier, :l, :v, :d)');
+            $ajoutSite = $pdo->prepare('INSERT INTO releve_sites (identifiant, dossier, logiciel, version, module_mise_a_jour, releve_le) VALUES (:i, :dossier, :l, :v, :m, :d)');
             $nombreSites = 0;
             foreach (array_keys($sousDomaines) as $identifiant) {
                 $ajoutSousDomaine->execute([':i' => $identifiant, ':d' => $date]);
                 foreach ($sites[$identifiant] ?? [] as $site) {
-                    $ajoutSite->execute([':i' => $identifiant, ':dossier' => $site['dossier'], ':l' => $site['logiciel'], ':v' => $site['version'], ':d' => $date]);
+                    $ajoutSite->execute([':i' => $identifiant, ':dossier' => $site['dossier'], ':l' => $site['logiciel'], ':v' => $site['version'],
+                        ':m' => isset($site['module_mise_a_jour']) ? (int) $site['module_mise_a_jour'] : null, ':d' => $date]);
                     $nombreSites++;
                 }
             }
@@ -177,6 +179,53 @@ final class Releve
         $resultat = $pdo->query('SELECT max(releve_le) FROM sous_domaines');
 
         return $resultat === false ? null : Lecture::texte($resultat->fetchColumn());
+    }
+
+    /**
+     * Boutiques hors gel (décision du 08/11/2026) : version différente de celle de la
+     * session, version illisible, ou module de mise à jour présent.
+     *
+     * @return array<string, string> identifiant => raison
+     */
+    public static function horsGel(PDO $pdo): array
+    {
+        $resultat = $pdo->query(
+            "SELECT r.identifiant, r.version, r.module_mise_a_jour, p.version AS attendue
+             FROM releve_sites r
+             JOIN etudiants e ON e.identifiant = r.identifiant
+             JOIN sessions s ON s.id = e.session_id
+             LEFT JOIN paquets p ON p.id = s.paquet_prestashop_id
+             WHERE r.dossier = '/Presta' AND r.logiciel = 'prestashop' AND p.version IS NOT NULL"
+        );
+        $ecarts = [];
+        foreach (Lecture::lignes($resultat) as $ligne) {
+            $version = Lecture::texte($ligne['version']);
+            $attendue = (string) Lecture::texte($ligne['attendue']);
+            $raison = null;
+            if (Lecture::entier($ligne['module_mise_a_jour']) === 1) {
+                $raison = 'module de mise à jour installé';
+            } elseif ($version === null) {
+                $raison = 'version illisible';
+            } elseif ($version !== $attendue) {
+                $raison = 'version ' . $version . ' au lieu de ' . $attendue;
+            }
+            if ($raison !== null) {
+                $ecarts[(string) Lecture::texte($ligne['identifiant'])] = $raison;
+            }
+        }
+
+        return $ecarts;
+    }
+
+    private static function versionPrestaShop(string $chemin): ?string
+    {
+        $fichier = $chemin . '/app/AppKernel.php';
+        $contenu = is_file($fichier) ? file_get_contents($fichier, false, null, 0, 65536) : false;
+        if (is_string($contenu) && preg_match('/const\s+VERSION\s*=\s*\'([0-9.]{1,20})\'/', $contenu, $trouve) === 1) {
+            return $trouve[1];
+        }
+
+        return null;
     }
 
     private static function versionWordPress(string $chemin): ?string

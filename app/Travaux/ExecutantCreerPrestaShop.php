@@ -36,6 +36,9 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
     private const DOMAINE = Releve::DOMAINE;
     private const PREFIXE = 'jafl3067_';
 
+    /** Colonnes du récapitulatif, dans l'ordre de la feuille des accès. */
+    public const COLONNES = ['Identifiant', 'Boutique', 'Administration', 'E-mail (identifiant PrestaShop)', 'Mot de passe PrestaShop'];
+
     /** @var array<string, string> empreinte => chemin du prestashop.zip intérieur déjà extrait */
     private array $interieurs = [];
 
@@ -163,11 +166,13 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
         }
         $adresse = $this->parametre('adresse_alertes');
         $texte = 'Boutiques PrestaShop créées par le travail n° ' . $travailId . ' (' . count($lignes) . ").\n\n"
-            . "Lignes à coller dans la feuille des accès (colonnes séparées par des tabulations) :\n"
-            . "identifiant\tboutique\tadministration\te-mail\tmot de passe\n" . implode("\n", $lignes)
+            . "Le tableau à copier dans la feuille des accès est dans la version HTML de ce message.\n"
+            . "Version texte (colonnes séparées par des tabulations) :\n"
+            . implode("\t", self::COLONNES) . "\n" . implode("\n", $lignes)
             . "\n\nCe message contient des mots de passe : supprimez-le une fois la feuille mise à jour."
             . "\nLe portail ne les a pas gardés.\n\n-- \nMessage automatique du portail des sites étudiants.";
-        $this->envoyer($adresse === null ? [] : [$adresse], 'Récapitulatif des boutiques PrestaShop créées (travail n° ' . $travailId . ')', $texte, 'récapitulatif à l\'administrateur');
+        $this->envoyer($adresse === null ? [] : [$adresse], 'Récapitulatif des boutiques PrestaShop créées (travail n° ' . $travailId . ')', $texte,
+            'récapitulatif à l\'administrateur', self::tableauHtml($travailId, $lignes));
     }
 
     private function parametre(string $cle): ?string
@@ -324,15 +329,47 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
         return $this->envoyer([$etudiant['email']], 'Votre boutique PrestaShop', $texte, 'accès PrestaShop à l\'étudiant');
     }
 
+    /**
+     * Tableau HTML : sélectionné dans la messagerie puis collé dans Google Sheets, il garde
+     * une valeur par cellule (au contraire du texte, où les tabulations se perdent).
+     *
+     * @param list<string> $lignes Valeurs séparées par des tabulations
+     */
+    public static function tableauHtml(int $travailId, array $lignes): string
+    {
+        $e = static fn (string $t): string => htmlspecialchars($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $cellule = 'style="border:1px solid #999;padding:4px 8px;font-family:Arial,sans-serif;font-size:13px"';
+        $corps = '';
+        foreach ($lignes as $ligne) {
+            $corps .= '<tr>';
+            foreach (explode("\t", $ligne) as $valeur) {
+                $corps .= '<td ' . $cellule . '>' . $e($valeur) . '</td>';
+            }
+            $corps .= '</tr>';
+        }
+        $entete = '';
+        foreach (self::COLONNES as $colonne) {
+            $entete .= '<th ' . $cellule . '>' . $e($colonne) . '</th>';
+        }
+
+        return '<!doctype html><html lang="fr"><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif">'
+            . '<p>Boutiques PrestaShop créées par le travail n° ' . $travailId . ' (' . count($lignes) . ').</p>'
+            . '<p><strong>Pour la feuille des accès :</strong> sélectionnez les lignes du tableau (sans la ligne des titres si la feuille les a déjà), '
+            . 'copiez (Ctrl + C), puis collez dans la première cellule libre de la feuille (Ctrl + V) : chaque valeur va dans sa colonne.</p>'
+            . '<table style="border-collapse:collapse"><thead><tr>' . $entete . '</tr></thead><tbody>' . $corps . '</tbody></table>'
+            . '<p>Ce message contient des mots de passe : supprimez-le une fois la feuille mise à jour. Le portail ne les a pas gardés.</p>'
+            . '<p style="color:#666">Message automatique du portail des sites étudiants.</p></body></html>';
+    }
+
     /** @param list<string> $destinataires */
-    private function envoyer(array $destinataires, string $sujet, string $texte, string $quoi): bool
+    private function envoyer(array $destinataires, string $sujet, string $texte, string $quoi, ?string $html = null): bool
     {
         $journal = new Journal($this->pdo);
         try {
             if ($this->expediteur === null || $destinataires === []) {
                 throw new RuntimeException('aucun expéditeur ou destinataire');
             }
-            $this->expediteur->envoyer($destinataires, $sujet, $texte);
+            $this->expediteur->envoyer($destinataires, $sujet, $texte, $html);
             $journal->ecrire('site', 'e-mail envoyé', 'succes', null, 'travailleur', null, null, $quoi . ' → ' . implode(', ', $destinataires));
 
             return true;

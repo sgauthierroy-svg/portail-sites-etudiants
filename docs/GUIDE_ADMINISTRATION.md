@@ -114,6 +114,8 @@ Menu « Créer des boutiques » (administrateur, enseignants, administratif) : c
 - En cas d'échec, ce que l'étape a créé (dossier, base, utilisateur) est effacé ; rien d'autre n'est touché. Un dossier `/Presta` non vide n'est jamais modifié.
 - Accès : e-mail à l'étudiant (boutique, administration, identifiant = son e-mail, mot de passe) ; à la fin du travail, un e-mail à l'adresse d'alerte avec les lignes à coller dans la feuille des accès. Le mot de passe est gardé chiffré le temps de ce récapitulatif, puis effacé. Supprimer ce récapitulatif une fois la feuille à jour.
 - Le lien d'administration figure sur la fiche de l'étudiant (administrateur et enseignants).
+- Le récapitulatif contient un tableau : le sélectionner dans la messagerie, copier, puis coller dans la feuille des accès (une valeur par cellule).
+- **Gel par surveillance** (décision du 08/11/2026) : le paquet 9.1.5 ne contient pas le module de mise à jour (« Assistant de mise à jour », `autoupgrade`). Chaque relevé (bouton ou tâche du lundi) lit la version réelle de chaque boutique (`app/AppKernel.php`) et repère ce module ; une boutique dont la version diffère de celle de sa session, ou qui a ce module, est signalée en rouge dans « Voir tout » et déclenche une alerte (sans nom d'étudiant).
 
 ## Bibliothèque et documents (V2)
 
@@ -142,7 +144,7 @@ Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la b
 Aucun e-mail ne contient de mot de passe ni de donnée d'étudiant.
 
 - Tester l'envoi : `php ~/portail/bin/alertes.php test`.
-- Rappel du lundi : tâche planifiée de CPanel (Tâches Cron), chaque lundi à 7 h 13 : `php ~/portail/bin/alertes.php hebdo`.
+- Tâche du lundi : tâche planifiée de CPanel (Tâches Cron), chaque lundi à 7 h 13 : `php ~/portail/bin/alertes.php hebdo` (comptes à revoir, relevé des sites, boutiques hors gel).
 - Mot de passe de la boîte `portail@` changé : le reporter dans `~/portail/data/config.php` (`smtp.mot_de_passe`), puis lancer le test. Attention : c'est le mot de passe **de la boîte e-mail** `portail@bts-sup-sallanches.com` (celle qui envoie les alertes), ni celui de la porte d'entrée, ni celui d'un compte du portail. Commande à lancer seule ; la saisie ne s'affiche pas et n'est pas gardée dans l'historique :
 
 ```

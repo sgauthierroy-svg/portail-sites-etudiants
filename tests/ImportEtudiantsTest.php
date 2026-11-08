@@ -254,7 +254,7 @@ final class ImportEtudiantsTest extends TestCase
         $sites = Releve::sites($racine);
         usort($sites, static fn (array $a, array $b): int => strcmp($a['dossier'], $b['dossier']));
         self::assertSame([
-            ['dossier' => '/Presta', 'logiciel' => 'prestashop', 'version' => null],
+            ['dossier' => '/Presta', 'logiciel' => 'prestashop', 'version' => null, 'module_mise_a_jour' => false],
             ['dossier' => '/WP', 'logiciel' => 'wordpress', 'version' => '6.8.3'],
         ], $sites);
 

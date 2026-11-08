@@ -28,9 +28,10 @@ final class PagesTravaux
      * @param list<string> $sousDomaines
      * @param list<array{id: int, nom: string, actif: bool}> $regimes
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
+     * @param array<string, string> $horsGel identifiant => raison
      */
     public static function voirTout(string $jeton, Compte $moi, array $etudiants, array $sites, array $sousDomaines, ?string $dernierReleve,
-        ?int $relevePrevu, array $regimes, array $sessions, ?int $regimeChoisi, ?int $sessionChoisie, ?string $information): string
+        ?int $relevePrevu, array $regimes, array $sessions, ?int $regimeChoisi, ?int $sessionChoisie, ?string $information, array $horsGel = []): string
     {
         $colonnes = self::COLONNES;
         foreach ($etudiants as $etudiant) {
@@ -53,7 +54,11 @@ final class PagesTravaux
                 . (isset($existants[$etudiant->identifiant]) ? '<span class="badge ok">oui</span>' : '<span class="badge neutre">absent</span>') . '</td>';
             foreach ($colonnes as $dossier) {
                 $site = $sites[$etudiant->identifiant][$dossier] ?? null;
-                $lignes .= '<td>' . ($site === null ? '—' : Html::e(self::nomLogiciel($site['logiciel']) . ($site['version'] === null ? '' : ' ' . $site['version']))) . '</td>';
+                $texte = $site === null ? '—' : Html::e(self::nomLogiciel($site['logiciel']) . ($site['version'] === null ? '' : ' ' . $site['version']));
+                if ($dossier === '/Presta' && isset($horsGel[$etudiant->identifiant])) {
+                    $texte .= ' <span class="badge err">' . Html::e('hors gel : ' . $horsGel[$etudiant->identifiant]) . '</span>';
+                }
+                $lignes .= '<td>' . $texte . '</td>';
             }
             $lignes .= '</tr>';
         }

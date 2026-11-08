@@ -328,6 +328,11 @@ final class Schema
                     UNIQUE (identifiant, dossier)
                 );
                 SQL,
+            // Gel de PrestaShop par surveillance (décision du 08/11/2026) : le relevé note
+            // si le module « Assistant de mise à jour » (autoupgrade) est apparu dans une boutique.
+            8 => <<<SQL
+                ALTER TABLE releve_sites ADD COLUMN module_mise_a_jour INTEGER NULL CHECK (module_mise_a_jour IS NULL OR module_mise_a_jour IN (0, 1));
+                SQL,
         ];
     }
 

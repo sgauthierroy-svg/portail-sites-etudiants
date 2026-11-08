@@ -184,6 +184,9 @@ final class PrestaShopTest extends TestCase
         self::assertSame(['admin@exemple.fr'], $recap['destinataires']);
         self::assertStringContainsString("martinel\thttps://martinel.bts-sup-sallanches.com/Presta/", $recap['texte']);
         self::assertStringContainsString('durandca', $recap['texte']);
+        self::assertNotNull($recap['html'], 'Tableau à copier dans Google Sheets');
+        self::assertStringContainsString('>martinel</td><td', (string) $recap['html']);
+        self::assertSame(2, substr_count((string) $recap['html'], '<tr><td'), 'Une ligne par boutique');
         self::assertSame(0, (int) $this->pdo->query('SELECT count(*) FROM travaux_etapes WHERE secret IS NOT NULL')?->fetchColumn(),
             'Aucun mot de passe gardé après le récapitulatif');
 
@@ -261,6 +264,38 @@ final class PrestaShopTest extends TestCase
         self::assertNotNull($travail);
         self::assertStringContainsString('modifié depuis son dépôt', (string) $travail['etapes'][0]['message']);
         self::assertSame([], $this->cpanel['appels']);
+    }
+
+    // ===== Gel par surveillance (décision du 08/11/2026) =====
+
+    public function testLeReleveSignaleLesBoutiquesHorsDeLaVersionDeLaSession(): void
+    {
+        $this->pdo->prepare('UPDATE sessions SET paquet_prestashop_id = :p WHERE id = :s')->execute([':p' => $this->paquet, ':s' => $this->session]);
+        $sites = [];
+        foreach (['martinel' => ['9.1.5', false], 'durandca' => ['9.2.0', false], 'leroyhu' => ['9.1.5', true]] as $id => [$version, $module]) {
+            $racine = $this->personnel . '/releve-' . $id;
+            mkdir($racine . '/Presta/app/config', 0755, true);
+            file_put_contents($racine . '/Presta/app/config/parameters.php', '<?php');
+            file_put_contents($racine . '/Presta/app/AppKernel.php', "<?php\nclass AppKernel {\n    const VERSION = '" . $version . "';\n}");
+            if ($module) {
+                mkdir($racine . '/Presta/modules/autoupgrade', 0755, true);
+            }
+            $sites[$id] = Releve::sites($racine);
+        }
+        self::assertSame('9.2.0', $sites['durandca'][0]['version']);
+        Releve::enregistrer($this->pdo, ['martinel' => '/a', 'durandca' => '/b', 'leroyhu' => '/c'], $sites, '2026-11-09T06:13:00Z');
+
+        self::assertSame(['durandca' => 'version 9.2.0 au lieu de 9.1.5', 'leroyhu' => 'module de mise à jour installé'], Releve::horsGel($this->pdo));
+        $page = $this->en('cpetit', 'GET', '/sites');
+        self::assertStringContainsString('hors gel : version 9.2.0 au lieu de 9.1.5', $page->corps);
+
+        $boite = new ExpediteurMemoire();
+        $alertes = new Alertes($this->pdo, $boite, self::URL);
+        $alertes->boutiquesHorsGel(count(Releve::horsGel($this->pdo)));
+        $alertes->expedier();
+        self::assertCount(1, $boite->envoyes);
+        self::assertSame(['admin@exemple.fr'], $boite->envoyes[0]['destinataires']);
+        self::assertStringNotContainsString('durandca', $boite->envoyes[0]['texte'], 'Aucun étudiant nommé dans l\'e-mail');
     }
 
     // ===== Aides =====

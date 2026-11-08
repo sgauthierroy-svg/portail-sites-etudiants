@@ -101,6 +101,18 @@ final class Alertes
             . "\n\nLe détail de chaque étape est dans le portail : " . rtrim($this->urlPortail, '/') . '/travaux/' . $id);
     }
 
+    /** Gel de PrestaShop par surveillance (décision du 08/11/2026). Aucun nom d'étudiant dans l'e-mail. */
+    public function boutiquesHorsGel(int $nombre): void
+    {
+        if ($nombre === 0) {
+            return;
+        }
+        $this->ajouter([], $nombre . ' boutique(s) PrestaShop hors de la version de leur session',
+            'Le dernier relevé a trouvé ' . $nombre . ' boutique(s) dont la version ne correspond plus à celle, gelée, de leur session '
+            . "(ou dans laquelle le module « Assistant de mise à jour » a été installé).\n\n"
+            . 'Les boutiques concernées sont signalées en rouge dans « Voir tout » : ' . rtrim($this->urlPortail, '/') . '/sites');
+    }
+
     public function test(): void
     {
         $this->ajouter([], 'Test des alertes', 'Ce message de test confirme que le portail peut envoyer ses alertes.');

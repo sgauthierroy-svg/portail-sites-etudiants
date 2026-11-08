@@ -159,6 +159,17 @@ final class AlertesTest extends TestCase
         ExpediteurSmtp::message('portail@bts-sup-sallanches.com', 'P', ['a@exemple.fr'], "Sujet\r\nBcc: x@pirate.fr", 'T', 0);
     }
 
+    public function testUnMessageAvecTableauContientLesDeuxVersions(): void
+    {
+        $message = ExpediteurSmtp::message('portail@bts-sup-sallanches.com', 'P', ['a@exemple.fr'], 'Récapitulatif', "texte\tbrut", 0, '<table><tr><td>x</td></tr></table>');
+        self::assertSame(1, preg_match('/Content-Type: multipart\/alternative; boundary="(portail-[0-9a-f]{24})"/', $message, $trouve));
+        $frontiere = $trouve[1];
+        self::assertSame(3, substr_count($message, '--' . $frontiere), 'Deux parties puis la fin');
+        self::assertStringEndsWith('--' . $frontiere . '--', $message);
+        self::assertStringContainsString("Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . base64_encode("texte\tbrut"), $message);
+        self::assertStringContainsString("Content-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n" . base64_encode('<table><tr><td>x</td></tr></table>'), $message);
+    }
+
     public function testLeDialogueSmtpAvecUnFauxServeur(): void
     {
         [$trace] = $this->fauxServeur(false, function (int $port): void {
