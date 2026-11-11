@@ -245,15 +245,35 @@ final class Releve
         return $ecarts;
     }
 
+    /**
+     * Version d'une boutique, lue dans ses fichiers (jamais exécutés) :
+     * - PrestaShop 9 : src/Core/Version.php (constaté sur une 9.1.5 le 11/11/2026) ;
+     * - à défaut, les trois nombres MAJOR/MINOR/RELEASE de app/AppKernel.php ;
+     * - PrestaShop 8 et avant : const VERSION = '…' dans app/AppKernel.php.
+     */
     private static function versionPrestaShop(string $chemin): ?string
     {
-        $fichier = $chemin . '/app/AppKernel.php';
-        $contenu = is_file($fichier) ? file_get_contents($fichier, false, null, 0, 65536) : false;
-        if (is_string($contenu) && preg_match('/const\s+VERSION\s*=\s*\'([0-9.]{1,20})\'/', $contenu, $trouve) === 1) {
-            return $trouve[1];
+        $lire = static function (string $fichier): string {
+            $contenu = is_file($fichier) ? file_get_contents($fichier, false, null, 0, 65536) : false;
+
+            return is_string($contenu) ? $contenu : '';
+        };
+        $litterale = '/const\s+VERSION\s*=\s*[\'"]([0-9]{1,3}(?:\.[0-9]{1,3}){1,3})[\'"]/';
+        $noyau = $lire($chemin . '/app/AppKernel.php');
+        foreach ([$lire($chemin . '/src/Core/Version.php'), $noyau] as $contenu) {
+            if (preg_match($litterale, $contenu, $trouve) === 1) {
+                return $trouve[1];
+            }
+        }
+        $nombres = [];
+        foreach (['MAJOR_VERSION', 'MINOR_VERSION', 'RELEASE_VERSION'] as $nom) {
+            if (preg_match('/const\s+' . $nom . '\s*=\s*([0-9]{1,3})\s*;/', $noyau, $trouve) !== 1) {
+                return null;
+            }
+            $nombres[] = $trouve[1];
         }
 
-        return null;
+        return implode('.', $nombres);
     }
 
     private static function versionWordPress(string $chemin): ?string

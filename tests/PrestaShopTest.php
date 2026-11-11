@@ -306,6 +306,24 @@ final class PrestaShopTest extends TestCase
         self::assertStringNotContainsString('durandca', $boite->envoyes[0]['texte'], 'Aucun étudiant nommé dans l\'e-mail');
     }
 
+    public function testLaVersionDUnePrestaShopNeufEstLue(): void
+    {
+        // Disposition réelle d'une 9.1.5 (11/11/2026) : AppKernel renvoie à Version::VERSION.
+        $noyau = "<?php\nclass AppKernel {\n    public const VERSION = Version::VERSION;\n    public const MAJOR_VERSION_STRING = Version::MAJOR_VERSION_STRING;\n"
+            . "    public const MAJOR_VERSION = 9;\n    public const MINOR_VERSION = 1;\n    public const RELEASE_VERSION = 5;\n}";
+        foreach (['avec' => "<?php\nfinal class Version {\n    public const VERSION = '9.1.5';\n}", 'sans' => null] as $cas => $version) {
+            $racine = $this->personnel . '/v9-' . $cas;
+            mkdir($racine . '/Presta/app/config', 0755, true);
+            mkdir($racine . '/Presta/src/Core', 0755, true);
+            file_put_contents($racine . '/Presta/app/config/parameters.php', '<?php');
+            file_put_contents($racine . '/Presta/app/AppKernel.php', $noyau);
+            if ($version !== null) {
+                file_put_contents($racine . '/Presta/src/Core/Version.php', $version);
+            }
+            self::assertSame('9.1.5', Releve::sites($racine)[0]['version'], 'Cas ' . $cas . ' Version.php');
+        }
+    }
+
     // ===== Aides =====
 
     private function travailleur(): Travailleur
