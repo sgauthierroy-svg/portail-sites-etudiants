@@ -184,10 +184,11 @@ final class BibliothequeTest extends TestCase
     public function testToutLeMondeDeposeEtLitUnDocumentQuiSeTelecharge(): void
     {
         file_put_contents($this->donnees . '/depot/referentiel.pdf', "%PDF-1.7\ncontenu");
-        $page = $this->en('pmoreau', 'GET', '/documents');
+        $page = $this->en('pmoreau', 'GET', '/bibliotheque');
+        self::assertSame(303, $this->en('pmoreau', 'GET', '/documents')->statut, 'Ancienne adresse redirigée');
         self::assertSame(200, $page->statut);
         self::assertStringContainsString('referentiel.pdf', $page->corps);
-        $this->en('pmoreau', 'POST', '/documents', ['action' => 'enregistrer_depot', 'fichier_depot' => 'referentiel.pdf', 'titre' => 'Référentiel BTS NDRC']);
+        $this->en('pmoreau', 'POST', '/bibliotheque', ['action' => 'enregistrer_depot_document', 'fichier_depot' => 'referentiel.pdf', 'titre' => 'Référentiel BTS NDRC']);
         $id = (int) $this->pdo->query('SELECT id FROM documents')?->fetchColumn();
         self::assertGreaterThan(0, $id);
 
@@ -199,11 +200,11 @@ final class BibliothequeTest extends TestCase
         self::assertSame('sandbox', $telechargement->enTetes['Content-Security-Policy']);
 
         // Retrait : la personne qui l'a déposé (ou l'administrateur), avec confirmation.
-        $refus = $this->en('cpetit', 'POST', '/documents', ['action' => 'retirer', 'id' => (string) $id, 'confirmer' => '1']);
+        $refus = $this->en('cpetit', 'POST', '/bibliotheque', ['action' => 'retirer_document', 'id' => (string) $id, 'confirmer' => '1']);
         self::assertStringContainsString('Seuls', $refus->corps);
-        $sansConfirmation = $this->en('pmoreau', 'POST', '/documents', ['action' => 'retirer', 'id' => (string) $id]);
+        $sansConfirmation = $this->en('pmoreau', 'POST', '/bibliotheque', ['action' => 'retirer_document', 'id' => (string) $id]);
         self::assertStringContainsString('définitivement', $sansConfirmation->corps);
-        $this->en('pmoreau', 'POST', '/documents', ['action' => 'retirer', 'id' => (string) $id, 'confirmer' => '1']);
+        $this->en('pmoreau', 'POST', '/bibliotheque', ['action' => 'retirer_document', 'id' => (string) $id, 'confirmer' => '1']);
         self::assertSame(0, (int) $this->pdo->query('SELECT count(*) FROM documents')?->fetchColumn());
     }
 
@@ -223,12 +224,20 @@ final class BibliothequeTest extends TestCase
 
     // ===== Droits et pages =====
 
-    public function testLaBibliothequeEstReserveeAuxEnseignantsEtALAdministrateur(): void
+    public function testLesPaquetsSontReservesAuxEnseignantsEtALAdministrateur(): void
     {
         self::assertSame(200, $this->en('cpetit', 'GET', '/bibliotheque')->statut);
         self::assertSame(200, $this->en('mzanelli', 'GET', '/bibliotheque')->statut);
-        self::assertSame(403, $this->en('jroux', 'GET', '/bibliotheque')->statut);
-        self::assertSame(403, $this->en('pmoreau', 'GET', '/bibliotheque')->statut);
+        self::assertStringContainsString('Versions PrestaShop', $this->en('cpetit', 'GET', '/bibliotheque')->corps);
+        // Administratif et direction : la même page, avec les documents seulement.
+        foreach (['jroux', 'pmoreau'] as $compte) {
+            $page = $this->en($compte, 'GET', '/bibliotheque');
+            self::assertSame(200, $page->statut);
+            self::assertStringContainsString('id="documents"', $page->corps);
+            self::assertStringNotContainsString('Versions PrestaShop', $page->corps);
+            self::assertSame(403, $this->en($compte, 'POST', '/bibliotheque', ['action' => 'retirer', 'id' => '1', 'confirmer' => '1'])->statut);
+            self::assertSame(403, $this->en($compte, 'POST', '/bibliotheque', ['action' => 'enregistrer_depot', 'fichier_depot' => 'x.zip'])->statut);
+        }
     }
 
     public function testUnEnvoiTropGrosEstExpliqueEtNonRefuseCommeFormulaireExpire(): void
@@ -247,7 +256,7 @@ final class BibliothequeTest extends TestCase
         $trop = $this->en('cpetit', 'POST', '/bibliotheque', ['action' => 'deposer', 'type' => 'prestashop', 'nom' => 'PS', 'version' => '9.1.5'], ['fichier' => UPLOAD_ERR_INI_SIZE]);
         self::assertStringContainsString('dépôt par CPanel', $trop->corps);
         // Fichier qui ne vient pas d'un vrai envoi : move_uploaded_file() refuse, rien n'est lu ailleurs.
-        $faux = $this->en('cpetit', 'POST', '/documents', ['action' => 'deposer', 'titre' => 'X'],
+        $faux = $this->en('cpetit', 'POST', '/bibliotheque', ['action' => 'deposer_document', 'titre' => 'X'],
             ['fichier' => ['chemin' => $this->donnees . '/portail.sqlite', 'nom' => 'x.pdf', 'taille' => 10]]);
         self::assertStringContainsString('n&apos;a pas pu être reçu', $faux->corps);
         self::assertSame(0, (int) $this->pdo->query('SELECT count(*) FROM documents')?->fetchColumn());

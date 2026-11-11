@@ -36,8 +36,11 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
     private const DOMAINE = Releve::DOMAINE;
     private const PREFIXE = 'jafl3067_';
 
-    /** Colonnes du récapitulatif, dans l'ordre de la feuille des accès. */
-    public const COLONNES = ['Identifiant', 'Boutique', 'Administration', 'E-mail (identifiant PrestaShop)', 'Mot de passe PrestaShop'];
+    /** Colonnes du récapitulatif : en-têtes exacts de la feuille des accès (donnés le 11/11/2026). */
+    public const COLONNES = ['Prestashopadmin', 'Identifiantprestashop', 'Mot de passe Prestashop'];
+
+    /** Objet de l'e-mail à l'étudiant : il doit reconnaître l'établissement et l'importance du message (11/11/2026). */
+    public const SUJET_ETUDIANT = 'IMPORTANT – Sup\'Sallanches (BTS NDRC) : vos accès à votre boutique PrestaShop, à conserver';
 
     /** @var array<string, string> empreinte => chemin du prestashop.zip intérieur déjà extrait */
     private array $interieurs = [];
@@ -149,14 +152,19 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
 
     public function apresTravail(int $travailId, array $parametres): void
     {
-        $requete = $this->pdo->prepare("SELECT id, secret FROM travaux_etapes WHERE travail_id = :t AND secret IS NOT NULL ORDER BY rang");
+        $requete = $this->pdo->prepare("SELECT libelle, secret FROM travaux_etapes WHERE travail_id = :t AND secret IS NOT NULL ORDER BY rang");
         $requete->execute([':t' => $travailId]);
         $lignes = [];
+        $reperes = [];
         foreach (Lecture::lignes($requete) as $etape) {
             try {
-                $lignes[] = $this->chiffrement->dechiffrer((string) Lecture::texte($etape['secret']), 'recapitulatif-prestashop');
+                // Secret : identifiant, boutique, administration, e-mail, mot de passe.
+                $valeurs = explode("\t", $this->chiffrement->dechiffrer((string) Lecture::texte($etape['secret']), 'recapitulatif-prestashop'));
+                $lignes[] = [$valeurs[2] ?? '', $valeurs[3] ?? '', $valeurs[4] ?? ''];
+                $reperes[] = [(string) Lecture::texte($etape['libelle']), $valeurs[0]];
             } catch (Throwable) {
-                $lignes[] = '(ligne illisible)';
+                $lignes[] = ['(ligne illisible)', '', ''];
+                $reperes[] = [(string) Lecture::texte($etape['libelle']), ''];
             }
         }
         // Effacés dans tous les cas : le portail ne garde aucun mot de passe d'étudiant.
@@ -167,12 +175,15 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
         $adresse = $this->parametre('adresse_alertes');
         $texte = 'Boutiques PrestaShop créées par le travail n° ' . $travailId . ' (' . count($lignes) . ").\n\n"
             . "Le tableau à copier dans la feuille des accès est dans la version HTML de ce message.\n"
-            . "Version texte (colonnes séparées par des tabulations) :\n"
-            . implode("\t", self::COLONNES) . "\n" . implode("\n", $lignes)
-            . "\n\nCe message contient des mots de passe : supprimez-le une fois la feuille mise à jour."
+            . "Version texte (colonnes séparées par des tabulations), dans l'ordre alphabétique des étudiants :\n"
+            . implode("\t", self::COLONNES) . "\n";
+        foreach ($lignes as $rang => $ligne) {
+            $texte .= implode("\t", $ligne) . "\t(" . $reperes[$rang][0] . ")\n";
+        }
+        $texte .= "\nCe message contient des mots de passe : supprimez-le une fois la feuille mise à jour."
             . "\nLe portail ne les a pas gardés.\n\n-- \nMessage automatique du portail des sites étudiants.";
-        $this->envoyer($adresse === null ? [] : [$adresse], 'Récapitulatif des boutiques PrestaShop créées (travail n° ' . $travailId . ')', $texte,
-            'récapitulatif à l\'administrateur', self::tableauHtml($travailId, $lignes));
+        $this->envoyer($adresse === null ? [] : [$adresse], 'Accès PrestaShop à reporter dans la feuille (travail n° ' . $travailId . ')', $texte,
+            'récapitulatif à l\'administrateur', self::tableauHtml($travailId, $lignes, $reperes));
     }
 
     private function parametre(string $cle): ?string
@@ -318,47 +329,70 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
     /** @param array{nom: string, email: string} $etudiant */
     private function ecrireEtudiant(array $etudiant, string $boutique, string $administration, #[\SensitiveParameter] string $motDePasse): bool
     {
-        $texte = "Bonjour,\n\nVotre boutique PrestaShop d'entraînement est prête.\n\n"
-            . 'Boutique : ' . $boutique . "\n"
-            . 'Administration : ' . $administration . "\n"
+        $texte = "Bonjour,\n\n"
+            . "Ce message vous est envoyé par votre établissement, Sup'Sallanches (BTS NDRC). "
+            . "Il contient les accès à votre boutique PrestaShop, qui servira en cours : CONSERVEZ-LE.\n\n"
+            . 'Votre boutique : ' . $boutique . "\n"
+            . 'Administration de la boutique : ' . $administration . "\n"
             . 'Identifiant : ' . $etudiant['email'] . "\n"
             . 'Mot de passe : ' . $motDePasse . "\n\n"
-            . "Gardez ces accès pour vous. Le lien d'administration est personnel : ne le publiez pas.\n\n"
-            . "-- \nPortail des sites étudiants, Sup'Sallanches. Ne pas répondre à ce message.";
+            . "Ces accès sont personnels : ne les communiquez à personne et ne publiez pas le lien d'administration.\n"
+            . "En cas de difficulté, adressez-vous à votre enseignant.\n\n"
+            . "-- \nSup'Sallanches – BTS NDRC, portail des sites étudiants. Message automatique : ne pas y répondre.";
 
-        return $this->envoyer([$etudiant['email']], 'Votre boutique PrestaShop', $texte, 'accès PrestaShop à l\'étudiant');
+        return $this->envoyer([$etudiant['email']], self::SUJET_ETUDIANT, $texte, 'accès PrestaShop à l\'étudiant');
     }
 
     /**
-     * Tableau HTML : sélectionné dans la messagerie puis collé dans Google Sheets, il garde
-     * une valeur par cellule (au contraire du texte, où les tabulations se perdent).
+     * Tableau HTML : sélectionné dans la messagerie puis collé dans Google Sheets, il garde une valeur
+     * par cellule. Il ne contient que les trois colonnes de la feuille (demande du 11/11/2026) ;
+     * un second tableau, à ne pas copier, rappelle à quel étudiant correspond chaque ligne.
      *
-     * @param list<string> $lignes Valeurs séparées par des tabulations
+     * @param list<list<string>> $lignes Valeurs des colonnes de la feuille
+     * @param list<list<string>> $reperes Nom de l'étudiant et identifiant, dans le même ordre
      */
-    public static function tableauHtml(int $travailId, array $lignes): string
+    public static function tableauHtml(int $travailId, array $lignes, array $reperes): string
     {
         $e = static fn (string $t): string => htmlspecialchars($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $cellule = 'style="border:1px solid #999;padding:4px 8px;font-family:Arial,sans-serif;font-size:13px"';
-        $corps = '';
-        foreach ($lignes as $ligne) {
-            $corps .= '<tr>';
-            foreach (explode("\t", $ligne) as $valeur) {
-                $corps .= '<td ' . $cellule . '>' . $e($valeur) . '</td>';
-            }
-            $corps .= '</tr>';
-        }
-        $entete = '';
-        foreach (self::COLONNES as $colonne) {
-            $entete .= '<th ' . $cellule . '>' . $e($colonne) . '</th>';
+        $numerotes = [];
+        foreach ($reperes as $rang => $repere) {
+            $numerotes[] = array_merge([(string) ($rang + 1)], $repere);
         }
 
         return '<!doctype html><html lang="fr"><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif">'
             . '<p>Boutiques PrestaShop créées par le travail n° ' . $travailId . ' (' . count($lignes) . ').</p>'
-            . '<p><strong>Pour la feuille des accès :</strong> sélectionnez les lignes du tableau (sans la ligne des titres si la feuille les a déjà), '
-            . 'copiez (Ctrl + C), puis collez dans la première cellule libre de la feuille (Ctrl + V) : chaque valeur va dans sa colonne.</p>'
-            . '<table style="border-collapse:collapse"><thead><tr>' . $entete . '</tr></thead><tbody>' . $corps . '</tbody></table>'
+            . '<p><strong>1. À copier dans la feuille des accès.</strong> Sélectionnez les lignes de ce tableau (sans la ligne des titres), copiez (Ctrl + C), '
+            . 'puis collez (Ctrl + V) dans la colonne « ' . $e(self::COLONNES[0]) . ' », sur la ligne du premier étudiant.</p>'
+            . self::tableau(self::COLONNES, $lignes)
+            . '<p><strong>2. Repère, à ne pas copier.</strong> Les lignes sont dans l\'ordre alphabétique des étudiants. '
+            . 'Si la feuille n\'est pas dans le même ordre, ou si des étudiants manquent dans ce lot, collez ligne par ligne.</p>'
+            . self::tableau(['Ligne', 'Étudiant', 'Identifiant'], $numerotes)
             . '<p>Ce message contient des mots de passe : supprimez-le une fois la feuille mise à jour. Le portail ne les a pas gardés.</p>'
             . '<p style="color:#666">Message automatique du portail des sites étudiants.</p></body></html>';
+    }
+
+    /**
+     * @param list<string> $titres
+     * @param list<list<string>> $rangees
+     */
+    private static function tableau(array $titres, array $rangees): string
+    {
+        $e = static fn (string $t): string => htmlspecialchars($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $cellule = 'style="border:1px solid #999;padding:4px 8px;font-family:Arial,sans-serif;font-size:13px"';
+        $html = '<table style="border-collapse:collapse"><thead><tr>';
+        foreach ($titres as $titre) {
+            $html .= '<th ' . $cellule . '>' . $e($titre) . '</th>';
+        }
+        $html .= '</tr></thead><tbody>';
+        foreach ($rangees as $rangee) {
+            $html .= '<tr>';
+            foreach ($rangee as $valeur) {
+                $html .= '<td ' . $cellule . '>' . $e($valeur) . '</td>';
+            }
+            $html .= '</tr>';
+        }
+
+        return $html . '</tbody></table>';
     }
 
     /** @param list<string> $destinataires */

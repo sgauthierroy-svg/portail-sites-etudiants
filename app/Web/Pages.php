@@ -104,11 +104,9 @@ final class Pages
         if (Droits::peut($compte->role, Droits::CREER_SITE)) {
             $liste[] = ['/sites/prestashop', 'boutique', 'Créer des boutiques', 'PrestaShop d’entraînement pour une session, accès envoyés par e-mail.'];
         }
-        if (Droits::peut($compte->role, Droits::BIBLIOTHEQUE)) {
-            $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', 'Paquets PrestaShop et sujets d’examen, vérifiés à chaque utilisation.'];
-        }
         if (Droits::peut($compte->role, Droits::DOCUMENTS)) {
-            $liste[] = ['/documents', 'documents', 'Documents', 'Référentiel et documents de l’équipe, en PDF.'];
+            $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', Droits::peut($compte->role, Droits::BIBLIOTHEQUE)
+                ? 'Versions PrestaShop, sujets d’examen et documents de l’équipe.' : 'Référentiel et documents de l’équipe, en PDF.'];
         }
         if (Droits::peut($compte->role, Droits::IMPORTER)) {
             $liste[] = ['/etudiants/import', 'import', 'Importer des étudiants', 'Ajoute une classe entière depuis la Google Sheets, avec un aperçu à vérifier.'];
@@ -267,7 +265,7 @@ final class Pages
 
         return self::page('Comptes du portail', self::alerte(null, $information)
             . '<p><a href="/comptes/nouveau">Créer un compte</a> · <a href="/">Accueil</a></p>'
-            . '<table><thead><tr><th>Nom</th><th>Identifiant</th><th>Rôle</th><th>E-mail</th>'
+            . '<table class="triable"><thead><tr><th>Nom</th><th>Identifiant</th><th>Rôle</th><th>E-mail</th>'
             . '<th>Double authentification</th><th>État</th></tr></thead><tbody>' . $lignes . '</tbody></table>');
     }
 

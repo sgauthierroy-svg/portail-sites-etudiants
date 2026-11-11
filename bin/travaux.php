@@ -29,7 +29,8 @@ $config = \Portail\Noyau\Config::charger($racine . '/data/config.php');
 $pdo = \Portail\Noyau\Demarrage::base($config);
 $alertes = \Portail\Noyau\Demarrage::alertes($config, $pdo);
 
-$expediteur = new \Portail\Courriel\ExpediteurSmtp($config->smtpHote, $config->smtpPort, $config->smtpUtilisateur, $config->smtpMotDePasse);
+$expediteur = new \Portail\Courriel\ExpediteurSmtp($config->smtpHote, $config->smtpPort, $config->smtpUtilisateur, $config->smtpMotDePasse,
+    'Sup\'Sallanches – BTS NDRC');
 $travailleur = new \Portail\Travaux\Travailleur($pdo, $alertes, [
     'releve' => new \Portail\Travaux\ExecutantReleve($pdo, null, $alertes),
     'creer_prestashop' => new \Portail\Travaux\ExecutantCreerPrestaShop($pdo, new \Portail\Sites\Cpanel(),

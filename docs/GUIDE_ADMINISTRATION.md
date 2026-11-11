@@ -114,12 +114,15 @@ Menu « Créer des boutiques » (administrateur, enseignants, administratif) : c
 - En cas d'échec, ce que l'étape a créé (dossier, base, utilisateur) est effacé ; rien d'autre n'est touché. Un dossier `/Presta` non vide n'est jamais modifié.
 - Accès : e-mail à l'étudiant (boutique, administration, identifiant = son e-mail, mot de passe) ; à la fin du travail, un e-mail à l'adresse d'alerte avec les lignes à coller dans la feuille des accès. Le mot de passe est gardé chiffré le temps de ce récapitulatif, puis effacé. Supprimer ce récapitulatif une fois la feuille à jour.
 - Le lien d'administration figure sur la fiche de l'étudiant (administrateur et enseignants).
-- Le récapitulatif contient un tableau : le sélectionner dans la messagerie, copier, puis coller dans la feuille des accès (une valeur par cellule).
+- Le récapitulatif contient un tableau aux colonnes de la feuille des accès (`Prestashopadmin`, `Identifiantprestashop`, `Mot de passe Prestashop`), dans l'ordre alphabétique des étudiants, et un second tableau de repère (étudiant, identifiant) à ne pas copier.
+- L'e-mail à l'étudiant a pour objet « IMPORTANT – Sup'Sallanches (BTS NDRC) : vos accès… » et pour expéditeur « Sup'Sallanches – BTS NDRC ».
+- À venir (décisions du 11/11/2026) : colonnes WordPress `Site wordpress` (lien sans l'administration), `Identifiant WP`, `Mot de passe WP` ; pour un sujet `/WP2`, aucun e-mail à l'étudiant, tout va à l'administrateur et aux enseignants.
 - **Gel par surveillance** (décision du 08/11/2026) : le paquet 9.1.5 ne contient pas le module de mise à jour (« Assistant de mise à jour », `autoupgrade`). Chaque relevé (bouton ou tâche du lundi) lit la version réelle de chaque boutique (`app/AppKernel.php`) et repère ce module ; une boutique dont la version diffère de celle de sa session, ou qui a ce module, est signalée en rouge dans « Voir tout » et déclenche une alerte (sans nom d'étudiant).
 
 ## Bibliothèque et documents (V2)
 
-- **Bibliothèque** (administrateur, enseignants) : paquets d'installation PrestaShop (un par version, numéro indiqué au dépôt), sujets WordPress (archive ZIP de Duplicator). Les sujets PrestaShop arrivent avec le lot 6.
+- Depuis le 11/11/2026, une seule page « Bibliothèque » réunit les versions PrestaShop, les sujets et les documents ; l'administratif et la direction n'y voient que les documents.
+- **Paquets** (administrateur, enseignants) : paquets d'installation PrestaShop (un par version, numéro indiqué au dépôt), sujets WordPress (archive ZIP de Duplicator). Les sujets PrestaShop arrivent avec le lot 6.
 - **Documents** (tous les comptes) : PDF seulement, 30 Mo au plus. Téléchargés, jamais affichés dans la page.
 - Fichiers rangés sous le nom de leur empreinte SHA-256 dans `~/portail/data/bibliotheque` et `~/portail/data/documents` (droits 700, hors d'atteinte du web). L'empreinte d'un paquet est revérifiée avant chaque installation : un fichier modifié est refusé.
 - Archives refusées au dépôt : contenu non reconnu, ou chemin qui sortirait du dossier du site (`../`, chemin absolu).

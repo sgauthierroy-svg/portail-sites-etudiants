@@ -85,8 +85,9 @@ final class Application
             '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
             '/sites' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->voirTout($requete, $moi)),
             '/sites/prestashop' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerPrestaShop($requete, $moi)),
-            '/bibliotheque' => $this->pageConnectee($requete, Droits::BIBLIOTHEQUE, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
-            '/documents' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->documents($requete, $moi)),
+            '/bibliotheque' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
+            // Ancienne adresse des documents (réunis dans la bibliothèque le 11/11/2026).
+            '/documents' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => Reponse::redirection('/bibliotheque')),
             '/travaux' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travaux($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
             default => $this->pageNumerotee($requete),
@@ -153,11 +154,17 @@ final class Application
             return new Reponse(503, Pages::message('Bibliothèque indisponible', 'Dossier des données non configuré.'));
         }
         $bibliotheque = new Bibliotheque($this->pdo, $this->dossierDonnees, $moi, $requete->adresseIp);
+        // Documents : tous les comptes. Paquets (versions, sujets) : droit « bibliothèque ».
+        $voirPaquets = Droits::peut($moi->role, Droits::BIBLIOTHEQUE);
         $erreur = null;
         $information = null;
         if ($requete->methode === 'POST') {
+            $action = $requete->champ('action');
+            if (in_array($action, ['deposer', 'enregistrer_depot', 'retirer'], true) && !$voirPaquets) {
+                return $this->refuser($requete, $moi);
+            }
             try {
-                switch ($requete->champ('action')) {
+                switch ($action) {
                     case 'deposer':
                         $this->avecFichierEnvoye($requete, fn (string $chemin, string $nomOrigine) => $bibliotheque->ajouterPaquet(
                             $chemin, $nomOrigine, $requete->champ('type'), $requete->champ('nom'), $requete->champ('version')));
@@ -173,40 +180,15 @@ final class Application
                         $bibliotheque->retirerPaquet(self::idFacultatif($requete->champ('id')) ?? 0);
                         $information = 'Paquet retiré de la bibliothèque.';
                         break;
-                    default:
-                        return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
-                }
-            } catch (ErreurSaisie $e) {
-                $erreur = $e->getMessage();
-            }
-        } elseif (($refus = $this->seulementGet($requete)) !== null) {
-            return $refus;
-        }
-
-        return new Reponse(200, PagesBibliotheque::bibliotheque($this->session->jeton(), $moi, $bibliotheque, $bibliotheque->paquets(),
-            $bibliotheque->depot(), self::limiteEnvoi(), $erreur, $information));
-    }
-
-    private function documents(Requete $requete, Compte $moi): Reponse
-    {
-        if ($this->dossierDonnees === null) {
-            return new Reponse(503, Pages::message('Documents indisponibles', 'Dossier des données non configuré.'));
-        }
-        $bibliotheque = new Bibliotheque($this->pdo, $this->dossierDonnees, $moi, $requete->adresseIp);
-        $erreur = null;
-        $information = null;
-        if ($requete->methode === 'POST') {
-            try {
-                switch ($requete->champ('action')) {
-                    case 'deposer':
+                    case 'deposer_document':
                         $this->avecFichierEnvoye($requete, fn (string $chemin) => $bibliotheque->ajouterDocument($chemin, $requete->champ('titre')));
                         $information = 'Document ajouté.';
                         break;
-                    case 'enregistrer_depot':
+                    case 'enregistrer_depot_document':
                         $bibliotheque->ajouterDocument($bibliotheque->cheminDepot($requete->champ('fichier_depot'), 'pdf'), $requete->champ('titre'));
                         $information = 'Document enregistré depuis le dossier de dépôt.';
                         break;
-                    case 'retirer':
+                    case 'retirer_document':
                         $this->confirmationObligatoire($requete);
                         $bibliotheque->retirerDocument(self::idFacultatif($requete->champ('id')) ?? 0);
                         $information = 'Document retiré.';
@@ -221,8 +203,8 @@ final class Application
             return $refus;
         }
 
-        return new Reponse(200, PagesBibliotheque::documents($this->session->jeton(), $moi, $bibliotheque, $bibliotheque->documents(),
-            $bibliotheque->depot(), self::limiteEnvoi(), $erreur, $information));
+        return new Reponse(200, PagesBibliotheque::bibliotheque($this->session->jeton(), $moi, $bibliotheque, $voirPaquets,
+            $voirPaquets ? $bibliotheque->paquets() : [], $bibliotheque->documents(), $bibliotheque->depot(), self::limiteEnvoi(), $erreur, $information));
     }
 
     private function telechargerDocument(Requete $requete, int $id): Reponse

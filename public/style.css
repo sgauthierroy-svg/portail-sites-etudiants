@@ -153,6 +153,26 @@ tbody tr:nth-child(even) td { background: #fcfcfb; }
 td form { margin: 0; }
 td ul { margin: 0; padding-left: 18px; min-width: 13rem; }
 
+/* ===== Bibliothèque : rayons et fiches ===== */
+.sommaire { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+.sommaire a { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; min-height: 44px; border: 1px solid var(--trait); border-radius: 999px; text-decoration: none; font-weight: 600; background: var(--fond); }
+.sommaire a:hover { background: var(--panneau); border-color: #a8a29e; }
+.compte { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 8px; border-radius: 999px; background: var(--orange-pale); font-size: 14px; font-weight: 700; }
+.rayon { border-top: 1px solid var(--trait); margin-top: 24px; }
+.rayon h2 { display: flex; align-items: center; gap: 10px; }
+.fiches { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin: 0 0 16px; }
+.fiche { display: flex; align-items: flex-start; gap: 14px; padding: 18px; border: 1px solid var(--trait); border-radius: 20px; background: var(--fond); }
+.fiche-texte { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fiche-titre { font-size: 18px; overflow-wrap: anywhere; }
+.fiche form.retrait { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.fiche form.retrait button { min-height: 38px; font-size: 15px; }
+a.bouton { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 12px; border: 2px solid var(--trait-fort); text-decoration: none; font-weight: 600; align-self: flex-start; }
+a.bouton:hover { background: #f4f4f2; }
+details.ajout { border: 1px dashed var(--trait-fort); border-radius: 16px; padding: 0 18px; margin: 0 0 16px; }
+details.ajout summary { cursor: pointer; font-weight: 600; padding: 14px 0; min-height: 46px; }
+details.ajout[open] { border-style: solid; background: var(--panneau); padding-bottom: 6px; }
+label.afficher-mdp { font-weight: 400; cursor: pointer; }
+
 /* ===== Tri des colonnes (tri.js) ===== */
 th button.tri { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; color: inherit; }
 th button.tri::after { content: '↕'; font-size: 12px; opacity: .5; }

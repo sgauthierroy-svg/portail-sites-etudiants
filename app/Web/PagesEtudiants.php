@@ -178,15 +178,15 @@ final class PagesEtudiants
                 $site['dossier_admin'] !== null => $adresse . $site['dossier_admin'] . '/',
                 default => null,
             };
-            $lignesSites .= '<tr><td><a href="' . Html::e($adresse) . '" rel="noopener noreferrer">' . Html::e($site['dossier']) . '</a></td>'
+            $lignesSites .= '<tr><td><a href="' . Html::e($adresse) . '" target="_blank" rel="noopener noreferrer">' . Html::e($site['dossier']) . '</a></td>'
                 . '<td>' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ' ' . ($site['version'] ?? '')) . '</td>'
-                . '<td>' . ($voirAcces && $admin !== null ? '<a href="' . Html::e($admin) . '" rel="noopener noreferrer">administration</a>' : '—') . '</td>'
+                . '<td>' . ($voirAcces && $admin !== null ? '<a href="' . Html::e($admin) . '" target="_blank" rel="noopener noreferrer">administration</a>' : '—') . '</td>'
                 . '<td>' . ($site['cree_par_portail'] ? 'créé par le portail le ' : 'relevé le ') . Html::e(self::date($site['date'])) . '</td></tr>';
         }
         $contenu .= '<h2>Sites</h2>'
             . ($lignesSites === '' ? '<p>Aucun site trouvé au dernier relevé.</p>'
                 : '<table><thead><tr><th>Site</th><th>Logiciel</th><th>Administration</th><th>Origine</th></tr></thead><tbody>' . $lignesSites . '</tbody></table>'
-                    . ($voirAcces ? '<p class="discret">Le lien d\'administration d\'une boutique est personnel à l\'étudiant : ne le diffusez pas. '
+                    . ($voirAcces ? '<p class="discret">Les liens s\'ouvrent dans un nouvel onglet. Le lien d\'administration d\'une boutique est personnel à l\'étudiant : ne le diffusez pas. '
                         . 'Pour une boutique créée avant le portail, il n\'est pas connu.</p>' : ''));
         $contenu .= '<h2>Parcours</h2>'
             . ($lignes === '' ? '<p>Aucun changement depuis l\'ajout.</p>'
@@ -331,7 +331,7 @@ final class PagesEtudiants
             . '<form method="post" action="/etudiants/import">' . Pages::jeton($jeton)
             . '<input type="hidden" name="action" value="importer">'
             . '<textarea name="texte" hidden>' . Html::e($texte) . '</textarea>'
-            . '<table><thead><tr><th>Ligne</th><th>État</th><th>Nom complet</th><th>Identifiant</th><th>Identifiant WordPress</th>'
+            . '<table class="triable"><thead><tr><th>Ligne</th><th>État</th><th>Nom complet</th><th>Identifiant</th><th>Identifiant WordPress</th>'
             . '<th>Classe – session</th><th>E-mail</th><th>Remarques</th></tr></thead><tbody>' . $rangees . '</tbody></table>'
             . '<p>À la validation, le texte est vérifié de nouveau, puis les lignes « À importer » et les lignes « À vérifier » cochées '
             . 'sont enregistrées toutes ensemble. Aucun site n\'est créé.</p>'

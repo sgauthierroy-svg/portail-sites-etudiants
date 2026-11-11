@@ -65,7 +65,7 @@ final class PagesSites
                 . '<input type="hidden" name="action" value="lancer"><input type="hidden" name="session" value="' . $session['id'] . '">'
                 . $version
                 . '<p>Nom de la boutique : <strong>' . Html::e(\Portail\Sites\PreparationPrestaShop::NOM_BOUTIQUE) . '</strong> (chaque étudiant pourra le changer).</p>'
-                . '<table><thead><tr><th>Créer</th><th>Étudiant</th><th>E-mail (identifiant de la boutique)</th><th>État</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
+                . '<table class="triable"><thead><tr><th>Créer</th><th>Étudiant</th><th>E-mail (identifiant de la boutique)</th><th>État</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
                 . ($possibles > 0 ? '<button type="submit" class="btn-main">Créer les boutiques cochées</button>' : '<p>Aucun étudiant de cette session ne peut recevoir de boutique.</p>')
                 . '</form>';
         }

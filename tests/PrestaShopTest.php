@@ -176,17 +176,24 @@ final class PrestaShopTest extends TestCase
 
         // E-mail à chaque étudiant, puis un récapitulatif à l'administrateur.
         self::assertCount(3, $this->boite->envoyes);
-        $eleve = $this->boite->envoyes[0];
+        $eleve = $this->boite->envoyes[1];
+        self::assertSame(['durandca@exemple.fr'], $this->boite->envoyes[0]['destinataires'], 'Ordre alphabétique, quel que soit l\'ordre des cases');
         self::assertSame(['martinel@exemple.fr'], $eleve['destinataires']);
         self::assertStringContainsString('https://martinel.bts-sup-sallanches.com/Presta/admin-martinel-', $eleve['texte']);
         self::assertMatchesRegularExpression('/Mot de passe : [A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}/', $eleve['texte']);
         $recap = $this->boite->envoyes[2];
         self::assertSame(['admin@exemple.fr'], $recap['destinataires']);
-        self::assertStringContainsString("martinel\thttps://martinel.bts-sup-sallanches.com/Presta/", $recap['texte']);
-        self::assertStringContainsString('durandca', $recap['texte']);
-        self::assertNotNull($recap['html'], 'Tableau à copier dans Google Sheets');
-        self::assertStringContainsString('>martinel</td><td', (string) $recap['html']);
-        self::assertSame(2, substr_count((string) $recap['html'], '<tr><td'), 'Une ligne par boutique');
+        self::assertStringContainsString("Prestashopadmin\tIdentifiantprestashop\tMot de passe Prestashop\n", $recap['texte']);
+        self::assertStringContainsString("/\tmartinel@exemple.fr\t", $recap['texte']);
+        $html = (string) $recap['html'];
+        // Premier tableau : exactement les trois colonnes de la feuille, dans l'ordre alphabétique des étudiants.
+        self::assertStringContainsString('Prestashopadmin</th><th', $html);
+        self::assertSame(1, preg_match('#<tbody><tr><td[^>]*>https://durandca\.bts-sup-sallanches\.com/Presta/admin-durandca-[a-z2-9]{6}/</td><td[^>]*>durandca@exemple\.fr</td><td[^>]*>[A-Za-z2-9-]{19}</td></tr>#', $html));
+        // Second tableau : repère (étudiant, identifiant), sans mot de passe.
+        self::assertStringContainsString('>DURAND Camille</td><td', $html);
+        self::assertSame(4, substr_count($html, '<tr><td'), 'Deux boutiques dans chacun des deux tableaux');
+        self::assertStringStartsWith('IMPORTANT – Sup\'Sallanches', $eleve['sujet']);
+        self::assertStringContainsString('votre établissement, Sup\'Sallanches (BTS NDRC)', $eleve['texte']);
         self::assertSame(0, (int) $this->pdo->query('SELECT count(*) FROM travaux_etapes WHERE secret IS NOT NULL')?->fetchColumn(),
             'Aucun mot de passe gardé après le récapitulatif');
 

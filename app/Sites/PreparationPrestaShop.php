@@ -124,12 +124,18 @@ final class PreparationPrestaShop
                 $possibles[$etudiant['identifiant']] = $etudiant['nom'];
             }
         }
-        $etapes = [];
-        foreach (array_unique($coches) as $identifiant) {
+        foreach ($coches as $identifiant) {
             if (!isset($possibles[$identifiant])) {
                 throw new ErreurSaisie('Un étudiant coché ne peut pas recevoir de boutique (déjà présente, prévue, ou hors de cette session). Rechargez la page.');
             }
-            $etapes[] = ['cible' => $identifiant, 'libelle' => $possibles[$identifiant]];
+        }
+        // Toujours dans l'ordre alphabétique des étudiants, quel que soit le tri affiché à l'écran :
+        // c'est l'ordre du récapitulatif à coller dans la feuille des accès.
+        $etapes = [];
+        foreach ($possibles as $identifiant => $nom) {
+            if (in_array($identifiant, $coches, true)) {
+                $etapes[] = ['cible' => $identifiant, 'libelle' => $nom];
+            }
         }
         if ($etapes === []) {
             throw new ErreurSaisie('Cochez au moins un étudiant.');
