@@ -19,6 +19,8 @@ final class Installation
         'portail', 'peda', 'prova', 'supsallanches.com', 'suitecrm.supsallanches.com',
         'bachelor-sup-sallanches.com', 'new-ecs.jafl3067.odns.fr', 'public_html',
         'sandrine', 'sandrine2', 'alt-event.fr',
+        // Site modèle d'examen (13/11/2026) : seuls ses propres travaux le touchent, jamais ceux des étudiants.
+        'sujet',
     ];
 
     /** Bases jamais modifiables par le portail. */
@@ -62,11 +64,28 @@ final class Installation
         $compteRendu[] = self::parametreParDefaut($pdo, 'adresse_alertes', $config->adresseAlertes);
         $compteRendu[] = self::parametreParDefaut($pdo, 'sites_proteges', self::json(self::SITES_PROTEGES));
         $compteRendu[] = self::parametreParDefaut($pdo, 'bases_protegees', self::json(self::BASES_PROTEGEES));
+        $compteRendu[] = self::ajouterProtege($pdo, \Portail\Sites\SiteModele::IDENTIFIANT);
 
         $effacees = Schema::purger($pdo);
         $compteRendu[] = 'Traces arrivées à échéance effacées : ' . $effacees;
 
         return $compteRendu;
+    }
+
+    /** Ajoute un sous-domaine à la liste des sites protégés d'une installation existante (sans rien retirer). */
+    private static function ajouterProtege(PDO $pdo, string $identifiant): string
+    {
+        $lecture = $pdo->prepare("SELECT valeur FROM parametres WHERE cle = 'sites_proteges'");
+        $lecture->execute();
+        $liste = Lecture::tableau(json_decode((string) Lecture::texte($lecture->fetchColumn()), true)) ?? [];
+        if (in_array($identifiant, $liste, true)) {
+            return 'Site protégé ' . $identifiant . ' : déjà dans la liste ✓';
+        }
+        $liste[] = $identifiant;
+        $pdo->prepare("UPDATE parametres SET valeur = :v WHERE cle = 'sites_proteges'")
+            ->execute([':v' => json_encode(array_values($liste), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)]);
+
+        return 'Site protégé ' . $identifiant . ' : ajouté à la liste ✓';
     }
 
     private static function parametreParDefaut(PDO $pdo, string $cle, string $valeur): string

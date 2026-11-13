@@ -41,6 +41,8 @@ final class Droits
     public const CREER_SITE = 'creer_site';
     /** Voir les liens d'administration des sites (décision du 08/11/2026 : administrateur et enseignants). */
     public const VOIR_ACCES_SITES = 'voir_acces_sites';
+    /** Site modèle et sujets d'examen (décision du 13/11/2026 : l'enseignant charge le sujet, l'administrateur vérifie). */
+    public const SUJETS_EXAMEN = 'sujets_examen';
 
     /** @var array<string, list<string>> */
     private const MATRICE = [
@@ -48,12 +50,12 @@ final class Droits
             self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::JOURNAL_CONNEXIONS, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT,
             self::CHANGER_SESSION, self::DEMANDER, self::REINITIALISER_SITE, self::BIBLIOTHEQUE, self::SUPPRIMER,
             self::TRAITER_DEMANDES, self::REGIMES_SESSIONS, self::GERER_COMPTES, self::PARAMETRES, self::ACTUALISER_RELEVE, self::DOCUMENTS,
-            self::CREER_SITE, self::VOIR_ACCES_SITES,
+            self::CREER_SITE, self::VOIR_ACCES_SITES, self::SUJETS_EXAMEN,
         ],
         'enseignant' => [
             self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT,
             self::CHANGER_SESSION, self::DEMANDER, self::REINITIALISER_SITE, self::BIBLIOTHEQUE, self::REGIMES_SESSIONS,
-            self::ACTUALISER_RELEVE, self::DOCUMENTS, self::CREER_SITE, self::VOIR_ACCES_SITES,
+            self::ACTUALISER_RELEVE, self::DOCUMENTS, self::CREER_SITE, self::VOIR_ACCES_SITES, self::SUJETS_EXAMEN,
         ],
         'administratif' => [
             self::CONSULTER, self::VOIR_FICHE, self::JOURNAL, self::IMPORTER, self::CREER_ETUDIANT, self::MODIFIER_ETUDIANT, self::DEMANDER,

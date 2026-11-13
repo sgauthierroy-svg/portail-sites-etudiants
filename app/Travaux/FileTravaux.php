@@ -32,6 +32,10 @@ final class FileTravaux
         'supprimer_etudiant' => 'Supprimer un étudiant',
         'restaurer' => 'Restaurer une sauvegarde',
         'deployer_sujet_prestashop' => 'Déployer un sujet PrestaShop',
+        'installer_sujet_modele' => 'Installer un sujet sur le site modèle',
+        'geler_sujet_modele' => 'Geler ou dégeler le site modèle',
+        'cloturer_epreuve' => 'Clôturer une épreuve',
+        'lever_gel_epreuve' => 'Lever le gel d\'une épreuve',
     ];
 
     public const ETATS = [

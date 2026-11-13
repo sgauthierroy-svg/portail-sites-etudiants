@@ -83,6 +83,7 @@ final class Pages
         'bibliotheque' => '<path d="M4 4h4v16H4zM10 4h4v16h-4z"/><path d="M16 5l4 1-3 14-4-1z"/>',
         'documents' => '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
         'motdepasse' => '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/>',
+        'sujet' => '<path d="M6 3h9l3 3v15H6z"/><path d="M9 13l2 2 4-4"/>',
     ];
 
     public static function icone(string $nom, string $classe = 'i'): string
@@ -103,6 +104,9 @@ final class Pages
         }
         if (Droits::peut($compte->role, Droits::CREER_SITE)) {
             $liste[] = ['/sites/prestashop', 'boutique', 'Créer des boutiques', 'PrestaShop d’entraînement pour une session, accès envoyés par e-mail.'];
+        }
+        if (Droits::peut($compte->role, Droits::SUJETS_EXAMEN)) {
+            $liste[] = ['/sites/sujet', 'sujet', 'Site modèle d’examen', 'Charger le sujet WordPress d’examen, le vérifier et geler sa version.'];
         }
         if (Droits::peut($compte->role, Droits::DOCUMENTS)) {
             $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', Droits::peut($compte->role, Droits::BIBLIOTHEQUE)
@@ -135,7 +139,7 @@ final class Pages
             $actif = $adresse === $chemin || ($adresse === '/etudiants' && preg_match('#^/etudiants/[0-9]+$#', $chemin) === 1)
                 || ($adresse === '/comptes' && str_starts_with($chemin, '/comptes/'))
                 || ($adresse === '/travaux' && str_starts_with($chemin, '/travaux/'));
-            $actif = $actif && !($adresse === '/sites' && $chemin === '/sites/prestashop');
+            $actif = $actif && !($adresse === '/sites' && in_array($chemin, ['/sites/prestashop', '/sites/sujet'], true));
             $liens .= '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . '</a>';
         }
 

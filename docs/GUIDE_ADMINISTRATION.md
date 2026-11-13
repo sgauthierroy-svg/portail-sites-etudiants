@@ -119,6 +119,25 @@ Menu « Créer des boutiques » (administrateur, enseignants, administratif) : c
 - À venir (décisions du 11/11/2026) : colonnes WordPress `Site wordpress` (lien sans l'administration), `Identifiant WP`, `Mot de passe WP` ; pour un sujet `/WP2`, aucun e-mail à l'étudiant, tout va à l'administrateur et aux enseignants.
 - **Gel par surveillance** (décision du 08/11/2026) : le paquet 9.1.5 ne contient pas le module de mise à jour (« Assistant de mise à jour », `autoupgrade`). Chaque relevé (bouton ou tâche du lundi) lit la version réelle de chaque boutique (`app/AppKernel.php`) et repère ce module ; une boutique dont la version diffère de celle de sa session, ou qui a ce module, est signalée en rouge dans « Voir tout » et déclenche une alerte (sans nom d'étudiant).
 
+## Site modèle d'examen (V2, lot 4)
+
+Décisions du 13/11/2026. Le sujet d'examen WordPress vit sur un sous-domaine dédié, `sujet.bts-sup-sallanches.com`, dans `/WP` : c'est le site tel que les étudiants le recevront dans leur `/WP2`.
+
+- **Mise en place (une fois, à la main)** : créer le sous-domaine `sujet` dans CPanel, poser son certificat (`bash ~/certificats.sh`, puis `sujet`), actualiser le relevé. `sujet` est dans la liste des sites protégés : aucun travail d'étudiant ne le touche, et il n'apparaît pas parmi les « sous-domaines sans étudiant ».
+- **Page « Site modèle d'examen »** (administrateur, enseignants) : l'enseignant choisit un sujet WordPress de la bibliothèque (paquet Duplicator) et l'installe sur le modèle. Un seul travail sur le modèle à la fois.
+- Le travailleur prépare le nouveau modèle à part (`~/portail/data/tmp`), avec une base et un utilisateur MySQL neufs (`jafl3067_sujet_wp_xxxxxx`, `jafl3067_sujet_xxxxxx`, 6 caractères au hasard) ; écrit lui-même `wp-config.php` (droits 600 ; aucun mot de passe en ligne de commande) ; importe la base du paquet (sans les lignes d'avertissement `mysqldump:`) ; remplace les adresses du site d'origine par `https://sujet.bts-sup-sallanches.com/WP` avec WP-CLI (`/usr/local/bin/wp`, en http, en https et sous forme « échappée », puis le chemin du dossier d'origine) ; masque le modèle aux moteurs de recherche ; met l'adresse d'administration du site sur l'adresse d'alerte ; retire les fichiers de Duplicator et les paquets Duplicator rangés dans le site ; écrit le `.htaccess` standard de WordPress pour `/WP`.
+- WP-CLI est toujours lancé avec `--skip-plugins --skip-themes` : le portail n'exécute jamais le code des extensions d'un site.
+- **Bascule** : le modèle en place reste en ligne jusqu'au dernier moment, puis il est mis à l'écart (voir ci-dessous) et le nouveau prend sa place. En cas d'échec avant la bascule, le modèle en place n'a pas changé et ce que l'étape avait créé (dossier de préparation, base, utilisateur) est effacé.
+- **Contrôle de l'administrateur (non bloquant)** : à chaque installation, un e-mail à l'adresse d'alerte donne la version de WordPress, les extensions (celles qui donnent accès aux fichiers du serveur sont signalées « à retirer »), les comptes du site (aucun compte d'étudiant ne doit rester) et le thème. L'enseignant peut déployer sans attendre.
+- **Version** : tant que l'année d'examen n'est pas figée, le modèle se met à jour (réglage par défaut de WordPress : mises à jour mineures automatiques). Le bouton « Geler la version » ajoute `AUTOMATIC_UPDATER_DISABLED` et `WP_AUTO_UPDATE_CORE = false` dans le bloc « Réglages gérés par le portail » de `wp-config.php` ; « Dégeler » les retire. Seul ce bloc est réécrit. Un nouveau sujet garde l'état de gel du modèle.
+- Après une installation : se connecter à l'administration du modèle avec les accès du site d'origine, supprimer le compte et le contenu personnel de l'étudiant d'origine, vérifier les extensions.
+
+### Mises à l'écart (8 jours)
+
+- Un site remplacé n'est pas effacé : son dossier est déplacé tel quel dans `~/archives_suppression/portail/` (nom : date, identifiant, dossier, 6 caractères), sa base et son utilisateur MySQL restent en place. La page du site modèle les liste.
+- **Retour en arrière** pendant 8 jours (en SSH) : déplacer le dossier du site actuel ailleurs, remettre le dossier mis à l'écart à sa place (`mv ~/archives_suppression/portail/NOM ~/sujet.bts-sup-sallanches.com/WP`), puis relancer le relevé. Son `wp-config.php` pointe toujours sur sa base, et la purge ne l'effacera pas : une base ou un utilisateur cité par le site en place n'est jamais effacé.
+- Au-delà de 8 jours, le travailleur efface le dossier, puis l'utilisateur et la base (jamais une base protégée, ni une base ou un utilisateur encore utilisé par un site connu du portail), une mise à l'écart à la fois, quand il n'a pas d'autre travail. Un échec est inscrit au journal et réessayé le lendemain.
+
 ## Bibliothèque et documents (V2)
 
 - Depuis le 11/11/2026, une seule page « Bibliothèque » réunit les versions PrestaShop, les sujets et les documents ; l'administratif et la direction n'y voient que les documents.

@@ -70,7 +70,12 @@ final class PagesTravaux
         }
         $orphelins = '';
         if ($fiches && $regimeChoisi === null && $sessionChoisie === null) {
-            $sans = array_values(array_filter($sousDomaines, static fn (string $i): bool => !isset($connus[$i])));
+            // Le site modèle d'examen a sa propre page : il n'est pas un « sous-domaine sans étudiant ».
+            $sans = array_values(array_filter($sousDomaines, static fn (string $i): bool => !isset($connus[$i]) && $i !== \Portail\Sites\SiteModele::IDENTIFIANT));
+            if (in_array(\Portail\Sites\SiteModele::IDENTIFIANT, $sousDomaines, true)) {
+                $orphelins .= '<p>Site modèle d\'examen : <code>' . \Portail\Sites\SiteModele::IDENTIFIANT . '</code>'
+                    . (Droits::peut($moi->role, Droits::SUJETS_EXAMEN) ? ' (<a href="/sites/sujet">sa page</a>)' : '') . '.</p>';
+            }
             if ($sans !== []) {
                 $orphelins = '<h2>Sous-domaines sans étudiant dans le portail (' . count($sans) . ')</h2>'
                     . '<p>Anciens étudiants, étudiants pas encore importés, ou outils de l\'établissement. Rien n\'est fait sur eux.</p>'

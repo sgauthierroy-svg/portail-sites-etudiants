@@ -23,6 +23,9 @@ final class Schema
 
     private const MAINTENANT = "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')";
 
+    /** Versions qui refont une table : clés étrangères suspendues le temps de la copie. */
+    private const SANS_CLES = [10];
+
     /** @return array<int, string> */
     public static function versions(): array
     {
@@ -342,6 +345,50 @@ final class Schema
                     verifie_le      TEXT NOT NULL DEFAULT ({$maintenant})
                 );
                 SQL,
+            // V2, lot 4 (13/11/2026) : site modèle d'examen (sous-domaine « sujet ») et mises à l'écart.
+            // De nouveaux types de travaux demandent de refaire la table travaux (SQLite ne sait pas
+            // changer une contrainte CHECK) : méthode de la documentation SQLite, « Making Other Kinds
+            // Of Table Schema Changes », clés étrangères suspendues le temps de la copie (voir SANS_CLES).
+            // Une mise à l'écart garde 8 jours un site remplacé (dossier et base), puis il est effacé.
+            10 => <<<SQL
+                CREATE TABLE travaux_v10 (
+                    id              INTEGER PRIMARY KEY,
+                    type            TEXT NOT NULL CHECK (type IN (
+                                        'releve', 'creer_prestashop', 'deployer_sujet_wp', 'creer_wordpress',
+                                        'reinitialiser_wordpress', 'reinitialiser_prestashop', 'supprimer_site',
+                                        'supprimer_etudiant', 'restaurer', 'deployer_sujet_prestashop',
+                                        'installer_sujet_modele', 'geler_sujet_modele', 'cloturer_epreuve', 'lever_gel_epreuve')),
+                    parametres      TEXT NOT NULL DEFAULT '{}' CHECK (length(parametres) <= 2000),
+                    etat            TEXT NOT NULL DEFAULT 'en_attente'
+                                    CHECK (etat IN ('en_attente', 'en_cours', 'termine', 'annule')),
+                    demande_le      TEXT NOT NULL DEFAULT ({$maintenant}),
+                    demande_par     INTEGER NULL REFERENCES comptes (id) ON DELETE SET NULL,
+                    demande_par_nom TEXT NOT NULL CHECK (length(demande_par_nom) BETWEEN 1 AND 100),
+                    commence_le     TEXT NULL,
+                    termine_le      TEXT NULL
+                );
+                INSERT INTO travaux_v10 (id, type, parametres, etat, demande_le, demande_par, demande_par_nom, commence_le, termine_le)
+                    SELECT id, type, parametres, etat, demande_le, demande_par, demande_par_nom, commence_le, termine_le FROM travaux;
+                DROP TABLE travaux;
+                ALTER TABLE travaux_v10 RENAME TO travaux;
+                CREATE INDEX travaux_par_etat ON travaux (etat, id);
+
+                ALTER TABLE sites ADD COLUMN gele INTEGER NOT NULL DEFAULT 0 CHECK (gele IN (0, 1));
+
+                CREATE TABLE mises_a_l_ecart (
+                    id              INTEGER PRIMARY KEY,
+                    identifiant     TEXT NOT NULL CHECK (length(identifiant) BETWEEN 2 AND 63 AND identifiant NOT GLOB '*[^a-z0-9]*'),
+                    dossier         TEXT NOT NULL CHECK (dossier GLOB '/[A-Za-z]*' AND dossier NOT GLOB '*[^A-Za-z0-9/]*'),
+                    chemin          TEXT NOT NULL UNIQUE CHECK (length(chemin) BETWEEN 1 AND 120 AND chemin NOT GLOB '*[^A-Za-z0-9_-]*'),
+                    base            TEXT NULL CHECK (base IS NULL OR (length(base) <= 64 AND base NOT GLOB '*[^A-Za-z0-9_]*')),
+                    utilisateur_bdd TEXT NULL CHECK (utilisateur_bdd IS NULL OR (length(utilisateur_bdd) <= 47 AND utilisateur_bdd NOT GLOB '*[^a-z0-9_]*')),
+                    motif           TEXT NOT NULL CHECK (length(motif) BETWEEN 1 AND 200),
+                    mis_le          TEXT NOT NULL DEFAULT ({$maintenant}),
+                    expire_le       TEXT NOT NULL,
+                    purge_le        TEXT NULL
+                );
+                CREATE INDEX mises_a_l_ecart_a_purger ON mises_a_l_ecart (expire_le) WHERE purge_le IS NULL;
+                SQL,
         ];
     }
 
@@ -364,16 +411,32 @@ final class Schema
             if ($existe->fetchColumn() !== false) {
                 continue;
             }
+            // Une table refaite : clés étrangères suspendues pendant la copie (la commande PRAGMA
+            // est sans effet dans une transaction), puis vérifiées avant de valider.
+            $sansCles = in_array($version, self::SANS_CLES, true);
+            if ($sansCles) {
+                $pdo->exec('PRAGMA foreign_keys = OFF');
+            }
             $pdo->beginTransaction();
             try {
                 // Texte SQL écrit dans ce fichier, sans aucune donnée extérieure.
                 $pdo->exec($sql); // nosemgrep: outils.semgrep.requete-sql-construite-par-concatenation
+                if ($sansCles) {
+                    $verification = $pdo->query('PRAGMA foreign_key_check');
+                    if ($verification !== false && $verification->fetch() !== false) {
+                        throw new \RuntimeException('Version ' . $version . ' de la base : références incohérentes après la copie.');
+                    }
+                }
                 $ajout = $pdo->prepare('INSERT INTO schema_versions (version) VALUES (:v)');
                 $ajout->execute([':v' => $version]);
                 $pdo->commit();
             } catch (\Throwable $e) {
                 $pdo->rollBack();
                 throw $e;
+            } finally {
+                if ($sansCles) {
+                    $pdo->exec('PRAGMA foreign_keys = ON');
+                }
             }
             $appliquees[] = $version;
         }

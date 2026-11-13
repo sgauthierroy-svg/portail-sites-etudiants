@@ -15,8 +15,7 @@ use Portail\Securite\MotsDePasse;
 use Portail\Sites\InstallateurPrestaShop;
 use Portail\Sites\Releve;
 use Portail\Sites\ServeurCpanel;
-use RecursiveDirectoryIterator;
-use RecursiveIteratorIterator;
+use Portail\Systeme\Fichiers;
 use RuntimeException;
 use Throwable;
 
@@ -301,29 +300,9 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
         }
     }
 
-    /** Efface un dossier, seulement s'il est à l'intérieur de $limite (jamais au-dessus), sans suivre de lien. */
     private static function effacerDossier(string $dossier, string $limite, bool $luiAussi = true): void
     {
-        $reel = realpath($dossier);
-        $limiteReelle = realpath($limite);
-        if ($reel === false || $limiteReelle === false || !str_starts_with($reel . '/', $limiteReelle . '/') || $reel === $limiteReelle) {
-            throw new RuntimeException('Effacement refusé hors du dossier du site.');
-        }
-        $elements = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($reel, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
-        foreach ($elements as $element) {
-            if (!$element instanceof \SplFileInfo) {
-                continue;
-            }
-            $chemin = $element->getPathname();
-            if ($element->isDir() && !$element->isLink()) {
-                rmdir($chemin);
-            } else {
-                unlink($chemin); // nosemgrep: outils..cache.semgrep-rules.php.lang.security.unlink-use
-            }
-        }
-        if ($luiAussi) {
-            rmdir($reel);
-        }
+        Fichiers::effacerDossier($dossier, $limite, $luiAussi);
     }
 
     /** @param array{nom: string, email: string} $etudiant */

@@ -20,8 +20,10 @@ use Portail\Journal\Journal;
 use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\Horloge;
+use Portail\Sites\MiseALecart;
 use Portail\Sites\PreparationPrestaShop;
 use Portail\Sites\Releve;
+use Portail\Sites\SiteModele;
 use Portail\Travaux\FileTravaux;
 
 /**
@@ -85,6 +87,7 @@ final class Application
             '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
             '/sites' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->voirTout($requete, $moi)),
             '/sites/prestashop' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerPrestaShop($requete, $moi)),
+            '/sites/sujet' => $this->pageConnectee($requete, Droits::SUJETS_EXAMEN, fn (Compte $moi) => $this->siteModele($requete, $moi)),
             '/bibliotheque' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
             // Ancienne adresse des documents (réunis dans la bibliothèque le 11/11/2026).
             '/documents' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => Reponse::redirection('/bibliotheque')),
@@ -144,6 +147,36 @@ final class Application
 
         return new Reponse(200, PagesSites::creerPrestaShop($this->session->jeton(), $preparation->sessions(), $preparation->paquets(), $sessionChoisie,
             $sessionChoisie === null ? null : $preparation->etudiants($sessionChoisie), Releve::dernier($this->pdo), $erreur));
+    }
+
+    // ===== V2, lot 4 : site modèle d'examen =====
+
+    private function siteModele(Requete $requete, Compte $moi): Reponse
+    {
+        $modele = new SiteModele($this->pdo);
+        $erreur = null;
+        if ($requete->methode === 'POST') {
+            try {
+                $id = match ($requete->champ('action')) {
+                    'installer' => $modele->installer(self::idFacultatif($requete->champ('paquet')), $requete->champ('confirmer') === '1', $moi, $requete->adresseIp),
+                    'geler' => $modele->geler(true, $moi, $requete->adresseIp),
+                    'degeler' => $modele->geler(false, $moi, $requete->adresseIp),
+                    default => null,
+                };
+                if ($id === null) {
+                    return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+                }
+
+                return Reponse::redirection('/travaux/' . $id);
+            } catch (ErreurSaisie $e) {
+                $erreur = $e->getMessage();
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+
+        return new Reponse(200, PagesSujet::page($this->session->jeton(), $modele->etat(), $modele->sujets(),
+            MiseALecart::enCours($this->pdo, SiteModele::IDENTIFIANT), $erreur));
     }
 
     // ===== V2, lot 2 : bibliothèque et documents =====
