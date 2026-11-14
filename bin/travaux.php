@@ -59,6 +59,8 @@ if ($faites === 0) {
     $ecart->purgerUne($cpanel, array_values(array_filter($bases, 'is_string')));
     // Certificats des sous-domaines créés par le portail, pas encore posés : un essai à la fois, toutes les 20 minutes.
     (new \Portail\Sites\RelanceCertificats($pdo))->relancerUn(new \Portail\Sites\AcmeSh($personnel), $cpanel, $personnel, $alertes);
+    // Vérification des certificats comme un navigateur : une fois par jour, ou à la demande de l'administrateur, par lots.
+    (new \Portail\Sites\SuiviCertificats($pdo))->verifierLot(new \Portail\Sites\SondeOpenssl());
     $alertes->expedier();
 }
 if (in_array('--bavard', $argv, true)) {

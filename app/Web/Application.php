@@ -24,6 +24,7 @@ use Portail\Sites\MiseALecart;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\EpreuveSujet;
 use Portail\Sites\PreparationWordPress;
+use Portail\Sites\SuiviCertificats;
 use Portail\Sites\PreparationPrestaShop;
 use Portail\Sites\Releve;
 use Portail\Sites\SiteModele;
@@ -91,6 +92,7 @@ final class Application
             '/sites' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->voirTout($requete, $moi)),
             '/sites/prestashop' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerPrestaShop($requete, $moi)),
             '/sites/wordpress' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerWordPress($requete, $moi)),
+            '/sites/certificats' => $this->pageConnectee($requete, Droits::CERTIFICATS, fn (Compte $moi) => $this->certificats($requete, $moi)),
             '/sites/sujet' => $this->pageConnectee($requete, Droits::SUJETS_EXAMEN, fn (Compte $moi) => $this->siteModele($requete, $moi)),
             '/bibliotheque' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
             // Ancienne adresse des documents (réunis dans la bibliothèque le 11/11/2026).
@@ -185,6 +187,37 @@ final class Application
 
         return new Reponse(200, PagesSites::creerWordPress($this->session->jeton(), $sessions, $sessionChoisie,
             $sessionChoisie === null ? null : $preparation->etudiants($sessionChoisie), Releve::dernier($this->pdo), $erreur));
+    }
+
+    // ===== Certificats https (administrateur, 14/11/2026) =====
+
+    private function certificats(Requete $requete, Compte $moi): Reponse
+    {
+        $suivi = new SuiviCertificats($this->pdo);
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            try {
+                switch ($requete->champ('action')) {
+                    case 'verifier':
+                        $suivi->demanderVerification($moi, $requete->adresseIp);
+                        $information = 'Vérification demandée : le travailleur examine dix sites par minute. Rechargez la page dans quelques minutes.';
+                        break;
+                    case 'relancer':
+                        $nombre = $suivi->relancer($requete->liste('coches'), $moi, $requete->adresseIp);
+                        $information = $nombre . ' relance(s) demandée(s) : premier essai dès que le travailleur est libre, résultat dans la colonne « Relance ».';
+                        break;
+                    default:
+                        return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+                }
+            } catch (ErreurSaisie $e) {
+                $erreur = $e->getMessage();
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+
+        return new Reponse(200, PagesSites::certificats($this->session->jeton(), $suivi->liste(), $suivi->bilan(), $erreur, $information));
     }
 
     // ===== V2, lot 4 : site modèle d'examen =====

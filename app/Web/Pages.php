@@ -84,6 +84,7 @@ final class Pages
         'documents' => '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
         'motdepasse' => '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/>',
         'sujet' => '<path d="M6 3h9l3 3v15H6z"/><path d="M9 13l2 2 4-4"/>',
+        'certificat' => '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
         'wordpress' => '<circle cx="12" cy="12" r="9"/><path d="M3.6 8.5h16.8M6 9l3.5 10L12 12l2.5 7L18 9"/>',
     ];
 
@@ -109,6 +110,9 @@ final class Pages
         }
         if (Droits::peut($compte->role, Droits::SUJETS_EXAMEN)) {
             $liste[] = ['/sites/sujet', 'sujet', 'Site modèle d’examen', 'Charger le sujet WordPress d’examen, le vérifier et geler sa version.'];
+        }
+        if (Droits::peut($compte->role, Droits::CERTIFICATS)) {
+            $liste[] = ['/sites/certificats', 'certificat', 'Certificats', 'Vérifier les certificats https des sites et relancer ceux qui manquent.'];
         }
         if (Droits::peut($compte->role, Droits::DOCUMENTS)) {
             $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', Droits::peut($compte->role, Droits::BIBLIOTHEQUE)
@@ -141,7 +145,7 @@ final class Pages
             $actif = $adresse === $chemin || ($adresse === '/etudiants' && preg_match('#^/etudiants/[0-9]+$#', $chemin) === 1)
                 || ($adresse === '/comptes' && str_starts_with($chemin, '/comptes/'))
                 || ($adresse === '/travaux' && str_starts_with($chemin, '/travaux/'));
-            $actif = $actif && !($adresse === '/sites' && in_array($chemin, ['/sites/prestashop', '/sites/sujet', '/sites/wordpress'], true));
+            $actif = $actif && !($adresse === '/sites' && in_array($chemin, ['/sites/prestashop', '/sites/sujet', '/sites/wordpress', '/sites/certificats'], true));
             $liens .= '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . '</a>';
         }
 

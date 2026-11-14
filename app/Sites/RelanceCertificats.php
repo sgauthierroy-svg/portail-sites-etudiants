@@ -40,6 +40,17 @@ final class RelanceCertificats
             ':p2' => self::date($maintenant + self::INTERVALLE), ':e2' => mb_substr($raison, 0, 300, 'UTF-8')]);
     }
 
+    /** Relance demandée par l'administrateur : essai dès que le travailleur est libre, compteur remis à zéro. */
+    public function demander(string $identifiant, string $motif, ?int $maintenant = null): void
+    {
+        $maintenant ??= time();
+        $this->pdo->prepare(
+            'INSERT INTO certificats_a_poser (identifiant, essais, prochain_essai, derniere_erreur) VALUES (:i, 0, :p, :e)
+             ON CONFLICT (identifiant) DO UPDATE SET essais = 0, prochain_essai = :p2, derniere_erreur = :e2, abandonne_le = NULL'
+        )->execute([':i' => $identifiant, ':p' => self::date($maintenant), ':e' => mb_substr($motif, 0, 300, 'UTF-8'),
+            ':p2' => self::date($maintenant), ':e2' => mb_substr($motif, 0, 300, 'UTF-8')]);
+    }
+
     /** @return ?string Ce qui a été fait (null : rien à faire) */
     public function relancerUn(Certificats $certificats, ServeurCpanel $cpanel, string $dossierPersonnel, Alertes $alertes, ?int $maintenant = null): ?string
     {
@@ -70,6 +81,8 @@ final class RelanceCertificats
             return 'échec : ' . $sousDomaine;
         }
         $this->pdo->prepare('DELETE FROM certificats_a_poser WHERE identifiant = :i')->execute([':i' => $identifiant]);
+        // Ancien état effacé : le sous-domaine sera revu à la prochaine vérification (CPanel active le certificat en 30 minutes au plus).
+        $this->pdo->prepare('DELETE FROM etat_certificats WHERE identifiant = :i')->execute([':i' => $identifiant]);
         $journal->ecrire('site', 'certificat posé (relance)', 'succes', null, 'travailleur', null, $sousDomaine, 'essai ' . $essais);
 
         return 'posé : ' . $sousDomaine;

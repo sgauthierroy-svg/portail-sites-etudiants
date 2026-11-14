@@ -406,6 +406,23 @@ final class Schema
                     abandonne_le    TEXT NULL
                 );
                 SQL,
+            // Suivi des certificats par l'administrateur (demande du 14/11/2026) : dernier état vu par le
+            // travailleur, pour chaque sous-domaine du relevé (vérification comme un navigateur).
+            13 => <<<SQL
+                CREATE TABLE etat_certificats (
+                    identifiant     TEXT PRIMARY KEY CHECK (length(identifiant) BETWEEN 1 AND 63 AND identifiant NOT GLOB '*[^a-z0-9-]*'),
+                    verifie_le      TEXT NOT NULL,
+                    reconnu         INTEGER NOT NULL CHECK (reconnu IN (0, 1)),
+                    expire_le       TEXT NULL,
+                    detail          TEXT NOT NULL CHECK (length(detail) <= 200)
+                );
+                CREATE TABLE verification_certificats (
+                    id              INTEGER PRIMARY KEY CHECK (id = 1),
+                    demandee_le     TEXT NULL,
+                    derniere_le     TEXT NULL
+                );
+                INSERT INTO verification_certificats (id) VALUES (1);
+                SQL,
         ];
     }
 

@@ -143,6 +143,16 @@ Menu « Créer des WordPress » (administrateur, enseignants, administratif) : c
 - **E-mails** : à l'étudiant, objet « IMPORTANT – Sup'Sallanches (BTS NDRC) : vos accès à votre site WordPress, à conserver » (site, administration, identifiant, mot de passe) ; à la fin du travail, à l'adresse d'alerte, le récapitulatif aux colonnes de la feuille des accès (`Site wordpress` = lien sans l'administration, `Identifiant WP`, `Mot de passe WP`), dans l'ordre alphabétique. Supprimer ce récapitulatif une fois la feuille à jour.
 - **Essais du 14/11/2026** : installation, mot de passe et réglages vérifiés avec le vrai WP-CLI sur un WordPress de test. Premier essai réel (un nouvel entrant) : sous-domaine, WordPress et e-mails conformes ; certificat posé à la main ensuite (d'où les relances automatiques ci-dessus).
 
+## Certificats https : suivi et relance (administrateur, 14/11/2026)
+
+Menu « Certificats », **visible de l'administrateur seulement** (demande du 14/11/2026).
+
+- **Vérification** : le travailleur examine le certificat de chaque sous-domaine du dernier relevé **comme un navigateur** (même méthode que `certificats.sh` : `openssl s_client` avec vérification du nom, deux essais de 15 secondes), **une fois par jour d'office**, ou quand l'administrateur clique « Vérifier tous les certificats maintenant ». Dix sites par minute, seulement quand il n'a pas d'autre travail ; rien n'est modifié.
+- **Page** : pour chaque sous-domaine, l'état (reconnu, non reconnu, expire bientôt, pas encore vérifié), la date de fin, la date de vérification et l'état d'une relance ; les problèmes d'abord, puis un bilan chiffré. « Expire bientôt » = moins de 14 jours : acme.sh renouvelle de lui-même environ 30 jours avant la fin (renouvellement tous les 60 jours, `certificats.sh`), donc un certificat aussi proche de sa fin signale un renouvellement en panne.
+- **Relancer** : cocher les sous-domaines (case « Tout cocher »), puis « Relancer ». Premier essai dès que le travailleur est libre, puis toutes les 20 minutes, 6 au plus ; la colonne « Relance » montre les essais et la dernière raison d'acme.sh. Un certificat posé est revu à la vérification suivante (CPanel l'active en 30 minutes au plus). Les **sites protégés** (`peda`, `sujet`…) ne se relancent pas depuis le portail : `certificats.sh`.
+- **Création d'un WordPress** : le certificat d'un sous-domaine neuf est demandé en fin de création ; en cas d'échec, la même relance automatique prend le relais.
+- **E-mail du lundi** (tâche `alertes.php hebdo`) : un message « Certificats https à surveiller » seulement s'il y a un problème — certificats non reconnus, expirant dans moins de 14 jours, relances abandonnées, ou vérification pas faite depuis plus de 3 jours (travailleur arrêté ?). Des nombres seulement, aucun nom d'étudiant, et le lien de la page.
+
 ## Site modèle d'examen (V2, lot 4)
 
 Décisions du 13/11/2026. Le sujet d'examen WordPress vit sur un sous-domaine dédié, `sujet.bts-sup-sallanches.com`, dans `/WP` : c'est le site tel que les étudiants le recevront dans leur `/WP2`.
@@ -214,11 +224,12 @@ Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la b
 | Travail terminé avec au moins un échec | adresse d'alerte |
 | Comptes non confirmés depuis 6 mois (le lundi) | adresse d'alerte |
 | Certificat d'un sous-domaine créé par le portail toujours pas posé après 6 essais | adresse d'alerte |
+| Certificats à surveiller (le lundi, seulement s'il y a un problème) | adresse d'alerte |
 
 Aucun e-mail ne contient de mot de passe ni de donnée d'étudiant.
 
 - Tester l'envoi : `php ~/portail/bin/alertes.php test`.
-- Tâche du lundi : tâche planifiée de CPanel (Tâches Cron), chaque lundi à 7 h 13 : `php ~/portail/bin/alertes.php hebdo` (comptes à revoir, relevé des sites, boutiques hors gel).
+- Tâche du lundi : tâche planifiée de CPanel (Tâches Cron), chaque lundi à 7 h 13 : `php ~/portail/bin/alertes.php hebdo` (comptes à revoir, relevé des sites, boutiques hors gel, certificats).
 - Mot de passe de la boîte `portail@` changé : le reporter dans `~/portail/data/config.php` (`smtp.mot_de_passe`), puis lancer le test. Attention : c'est le mot de passe **de la boîte e-mail** `portail@bts-sup-sallanches.com` (celle qui envoie les alertes), ni celui de la porte d'entrée, ni celui d'un compte du portail. Commande à lancer seule ; la saisie ne s'affiche pas et n'est pas gardée dans l'historique :
 
 ```

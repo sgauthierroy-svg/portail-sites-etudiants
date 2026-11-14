@@ -123,6 +123,37 @@ final class Alertes
             . "\nSi l'échec persiste, vérifier que le sous-domaine répond (CPanel, Domaines).");
     }
 
+    /**
+     * Bilan des certificats pour la tâche du lundi (demande du 14/11/2026). Rien si tout va bien.
+     * Aucun nom d'étudiant : des nombres et le lien de la page « Certificats » (administrateur).
+     *
+     * @param array{non_reconnus: int, expirent: int, abandons: int, relances: int, jamais: int, derniere: ?string, demande: ?string} $bilan
+     */
+    public function certificats(array $bilan, int $seuilJours): void
+    {
+        $lignes = [];
+        if ($bilan['non_reconnus'] > 0) {
+            $lignes[] = '- ' . $bilan['non_reconnus'] . ' site(s) dont le certificat n\'est pas reconnu par les navigateurs (avertissement de sécurité) ;';
+        }
+        if ($bilan['expirent'] > 0) {
+            $lignes[] = '- ' . $bilan['expirent'] . ' certificat(s) qui expirent dans moins de ' . $seuilJours . ' jours (renouvellement automatique en panne ?) ;';
+        }
+        if ($bilan['abandons'] > 0) {
+            $lignes[] = '- ' . $bilan['abandons'] . ' certificat(s) que le portail n\'a pas réussi à poser après ses relances ;';
+        }
+        if ($bilan['derniere'] === null || strtotime($bilan['derniere']) < time() - 3 * 86400) {
+            $lignes[] = '- vérification des certificats pas faite depuis plus de 3 jours (le travailleur tourne-t-il ?) ;';
+        }
+        if ($lignes === []) {
+            return;
+        }
+        $this->ajouter([], 'Certificats https à surveiller',
+            "Bilan des certificats des sites étudiants :\n" . implode("\n", $lignes)
+            . ($bilan['relances'] > 0 ? "\n\n" . $bilan['relances'] . ' relance(s) automatique(s) en cours.' : '')
+            . "\n\nDernière vérification complète : " . ($bilan['derniere'] === null ? 'jamais' : self::jour($bilan['derniere']))
+            . "\n\nDétail, vérification et relance (administrateur) : " . rtrim($this->urlPortail, '/') . '/sites/certificats');
+    }
+
     public function test(): void
     {
         $this->ajouter([], 'Test des alertes', 'Ce message de test confirme que le portail peut envoyer ses alertes.');

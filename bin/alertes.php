@@ -5,7 +5,7 @@ declare(strict_types=1);
 /*
  * Alertes par e-mail, à lancer en SSH ou par une tâche planifiée de CPanel :
  *     php ~/portail/bin/alertes.php test     envoie un e-mail de test à l'adresse d'alerte
- *     php ~/portail/bin/alertes.php hebdo    tâche du lundi : comptes à revoir, relevé des sites, boutiques hors gel
+ *     php ~/portail/bin/alertes.php hebdo    tâche du lundi : comptes à revoir, relevé des sites, boutiques hors gel, certificats
  */
 if (PHP_SAPI !== 'cli') {
     http_response_code(404);
@@ -36,6 +36,8 @@ switch ($argv[1] ?? '') {
         } catch (\Throwable $e) {
             fwrite(STDERR, '  Relevé du lundi impossible : ' . $e->getMessage() . PHP_EOL);
         }
+        // Certificats (demande du 14/11/2026) : bilan de la dernière vérification du travailleur (une par jour).
+        $alertes->certificats((new \Portail\Sites\SuiviCertificats($pdo))->bilan(), \Portail\Sites\SuiviCertificats::SEUIL_JOURS);
         break;
     default:
         fwrite(STDERR, 'Utilisation : php ~/portail/bin/alertes.php test | hebdo' . PHP_EOL);

@@ -124,4 +124,65 @@ final class PagesSites
             . ($possibles > 0 ? '<button type="submit" class="btn-main">Créer les WordPress cochés</button>' : '<p>Aucun étudiant de cette session ne peut recevoir de WordPress.</p>')
             . '</form><p><a href="/sites">Voir tout</a> · <a href="/">Accueil</a></p>');
     }
+
+    /**
+     * Certificats https (administrateur, demande du 14/11/2026) : état vu par le travailleur, vérification, relance.
+     *
+     * @param list<array{identifiant: string, protege: bool, verifie_le: ?string, reconnu: ?bool, expire_le: ?string, detail: ?string,
+     *                    probleme: bool, relance: ?array{essais: int, prochain_essai: string, derniere_erreur: ?string, abandonne_le: ?string}}> $liste
+     * @param array{non_reconnus: int, expirent: int, abandons: int, relances: int, jamais: int, derniere: ?string, demande: ?string} $bilan
+     */
+    public static function certificats(string $jeton, array $liste, array $bilan, ?string $erreur, ?string $information): string
+    {
+        $lignes = '';
+        foreach ($liste as $ligne) {
+            $etat = match (true) {
+                $ligne['reconnu'] === null => '<span class="badge neutre">pas encore vérifié</span>',
+                $ligne['reconnu'] === false => '<span class="badge warn">non reconnu</span>',
+                $ligne['probleme'] => '<span class="badge warn">expire bientôt</span>',
+                default => '<span class="badge ok">reconnu</span>',
+            };
+            $relance = '';
+            if ($ligne['relance'] !== null) {
+                $relance = $ligne['relance']['abandonne_le'] !== null
+                    ? '<span class="badge warn">abandonnée après ' . $ligne['relance']['essais'] . ' essais</span>'
+                    : 'en cours (' . $ligne['relance']['essais'] . ' essai(s), prochain le ' . Html::e(Pages::heureLocale($ligne['relance']['prochain_essai'])) . ')';
+                $relance .= $ligne['relance']['derniere_erreur'] === null ? '' : '<br><span class="discret">' . Html::e($ligne['relance']['derniere_erreur']) . '</span>';
+            }
+            $case = $ligne['protege']
+                ? '<span class="discret" title="Site protégé : certificat à poser avec certificats.sh">protégé</span>'
+                : '<input type="checkbox" name="coches[]" value="' . Html::e($ligne['identifiant']) . '" aria-label="' . Html::e($ligne['identifiant']) . '">';
+            $lignes .= '<tr><td>' . $case . '</td><td><code>' . Html::e($ligne['identifiant']) . '.bts-sup-sallanches.com</code></td><td>' . $etat
+                . ($ligne['detail'] === null || $ligne['reconnu'] === true ? '' : '<br><span class="discret">' . Html::e($ligne['detail']) . '</span>') . '</td><td>'
+                . ($ligne['expire_le'] === null ? '—' : Html::e(Pages::heureLocale($ligne['expire_le']))) . '</td><td>'
+                . ($ligne['verifie_le'] === null ? '—' : Html::e(Pages::heureLocale($ligne['verifie_le']))) . '</td><td>' . $relance . '</td></tr>';
+        }
+        $resume = '<ul><li>Non reconnus : <strong>' . $bilan['non_reconnus'] . '</strong></li>'
+            . '<li>Expirent dans moins de ' . \Portail\Sites\SuiviCertificats::SEUIL_JOURS . ' jours : <strong>' . $bilan['expirent'] . '</strong></li>'
+            . '<li>Relances en cours : <strong>' . $bilan['relances'] . '</strong> ; abandonnées : <strong>' . $bilan['abandons'] . '</strong></li>'
+            . '<li>Pas encore vérifiés : <strong>' . $bilan['jamais'] . '</strong></li></ul>';
+        $contenu = Pages::alerte($erreur, $information)
+            . '<p>Le travailleur vérifie chaque jour le certificat https de chaque sous-domaine du relevé, comme un navigateur '
+            . '(dix sites par minute, quand il n\'a pas d\'autre travail). acme.sh renouvelle les certificats de lui-même ; '
+            . 'un certificat qui expire dans moins de ' . \Portail\Sites\SuiviCertificats::SEUIL_JOURS . ' jours signale un renouvellement en panne. '
+            . 'L\'e-mail du lundi signale les problèmes, sans nom d\'étudiant.</p>'
+            . '<p>Dernière vérification complète : <strong>' . ($bilan['derniere'] === null ? 'jamais' : Html::e(Pages::heureLocale($bilan['derniere']))) . '</strong>'
+            . ($bilan['demande'] === null ? '' : ' — vérification en cours ou demandée le ' . Html::e(Pages::heureLocale($bilan['demande'])) . ' (rechargez la page dans quelques minutes)')
+            . '.</p>' . $resume
+            . '<form method="post" action="/sites/certificats">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="verifier">'
+            . '<button type="submit">Vérifier tous les certificats maintenant</button></form>';
+        if ($liste === []) {
+            return Pages::page('Certificats', $contenu . '<p>Aucun sous-domaine dans le dernier relevé.</p>');
+        }
+
+        return Pages::page('Certificats', $contenu
+            . '<h2>Sous-domaines</h2><p class="discret">Les problèmes d\'abord. Relancer : un essai dès que le travailleur est libre, puis toutes les 20 minutes, '
+            . '6 au plus (limite de Let\'s Encrypt : 5 échecs par sous-domaine et par heure). Un certificat posé est revu à la vérification suivante '
+            . '(CPanel l\'active en 30 minutes au plus).</p>'
+            . '<form method="post" action="/sites/certificats">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="relancer">'
+            . '<table class="triable"><thead><tr><th><input type="checkbox" data-tout-cocher aria-label="Tout cocher" title="Tout cocher"></th>'
+            . '<th>Sous-domaine</th><th>État</th><th>Expire le</th><th>Vérifié le</th><th>Relance</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
+            . '<button type="submit" class="btn-main">Relancer le certificat des sous-domaines cochés</button></form>'
+            . '<p><a href="/sites">Voir tout</a> · <a href="/">Accueil</a></p>');
+    }
 }
