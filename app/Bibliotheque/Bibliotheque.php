@@ -283,7 +283,9 @@ final class Bibliotheque
     public static function analyserSujetWordPress(string $chemin): ?string
     {
         $noms = self::nomsZip($chemin);
-        $sql = preg_grep('#^dup-installer/dup-database__[A-Za-z0-9_-]+\.sql$#D', $noms);
+        // Deux rangements de la base selon la version de Duplicator : un seul fichier (paquets d'octobre 2026),
+        // ou une table par fichier compressé, avec schema.sql.gz pour la création des tables (relevé le 14/11/2026).
+        $sql = preg_grep('#^dup-installer/(dup-database__[A-Za-z0-9_-]+\.sql|dup_descriptors_[A-Za-z0-9_-]+/db_dumps/schema\.sql\.gz)$#D', $noms);
         if ($sql === [] || !in_array('wp-includes/version.php', $noms, true)) {
             throw new ErreurSaisie('Ce ZIP n\'est pas un paquet Duplicator de site WordPress (base ou fichiers WordPress absents).');
         }

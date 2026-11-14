@@ -100,12 +100,8 @@ final class ExecutantInstallerSujetModele implements Executant
                 throw new RuntimeException('Création du dossier de préparation impossible.');
             }
             Bibliotheque::extraire($zip, $preparation);
-            $sql = glob($preparation . '/dup-installer/dup-database__*.sql');
-            if ($sql === false || $sql === []) {
-                throw new RuntimeException('Base du sujet introuvable dans le paquet (dup-installer/dup-database__….sql).');
-            }
-            $prefixe = self::prefixeTables($sql[0]);
-            self::filtrerSql($sql[0], $sqlFiltre);
+            self::preparerSql($preparation, $sqlFiltre);
+            $prefixe = self::prefixeTables($sqlFiltre);
 
             $this->cpanel->creerBase($base);
             $crees['base'] = true;
@@ -392,22 +388,70 @@ final class ExecutantInstallerSujetModele implements Executant
         return $candidats[0];
     }
 
-    /** Copie de la base sans les messages d'avertissement que l'export laisse parfois au début (« mysqldump: … »). */
-    public static function filtrerSql(string $source, string $cible): void
+    /**
+     * Base du paquet en un seul fichier SQL à importer, quel que soit le rangement de Duplicator :
+     * - un fichier dup-installer/dup-database__….sql (paquets d'octobre 2026) ;
+     * - une table par fichier dup-installer/dup_descriptors_…/db_dumps/<table>-h<repère>.sql.gz, et
+     *   schema.sql.gz qui crée les tables et règle la session (relevé le 14/11/2026) : schema d'abord,
+     *   puis les données, dans un seul import pour que les réglages de session valent pour tout.
+     */
+    public static function preparerSql(string $preparation, string $cible): void
     {
-        $entree = fopen($source, 'rb');
+        $unique = glob($preparation . '/dup-installer/dup-database__*.sql');
+        if ($unique !== false && $unique !== []) {
+            self::filtrerSql([$unique[0]], $cible);
+
+            return;
+        }
+        $schema = glob($preparation . '/dup-installer/dup_descriptors_*/db_dumps/schema.sql.gz');
+        if ($schema === false || count($schema) !== 1) {
+            throw new RuntimeException('Base du sujet introuvable dans le paquet (ni dup-database__….sql, ni db_dumps/schema.sql.gz).');
+        }
+        $tables = glob(dirname($schema[0]) . '/*-h*.sql.gz');
+        $donnees = [];
+        foreach ($tables === false ? [] : $tables as $fichier) {
+            if (preg_match('/^[A-Za-z0-9_]{1,64}-h[A-Za-z0-9]{1,40}\.sql\.gz$/D', basename($fichier)) === 1) {
+                $donnees[] = $fichier;
+            }
+        }
+        sort($donnees);
+        self::filtrerSql(array_merge($schema, $donnees), $cible);
+    }
+
+    /**
+     * Copie des fichiers de la base (compressés ou non) dans un seul fichier, sans les messages
+     * d'avertissement que l'export laisse parfois au début (« mysqldump: … »).
+     *
+     * @param list<string> $sources
+     */
+    public static function filtrerSql(array $sources, string $cible): void
+    {
         $sortie = fopen($cible, 'xb');
-        if ($entree === false || $sortie === false) {
+        if ($sortie === false) {
             throw new RuntimeException('Préparation de la base du sujet impossible.');
         }
         chmod($cible, 0600);
-        while (($ligne = fgets($entree)) !== false) {
-            if (!str_starts_with($ligne, 'mysqldump:') && !str_starts_with($ligne, 'mariadb-dump:')) {
-                fwrite($sortie, $ligne);
+        try {
+            foreach ($sources as $source) {
+                $compresse = str_ends_with($source, '.gz');
+                if ($compresse && !function_exists('gzopen')) {
+                    throw new RuntimeException('Base compressée du sujet illisible : extension zlib de PHP absente.');
+                }
+                $entree = $compresse ? gzopen($source, 'rb') : fopen($source, 'rb');
+                if ($entree === false) {
+                    throw new RuntimeException('Fichier de la base du sujet illisible : ' . basename($source) . '.');
+                }
+                while (($ligne = $compresse ? gzgets($entree) : fgets($entree)) !== false) {
+                    if (!str_starts_with($ligne, 'mysqldump:') && !str_starts_with($ligne, 'mariadb-dump:')) {
+                        fwrite($sortie, $ligne);
+                    }
+                }
+                $compresse ? gzclose($entree) : fclose($entree);
+                fwrite($sortie, "\n");
             }
+        } finally {
+            fclose($sortie);
         }
-        fclose($entree);
-        fclose($sortie);
     }
 
     public static function versionWordPress(string $chemin): ?string

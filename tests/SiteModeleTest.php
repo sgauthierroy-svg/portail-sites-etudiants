@@ -54,6 +54,7 @@ final class SiteModeleTest extends TestCase
     /** @var list<array{chemin: string, arguments: list<string>}> */
     public array $wp = [];
     public ?string $echecWp = null;
+    public string $sqlImporte = '';
     public string $origine = 'http://martinel.bts-sup-sallanches.com/WP';
 
     protected function setUp(): void
@@ -311,13 +312,29 @@ final class SiteModeleTest extends TestCase
         ConfigWordPress::remplacerBloc("<?php\n// rien\n", ['gele' => true]);
     }
 
+    public function testPaquetDuplicatorRecentUneTableParFichier(): void
+    {
+        $paquet = (new Bibliotheque($this->pdo, $this->donnees, $this->compte('cpetit')))
+            ->ajouterPaquet($this->duplicatorParTables(), 'alianature_archive.zip', 'sujet_wordpress', 'Alianature', '');
+        (new SiteModele($this->pdo))->installer($paquet, false, $this->compte('cpetit'), null);
+        $this->tourner();
+        self::assertSame('reussi', $this->derniereEtape()['etat'], $this->derniereEtape()['message']);
+        // Création des tables et réglage de session d'abord, puis les données, dans un seul import.
+        self::assertLessThan(strpos($this->sqlImporte, 'INSERT IGNORE INTO `wp_users`'), strpos($this->sqlImporte, 'CREATE TABLE IF NOT EXISTS `wp_users`'));
+        self::assertLessThan(strpos($this->sqlImporte, 'CREATE TABLE'), strpos($this->sqlImporte, "SQL_MODE='NO_AUTO_VALUE_ON_ZERO'"));
+        self::assertStringContainsString('/* INSERT TABLE DATA: wp_links */', $this->sqlImporte);
+        $config = (string) file_get_contents($this->personnel . '/sujet.bts-sup-sallanches.com/WP/wp-config.php');
+        self::assertStringContainsString("\$table_prefix = 'wp_';", $config);
+        self::assertFileDoesNotExist($this->personnel . '/sujet.bts-sup-sallanches.com/WP/dup-installer');
+    }
+
     public function testPrefixeDesTablesEtFiltrageDeLExport(): void
     {
         $sql = $this->donnees . '/tmp/base.sql';
         file_put_contents($sql, "mysqldump: [Warning] Using a password on the command line interface can be insecure.\n"
             . "CREATE TABLE `wpx_actionscheduler_options` (\nCREATE TABLE `wpx_options` (\nCREATE TABLE `wpx_users` (\nINSERT INTO `wpx_options` VALUES (1);\n");
         self::assertSame('wpx_', ExecutantInstallerSujetModele::prefixeTables($sql));
-        ExecutantInstallerSujetModele::filtrerSql($sql, $this->donnees . '/tmp/filtre.sql');
+        ExecutantInstallerSujetModele::filtrerSql([$sql], $this->donnees . '/tmp/filtre.sql');
         self::assertStringNotContainsString('mysqldump:', (string) file_get_contents($this->donnees . '/tmp/filtre.sql'));
         self::assertStringContainsString('INSERT INTO `wpx_options`', (string) file_get_contents($this->donnees . '/tmp/filtre.sql'));
     }
@@ -441,9 +458,16 @@ final class SiteModeleTest extends TestCase
                     'plugin list' => '[{"name":"wpforms-lite","status":"active","version":"1.9"},{"name":"wp-file-manager","status":"inactive","version":"8.0"}]',
                     'user list' => '[{"user_login":"martinel","roles":"administrator"}]',
                     'theme list' => "astra\n",
-                    'db import' => is_file($arguments[2] ?? '') ? 'Success' : throw new RuntimeException('fichier SQL absent'),
+                    'db import' => is_file($arguments[2] ?? '') ? $this->importer($arguments[2]) : throw new RuntimeException('fichier SQL absent'),
                     default => '',
                 };
+            }
+
+            private function importer(string $fichier): string
+            {
+                $this->test->sqlImporte = (string) file_get_contents($fichier);
+
+                return 'Success';
             }
         };
     }
@@ -462,6 +486,27 @@ final class SiteModeleTest extends TestCase
         $zip->addFromString('dup-installer/dup-database__abc123.sql', "mysqldump: [Warning] avertissement\nCREATE TABLE `wpx_options` (\nCREATE TABLE `wpx_users` (\n");
         $zip->addFromString('dup-wp-config-arc__abc123.txt', "<?php define('DB_PASSWORD', 'ancien');");
         $zip->addFromString('installer.php', '<?php');
+        $zip->close();
+
+        return $chemin;
+    }
+
+    /** Paquet Duplicator récent (relevé le 14/11/2026) : une table par fichier compressé, schema.sql.gz à part. */
+    private function duplicatorParTables(): string
+    {
+        $chemin = $this->donnees . '/depot/alianature_archive.zip';
+        $d = 'dup-installer/dup_descriptors_9260f3f-14084744/';
+        $zip = new ZipArchive();
+        $zip->open($chemin, ZipArchive::CREATE);
+        $zip->addFromString('index.php', '<?php');
+        $zip->addFromString('wp-includes/version.php', "<?php\n\$wp_version = '6.8.3';\n");
+        $zip->addFromString('dup-installer/main.installer.php', '<?php');
+        $zip->addFromString($d . 'orig_files/source_site_wpconfig', "<?php define('DB_PASSWORD', 'ancien');");
+        $zip->addFromString($d . 'db_dumps/schema.sql.gz', (string) gzencode("/* DUPLICATOR-PRO MYSQL SCRIPT */\n"
+            . "/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;\n"
+            . "CREATE TABLE IF NOT EXISTS `wp_users` (\n  `ID` bigint(20)\n);\nCREATE TABLE IF NOT EXISTS `wp_options` (\n  `option_id` bigint(20)\n);\n/* DUPLICATOR_MYSQLDUMP_EOF */\n"));
+        $zip->addFromString($d . 'db_dumps/wp_users-h48dccb842a763cde.sql.gz', (string) gzencode("/* INSERT TABLE DATA: wp_users */\nINSERT IGNORE INTO `wp_users` VALUES\n(\"1\",\"martinel\");\n/* DUPLICATOR_MYSQLDUMP_EOF */\n"));
+        $zip->addFromString($d . 'db_dumps/wp_links-h6f8c817a0f426af6.sql.gz', (string) gzencode("/* INSERT TABLE DATA: wp_links */\n/* DUPLICATOR_MYSQLDUMP_EOF */\n"));
         $zip->close();
 
         return $chemin;

@@ -159,6 +159,17 @@ final class BibliothequeTest extends TestCase
         self::assertNull($paquet['version']);
     }
 
+    public function testUnSujetDuplicatorRecentUneTableParFichierEstReconnu(): void
+    {
+        $zip = $this->zip('alianature_archive.zip', [
+            'dup-installer/dup_descriptors_9260f3f-14084744/db_dumps/schema.sql.gz' => (string) gzencode('CREATE TABLE IF NOT EXISTS `wp_users` (`ID` int);'),
+            'dup-installer/dup_descriptors_9260f3f-14084744/db_dumps/wp_users-h48dccb842a763cde.sql.gz' => (string) gzencode('INSERT IGNORE INTO `wp_users` VALUES ("1");'),
+            'wp-includes/version.php' => "<?php\n\$wp_version = '6.8.3';",
+        ]);
+        $this->bibliotheque('cpetit')->ajouterPaquet($zip, 'alianature_archive.zip', 'sujet_wordpress', 'Alianature', '');
+        self::assertSame('6.8.3', $this->bibliotheque('cpetit')->paquets()[0]['version_wordpress']);
+    }
+
     public function testUnZipQuelconqueNEstPasUnSujet(): void
     {
         $this->expectExceptionMessage('pas un paquet Duplicator');
