@@ -43,6 +43,7 @@ $travailleur = new \Portail\Travaux\Travailleur($pdo, $alertes, [
     'installer_sujet_modele' => new \Portail\Travaux\ExecutantInstallerSujetModele($pdo, $cpanel, $bibliotheque, new \Portail\Sites\WpCli(),
         $ecart, $expediteur, $personnel, $temporaire),
     'geler_sujet_modele' => new \Portail\Travaux\ExecutantGelerSujetModele($pdo, $cpanel, $personnel),
+    'deployer_sujet_wp' => new \Portail\Travaux\ExecutantDeployerSujet($pdo, $cpanel, new \Portail\Sites\WpCli(), $ecart, $expediteur, $personnel, $temporaire),
 ]);
 // 50 secondes de nouvelles étapes au plus : la tâche suivante (dans une minute) reprend la suite.
 $faites = $travailleur->tourner(50);

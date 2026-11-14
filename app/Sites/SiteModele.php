@@ -112,11 +112,12 @@ final class SiteModele
         return $etat;
     }
 
+    /** Travail en attente ou en cours sur le modèle : installation, gel, ou photo d'un déploiement pas encore prise. */
     private function travailEnCours(): ?int
     {
         $requete = $this->pdo->prepare(
             "SELECT w.id FROM travaux w JOIN travaux_etapes t ON t.travail_id = w.id
-             WHERE t.cible = :c AND w.type IN ('installer_sujet_modele', 'geler_sujet_modele') AND t.etat IN ('en_attente', 'en_cours') ORDER BY w.id LIMIT 1"
+             WHERE t.cible = :c AND w.type IN ('installer_sujet_modele', 'geler_sujet_modele', 'deployer_sujet_wp') AND t.etat IN ('en_attente', 'en_cours') ORDER BY w.id LIMIT 1"
         );
         $requete->execute([':c' => self::IDENTIFIANT]);
 

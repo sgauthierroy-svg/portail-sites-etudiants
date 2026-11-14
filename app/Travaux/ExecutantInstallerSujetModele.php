@@ -10,9 +10,11 @@ use Portail\Bibliotheque\Bibliotheque;
 use Portail\Courriel\Expediteur;
 use Portail\Journal\Journal;
 use Portail\Securite\MotsDePasse;
+use Portail\Sites\AdressesWordPress;
 use Portail\Sites\ConfigWordPress;
 use Portail\Sites\LigneWordPress;
 use Portail\Sites\MiseALecart;
+use Portail\Sites\OutilsWordPress;
 use Portail\Sites\Releve;
 use Portail\Sites\ServeurCpanel;
 use Portail\Sites\SiteModele;
@@ -113,14 +115,14 @@ final class ExecutantInstallerSujetModele implements Executant
                 ['gele' => $ancien['gele']]), 0600);
             $this->wp->lancer($preparation, ['db', 'import', $sqlFiltre], 900);
 
-            $this->remplacerAdresses($preparation, $final);
+            AdressesWordPress::remplacer($this->wp, $preparation, SiteModele::adresse(), $this->dossierPersonnel, $final);
             $this->wp->lancer($preparation, ['option', 'update', 'blog_public', '0']);
             $adresse = $this->parametre('adresse_alertes');
             if ($adresse !== null) {
                 $this->wp->lancer($preparation, ['option', 'update', 'admin_email', $adresse]);
                 $this->wp->lancer($preparation, ['option', 'update', 'new_admin_email', $adresse]);
             }
-            $this->nettoyer($preparation);
+            self::nettoyer($preparation);
             self::ecrire($preparation . '/.htaccess', ConfigWordPress::htaccess(SiteModele::DOSSIER), 0644);
             $version = self::versionWordPress($preparation);
             $controle = $this->controle($preparation);
@@ -201,58 +203,10 @@ final class ExecutantInstallerSujetModele implements Executant
         ];
     }
 
-    /**
-     * Adresses du site d'origine → adresse du site modèle, en http comme en https, et sous la forme
-     * « échappée » (https:\/\/…) qu'utilisent les blocs et les constructeurs de pages ; puis le
-     * chemin du dossier d'origine sur le serveur, s'il s'agissait d'un site de ce compte.
-     */
-    private function remplacerAdresses(string $preparation, string $final): void
-    {
-        $nouvelle = rtrim(SiteModele::adresse(), '/');
-        $origines = [];
-        foreach (['siteurl', 'home'] as $option) {
-            $valeur = rtrim(trim($this->wp->lancer($preparation, ['option', 'get', $option])), '/');
-            if (preg_match('#^https?://([A-Za-z0-9.-]+)(/[A-Za-z0-9/_.~-]*)?$#D', $valeur, $morceaux) !== 1) {
-                throw new RuntimeException('Adresse du site d\'origine illisible dans le sujet (' . $option . ').');
-            }
-            $origines[$morceaux[1] . ($morceaux[2] ?? '')] = [$morceaux[1], $morceaux[2] ?? ''];
-        }
-        // Les plus longues d'abord : « hote/WP » avant « hote ».
-        uksort($origines, static fn (string $a, string $b): int => strlen($b) <=> strlen($a));
-        foreach ($origines as $hoteChemin => [$hote, $chemin]) {
-            foreach (['http://', 'https://'] as $schema) {
-                $ancienne = $schema . $hoteChemin;
-                if ($ancienne !== $nouvelle) {
-                    $this->wp->lancer($preparation, ['search-replace', $ancienne, $nouvelle, '--all-tables-with-prefix', '--quiet'], 600);
-                }
-                $echappee = str_replace('/', '\\/', $ancienne);
-                if ($ancienne !== $nouvelle) {
-                    $this->wp->lancer($preparation, ['search-replace', $echappee, str_replace('/', '\\/', $nouvelle), '--all-tables-with-prefix', '--quiet'], 600);
-                }
-            }
-            if (preg_match('/^[a-z0-9-]+\.' . preg_quote(Releve::DOMAINE, '/') . '$/D', $hote) === 1) {
-                $cheminOrigine = $this->dossierPersonnel . '/' . $hote . $chemin;
-                if ($cheminOrigine !== $final) {
-                    $this->wp->lancer($preparation, ['search-replace', $cheminOrigine, $final, '--all-tables-with-prefix', '--quiet'], 600);
-                }
-            }
-        }
-    }
-
     /** Fichiers de Duplicator et paquets Duplicator rangés dans le site : jamais copiés vers les étudiants. */
-    private function nettoyer(string $preparation): void
+    public static function nettoyer(string $preparation): void
     {
-        foreach (['dup-installer', 'wp-content/backups-dup-lite', 'wp-content/backups-dup-pro', 'wp-snapshots'] as $dossier) {
-            if (is_dir($preparation . '/' . $dossier) && !is_link($preparation . '/' . $dossier)) {
-                Fichiers::effacerDossier($preparation . '/' . $dossier, $preparation);
-            }
-        }
-        $fichiers = glob($preparation . '/{installer.php,installer-backup.php,dup-*.txt,dup-*.php,*_archive.zip,*_archive.daf}', GLOB_BRACE);
-        foreach ($fichiers === false ? [] : $fichiers as $fichier) {
-            if (is_file($fichier)) {
-                unlink($fichier); // nosemgrep: outils..cache.semgrep-rules.php.lang.security.unlink-use
-            }
-        }
+        OutilsWordPress::nettoyer($preparation);
     }
 
     /** @return array{extensions: list<array{nom: string, etat: string, version: string}>, theme: string, comptes: list<array{login: string, roles: string}>} */
@@ -346,46 +300,13 @@ final class ExecutantInstallerSujetModele implements Executant
     /** 6 caractères au hasard (minuscules et chiffres) : base et utilisateur propres à cette installation. */
     public static function suffixe(): string
     {
-        $alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';
-        $suffixe = '';
-        for ($i = 0; $i < 6; $i++) {
-            $suffixe .= $alphabet[random_int(0, strlen($alphabet) - 1)];
-        }
-
-        return $suffixe;
+        return OutilsWordPress::suffixe();
     }
 
     /** Préfixe des tables d'après la base exportée : celui qui a à la fois …options et …users. */
     public static function prefixeTables(string $sql): string
     {
-        $flux = fopen($sql, 'rb');
-        if ($flux === false) {
-            throw new RuntimeException('Base du sujet illisible.');
-        }
-        $tables = [];
-        $lu = 0;
-        while (($ligne = fgets($flux, 1_000_000)) !== false && $lu < 200_000_000) {
-            $lu += strlen($ligne);
-            if (preg_match('/^CREATE TABLE(?: IF NOT EXISTS)? `([A-Za-z0-9_]{1,64})`/', $ligne, $trouve) === 1) {
-                $tables[$trouve[1]] = true;
-            }
-        }
-        fclose($flux);
-        $candidats = [];
-        foreach (array_keys($tables) as $table) {
-            if (str_ends_with($table, 'options')) {
-                $prefixe = substr($table, 0, -7);
-                if (isset($tables[$prefixe . 'users']) && preg_match('/^[A-Za-z0-9_]{1,20}$/D', $prefixe) === 1) {
-                    $candidats[] = $prefixe;
-                }
-            }
-        }
-        if ($candidats === []) {
-            throw new RuntimeException('Tables WordPress introuvables dans la base du sujet.');
-        }
-        usort($candidats, static fn (string $a, string $b): int => strlen($a) <=> strlen($b));
-
-        return $candidats[0];
+        return OutilsWordPress::prefixeTables($sql);
     }
 
     /**
@@ -397,25 +318,7 @@ final class ExecutantInstallerSujetModele implements Executant
      */
     public static function preparerSql(string $preparation, string $cible): void
     {
-        $unique = glob($preparation . '/dup-installer/dup-database__*.sql');
-        if ($unique !== false && $unique !== []) {
-            self::filtrerSql([$unique[0]], $cible);
-
-            return;
-        }
-        $schema = glob($preparation . '/dup-installer/dup_descriptors_*/db_dumps/schema.sql.gz');
-        if ($schema === false || count($schema) !== 1) {
-            throw new RuntimeException('Base du sujet introuvable dans le paquet (ni dup-database__….sql, ni db_dumps/schema.sql.gz).');
-        }
-        $tables = glob(dirname($schema[0]) . '/*-h*.sql.gz');
-        $donnees = [];
-        foreach ($tables === false ? [] : $tables as $fichier) {
-            if (preg_match('/^[A-Za-z0-9_]{1,64}-h[A-Za-z0-9]{1,40}\.sql\.gz$/D', basename($fichier)) === 1) {
-                $donnees[] = $fichier;
-            }
-        }
-        sort($donnees);
-        self::filtrerSql(array_merge($schema, $donnees), $cible);
+        OutilsWordPress::preparerSql($preparation, $cible);
     }
 
     /**
@@ -426,39 +329,13 @@ final class ExecutantInstallerSujetModele implements Executant
      */
     public static function filtrerSql(array $sources, string $cible): void
     {
-        $sortie = fopen($cible, 'xb');
-        if ($sortie === false) {
-            throw new RuntimeException('Préparation de la base du sujet impossible.');
-        }
-        chmod($cible, 0600);
-        try {
-            foreach ($sources as $source) {
-                $compresse = str_ends_with($source, '.gz');
-                if ($compresse && !function_exists('gzopen')) {
-                    throw new RuntimeException('Base compressée du sujet illisible : extension zlib de PHP absente.');
-                }
-                $entree = $compresse ? gzopen($source, 'rb') : fopen($source, 'rb');
-                if ($entree === false) {
-                    throw new RuntimeException('Fichier de la base du sujet illisible : ' . basename($source) . '.');
-                }
-                while (($ligne = $compresse ? gzgets($entree) : fgets($entree)) !== false) {
-                    if (!str_starts_with($ligne, 'mysqldump:') && !str_starts_with($ligne, 'mariadb-dump:')) {
-                        fwrite($sortie, $ligne);
-                    }
-                }
-                $compresse ? gzclose($entree) : fclose($entree);
-                fwrite($sortie, "\n");
-            }
-        } finally {
-            fclose($sortie);
-        }
+        OutilsWordPress::filtrerSql($sources, $cible);
     }
+
 
     public static function versionWordPress(string $chemin): ?string
     {
-        $contenu = is_file($chemin . '/wp-includes/version.php') ? file_get_contents($chemin . '/wp-includes/version.php', false, null, 0, 8192) : false;
-
-        return is_string($contenu) && preg_match('/\$wp_version\s*=\s*\'([0-9.]{1,20})\'/', $contenu, $trouve) === 1 ? $trouve[1] : null;
+        return OutilsWordPress::versionWordPress($chemin);
     }
 
     private static function ecrire(string $fichier, string $contenu, int $droits): void

@@ -21,6 +21,7 @@ use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\Horloge;
 use Portail\Sites\MiseALecart;
+use Portail\Sites\DeploiementSujet;
 use Portail\Sites\PreparationPrestaShop;
 use Portail\Sites\Releve;
 use Portail\Sites\SiteModele;
@@ -154,29 +155,44 @@ final class Application
     private function siteModele(Requete $requete, Compte $moi): Reponse
     {
         $modele = new SiteModele($this->pdo);
+        $deploiement = new DeploiementSujet($this->pdo);
+        $sessionChoisie = null;
         $erreur = null;
         if ($requete->methode === 'POST') {
+            $action = $requete->champ('action');
+            if (in_array($action, ['afficher_deploiement', 'deployer'], true)) {
+                $sessionChoisie = self::idFacultatif($requete->champ('session'));
+            }
             try {
-                $id = match ($requete->champ('action')) {
+                $id = match ($action) {
                     'installer' => $modele->installer(self::idFacultatif($requete->champ('paquet')), $requete->champ('confirmer') === '1', $moi, $requete->adresseIp),
                     'geler' => $modele->geler(true, $moi, $requete->adresseIp),
                     'degeler' => $modele->geler(false, $moi, $requete->adresseIp),
+                    'deployer' => $deploiement->lancer($sessionChoisie ?? 0, $requete->liste('coches'), $requete->champ('confirmer') === '1', $moi, $requete->adresseIp),
+                    'afficher_deploiement' => 0,
                     default => null,
                 };
                 if ($id === null) {
                     return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
                 }
-
-                return Reponse::redirection('/travaux/' . $id);
+                if ($id > 0) {
+                    return Reponse::redirection('/travaux/' . $id);
+                }
             } catch (ErreurSaisie $e) {
                 $erreur = $e->getMessage();
             }
         } elseif (($refus = $this->seulementGet($requete)) !== null) {
             return $refus;
         }
+        $sessions = $deploiement->sessions();
+        if ($sessionChoisie !== null && !in_array($sessionChoisie, array_column($sessions, 'id'), true)) {
+            $sessionChoisie = null;
+        }
 
         return new Reponse(200, PagesSujet::page($this->session->jeton(), $modele->etat(), $modele->sujets(),
-            MiseALecart::enCours($this->pdo, SiteModele::IDENTIFIANT), $erreur));
+            MiseALecart::enCours($this->pdo, SiteModele::IDENTIFIANT),
+            ['sessions' => $sessions, 'session' => $sessionChoisie, 'etudiants' => $sessionChoisie === null ? null : $deploiement->etudiants($sessionChoisie)],
+            $erreur));
     }
 
     // ===== V2, lot 2 : bibliothèque et documents =====
