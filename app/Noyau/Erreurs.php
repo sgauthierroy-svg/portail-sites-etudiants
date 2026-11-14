@@ -42,7 +42,10 @@ final class Erreurs
                 $e->getFile(),
                 $e->getLine()
             ));
-            if ($web) {
+            if ($web && \Portail\Base\Connexion::estOccupee($e)) {
+                // Base occupée par un travail : passager, pas d'alerte par e-mail.
+                self::pageOccupee($reference);
+            } elseif ($web) {
                 self::pageErreur($reference);
                 if (self::$surErreur !== null) {
                     try {
@@ -56,6 +59,19 @@ final class Erreurs
                 exit(1);
             }
         });
+    }
+
+    private static function pageOccupee(string $reference): void
+    {
+        if (!headers_sent()) {
+            http_response_code(503);
+            header('Retry-After: 10');
+            header('Content-Type: text/html; charset=utf-8');
+            header('Cache-Control: no-store');
+        }
+        echo '<!doctype html><html lang="fr"><meta charset="utf-8"><title>Portail occupé</title>'
+            . '<p>Le portail est occupé par un travail en cours. Réessayez dans quelques secondes (rechargez la page).</p>'
+            . '<p>Rien n\'a été perdu. Référence : ' . \Portail\Web\Html::e($reference) . '</p></html>';
     }
 
     private static function pageErreur(string $reference): void

@@ -90,6 +90,16 @@ Le paquet `portail_maj.zip` contient `VERSION`, `app`, `bin` et `public` (dont `
 
 Revenir en arrière : même procédure avec le paquet précédent.
 
+**Installer quand aucun travail ne tourne** (« Travaux en cours » vide) : un travail en cours utiliserait un mélange d'ancien et de nouveau code.
+
+### Base du portail en mode WAL (depuis le 14/11/2026)
+
+Pendant un déploiement, le travailleur écrit des centaines de Mo et le disque du compte peut être saturé quelques secondes ; une page du portail tombait alors en « database is locked » (incident du 14/11/2026). Depuis, l'installateur passe la base SQLite en mode WAL : une page peut lire pendant que le travailleur écrit. Une base occupée plus de 15 secondes affiche « Le portail est occupé… réessayez dans quelques secondes » (rien n'est perdu, pas d'alerte par e-mail).
+
+- À côté de `portail.sqlite` apparaissent `portail.sqlite-wal` et `portail.sqlite-shm` : **ne jamais les effacer** pendant que le portail tourne. Une sauvegarde de la base doit copier les trois fichiers ensemble, ou mieux se faire par `php -r '$p=new PDO("sqlite:".getenv("HOME")."/portail/data/portail.sqlite");$p->exec("VACUUM INTO \x27".getenv("HOME")."/sauvegarde_portail.sqlite\x27");'` (copie cohérente en un seul fichier ; la protéger ensuite en droits 600).
+- Si l'installateur affiche « mode WAL non appliqué », le relancer quand aucun travail ne tourne.
+- Revenir à l'ancien mode : `php -r '$p=new PDO("sqlite:".getenv("HOME")."/portail/data/portail.sqlite");echo $p->query("PRAGMA journal_mode=DELETE")->fetchColumn(),PHP_EOL;'` (affiche `delete`).
+
 Si le portail s'affiche sans couleurs ni logo, le `.htaccess` de `public` empêche de servir les fichiers existants (style, logo, polices) : il doit laisser passer les fichiers réels et n'envoyer vers `index.php` que le reste.
 
 ## Travaux sur le serveur (V2)

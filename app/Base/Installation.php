@@ -56,6 +56,10 @@ final class Installation
             : 'Extension zip de PHP : ABSENTE ✗ (la bibliothèque refusera les dépôts ; à activer dans CPanel, « Sélectionner une version de PHP »)';
 
         $pdo = Connexion::ouvrir($config->dossierDonnees . '/portail.sqlite');
+        $mode = Connexion::passerEnWal($pdo);
+        $compteRendu[] = $mode === 'wal'
+            ? 'Base en mode WAL (lecture possible pendant les travaux) ✓'
+            : 'Base : mode WAL non appliqué (mode actuel : ' . ($mode === '' ? '?' : $mode) . ') ✗ ; relancer l\'installateur quand aucun travail ne tourne';
         $versions = Schema::mettreAJour($pdo);
         $compteRendu[] = $versions === []
             ? 'Base déjà à jour ✓'
