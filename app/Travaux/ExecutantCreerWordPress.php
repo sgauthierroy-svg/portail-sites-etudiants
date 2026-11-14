@@ -16,6 +16,7 @@ use Portail\Sites\EpreuveWordPress;
 use Portail\Sites\LigneWordPress;
 use Portail\Sites\OutilsWordPress;
 use Portail\Sites\PreparationWordPress;
+use Portail\Sites\RelanceCertificats;
 use Portail\Sites\Releve;
 use Portail\Sites\ServeurCpanel;
 use Portail\Systeme\Fichiers;
@@ -27,7 +28,8 @@ use Throwable;
  * (validé le 29/10/2026) et l'état relevé le 14/11/2026 sur un /WP de 1re année : WordPress en français,
  * titre « Sup », thème et extensions par défaut, permaliens simples, fuseau de Paris, un seul compte
  * administrateur (identifiant WordPress de l'étudiant), redirection http → https. Avec :
- * - le sous-domaine créé s'il manque, puis son certificat (acme.sh, comme certificats.sh) ;
+ * - le sous-domaine créé s'il manque, puis son certificat en fin d'étape (acme.sh, comme certificats.sh),
+ *   relancé seul toutes les 20 minutes en cas d'échec (RelanceCertificats) ;
  * - une base et un utilisateur MySQL propres au site (décision du 07/11/2026) ;
  * - la version de la session si elle est fixée (gelée), sinon la dernière (mises à jour automatiques) ;
  * - un mot de passe tiré au hasard, jamais en ligne de commande, jamais gardé par le portail ;
@@ -106,19 +108,7 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
             return ['etat' => 'ignore', 'message' => 'Le dossier /WP existe déjà et n\'est pas vide : rien n\'a été fait.'];
         }
 
-        // 2. Certificat d'un sous-domaine neuf (un échec n'empêche pas le site : à reposer avec certificats.sh).
-        $certificat = '';
-        if ($nouveau) {
-            try {
-                $this->certificats->poser($sousDomaine, $racine);
-                $certificat = ' Sous-domaine créé, certificat posé (CPanel l\'active en 30 minutes au plus).';
-            } catch (Throwable $e) {
-                $certificat = ' Sous-domaine créé, mais certificat NON posé (' . mb_substr($e->getMessage(), 0, 150, 'UTF-8')
-                    . ') : relancer « bash ~/certificats.sh » avec cet identifiant dans quelques minutes.';
-            }
-        }
-
-        // 3. Préparation à part : WordPress, base, configuration, installation.
+        // 2. Préparation à part : WordPress, base, configuration, installation.
         $suffixe = OutilsWordPress::suffixe();
         $base = self::PREFIXE . $cible . '_WP_' . $suffixe;
         $utilisateur = self::PREFIXE . $cible . '_wp' . $suffixe;
@@ -156,7 +146,7 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
             $this->wp->lancer($preparation, ['option', 'update', 'WPLANG', 'fr_FR']);
             self::ecrire($preparation . '/.htaccess', self::REDIRECTION_HTTPS, 0644);
 
-            // 4. Mise en place.
+            // 3. Mise en place.
             if (is_dir($final) && !rmdir($final)) {
                 throw new RuntimeException('Dossier /WP vide impossible à remplacer.');
             }
@@ -166,7 +156,7 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         } catch (Throwable $e) {
             $this->defaire($crees, $preparation, $base, $utilisateur);
             throw new RuntimeException($e->getMessage() . ' Ce que cette étape avait créé a été effacé'
-                . ($nouveau ? ' (le sous-domaine créé est gardé, vide).' : '.') . $certificat, 0, $e);
+                . ($nouveau ? ' (le sous-domaine créé est gardé, vide).' : '.'), 0, $e);
         }
 
         $this->pdo->prepare(
@@ -180,6 +170,21 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
             "INSERT INTO releve_sites (identifiant, dossier, logiciel, version, releve_le) VALUES (:i, '/WP', 'wordpress', :v, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
              ON CONFLICT (identifiant, dossier) DO UPDATE SET logiciel = 'wordpress', version = :v2"
         )->execute([':i' => $cible, ':v' => $installee, ':v2' => $installee]);
+
+        // 4. Certificat d'un sous-domaine neuf, à la fin : le sous-domaine a eu le temps de devenir joignable
+        //    (premier essai réel du 14/11/2026 : échec juste après la création, réussite plus tard).
+        //    Un échec n'empêche pas le site : le travailleur réessaie seul toutes les 20 minutes.
+        $certificat = '';
+        if ($nouveau) {
+            try {
+                $this->certificats->poser($sousDomaine, $racine);
+                $certificat = ' Sous-domaine créé, certificat posé (CPanel l\'active en 30 minutes au plus).';
+            } catch (Throwable $e) {
+                (new RelanceCertificats($this->pdo))->inscrire($cible, $e->getMessage());
+                $certificat = ' Sous-domaine créé ; certificat pas encore posé (' . mb_substr($e->getMessage(), 0, 250, 'UTF-8')
+                    . ') : le portail réessaie seul toutes les 20 minutes, et alerte l\'administrateur s\'il n\'y arrive pas en 2 heures.';
+            }
+        }
 
         $site = $adresse . '/';
         $envoye = $this->ecrireEtudiant($etudiant, $site, $motDePasse, $nouveau);

@@ -395,6 +395,17 @@ final class Schema
                 ALTER TABLE sites ADD COLUMN cloture_le TEXT NULL;
                 ALTER TABLE sites ADD COLUMN lecture_seule INTEGER NOT NULL DEFAULT 0 CHECK (lecture_seule IN (0, 1));
                 SQL,
+            // V2, lot 5 (14/11/2026) : certificat d'un sous-domaine neuf non obtenu tout de suite (constaté au premier
+            // essai réel) ; le travailleur réessaie toutes les 20 minutes, au plus 6 fois, puis alerte l'administrateur.
+            12 => <<<SQL
+                CREATE TABLE certificats_a_poser (
+                    identifiant     TEXT PRIMARY KEY CHECK (length(identifiant) BETWEEN 2 AND 63 AND identifiant NOT GLOB '*[^a-z0-9]*'),
+                    essais          INTEGER NOT NULL DEFAULT 0 CHECK (essais >= 0),
+                    prochain_essai  TEXT NOT NULL,
+                    derniere_erreur TEXT NULL CHECK (derniere_erreur IS NULL OR length(derniere_erreur) <= 300),
+                    abandonne_le    TEXT NULL
+                );
+                SQL,
         ];
     }
 

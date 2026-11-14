@@ -134,13 +134,14 @@ Menu « Créer des boutiques » (administrateur, enseignants, administratif) : c
 Menu « Créer des WordPress » (administrateur, enseignants, administratif) : choisir la session, cocher les étudiants (aucun coché d'avance ; case « Tout cocher »), lancer. L'étudiant doit d'abord être dans le portail (import ou « Ajouter un étudiant ») : son identifiant et son identifiant WordPress (`AzzouziK`) sont ceux de sa fiche. Un étudiant dont le `/WP` existe déjà (dernier relevé ou portail) ne peut pas être coché.
 
 - **État produit** : celui des 1re année créés par `creation_wp.sh` (relevé du 14/11/2026 sur un site de la session 2028) — WordPress en français, titre « Sup », thème et extensions par défaut, permaliens simples, fuseau de Paris, un seul compte administrateur (identifiant WordPress de l'étudiant, avec son e-mail), adresse d'administration du site = adresse d'alerte, `.htaccess` avec la seule redirection vers https (`HTTPS-PORTAIL`).
-- **Sous-domaine** : s'il manque, le travailleur le crée (`uapi SubDomain addsubdomain`, dossier `~/identifiant.bts-sup-sallanches.com`), puis pose son **certificat** avec acme.sh (mêmes commandes que `certificats.sh` ; CPanel l'active en 30 minutes au plus). Si le certificat échoue, le site est quand même créé et le travail l'indique : relancer `bash ~/certificats.sh` avec cet identifiant quelques minutes plus tard. Un sous-domaine existant n'est pas touché.
+- **Sous-domaine** : s'il manque, le travailleur le crée (`uapi SubDomain addsubdomain`, dossier `~/identifiant.bts-sup-sallanches.com`). Son **certificat** est demandé à la fin de l'étape, avec acme.sh (mêmes commandes que `certificats.sh` ; CPanel l'active en 30 minutes au plus). Un sous-domaine existant n'est pas touché.
+- **Certificat pas obtenu tout de suite** (constaté au premier essai réel, 14/11/2026 : échec juste après la création du sous-domaine, réussite plus tard) : le site est quand même créé ; le message du travail donne la raison d'acme.sh ; le travailleur **réessaie seul toutes les 20 minutes**, quand il n'a pas d'autre travail, **6 fois au plus** (Let's Encrypt n'accepte que 5 échecs par sous-domaine et par heure, et en rend un toutes les 12 minutes : letsencrypt.org/docs/rate-limits). Au-delà, une alerte part à l'adresse d'alerte ; poser alors le certificat à la main : `bash ~/certificats.sh`, puis l'identifiant. Chaque essai est inscrit au journal (« certificat posé / non posé (relance) »).
 - **Version** : celle de la session si elle est indiquée sur la page « Régimes et sessions » (version **gelée**) ; sinon, tant que l'Éducation nationale n'a pas fixé la version de l'examen, la **dernière version de WordPress**, qui se met à jour toute seule (décision du 14/11/2026).
 - **Base et utilisateur MySQL propres au site** : `jafl3067_identifiant_WP_xxxxxx` et `jafl3067_identifiant_wpxxxxxx` (6 caractères au hasard), mot de passe tiré au hasard écrit seulement dans `wp-config.php` (droits 600, écrit par le portail).
 - **Mot de passe WordPress** : tiré au hasard (forme `kQ7m-Vx3d-p9TA-hc4W`), jamais en ligne de commande (le compte est créé avec un mot de passe jetable, aussitôt remplacé par le vrai, lu dans l'environnement de la commande), jamais gardé par le portail.
 - **Préparation à part** (`~/portail/data/tmp`), puis mise en place : un `/WP` non vide n'est jamais touché ; en cas d'échec, la préparation, la base et l'utilisateur créés sont effacés (un sous-domaine créé est gardé, vide).
 - **E-mails** : à l'étudiant, objet « IMPORTANT – Sup'Sallanches (BTS NDRC) : vos accès à votre site WordPress, à conserver » (site, administration, identifiant, mot de passe) ; à la fin du travail, à l'adresse d'alerte, le récapitulatif aux colonnes de la feuille des accès (`Site wordpress` = lien sans l'administration, `Identifiant WP`, `Mot de passe WP`), dans l'ordre alphabétique. Supprimer ce récapitulatif une fois la feuille à jour.
-- **Essais du 14/11/2026** : installation, mot de passe et réglages vérifiés avec le vrai WP-CLI sur un WordPress de test ; création du sous-domaine et du certificat seulement simulées (à vérifier au premier essai réel).
+- **Essais du 14/11/2026** : installation, mot de passe et réglages vérifiés avec le vrai WP-CLI sur un WordPress de test. Premier essai réel (un nouvel entrant) : sous-domaine, WordPress et e-mails conformes ; certificat posé à la main ensuite (d'où les relances automatiques ci-dessus).
 
 ## Site modèle d'examen (V2, lot 4)
 
@@ -212,6 +213,7 @@ Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la b
 | Erreur technique du portail (une alerte par heure au plus) | adresse d'alerte |
 | Travail terminé avec au moins un échec | adresse d'alerte |
 | Comptes non confirmés depuis 6 mois (le lundi) | adresse d'alerte |
+| Certificat d'un sous-domaine créé par le portail toujours pas posé après 6 essais | adresse d'alerte |
 
 Aucun e-mail ne contient de mot de passe ni de donnée d'étudiant.
 

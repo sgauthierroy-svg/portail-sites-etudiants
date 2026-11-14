@@ -113,6 +113,16 @@ final class Alertes
             . 'Les boutiques concernées sont signalées en rouge dans « Voir tout » : ' . rtrim($this->urlPortail, '/') . '/sites');
     }
 
+    /** Certificat d'un sous-domaine créé par le portail toujours pas posé après les relances (lot 5, 14/11/2026). */
+    public function certificatNonPose(string $sousDomaine, int $essais, string $raison): void
+    {
+        $this->ajouter([], 'Certificat https non posé : ' . $sousDomaine,
+            'Le portail n\'a pas pu poser le certificat https de ' . $sousDomaine . ' (' . $essais . ' essais en 2 heures environ).'
+            . "\n\nDernière raison donnée par acme.sh : " . $raison
+            . "\n\nLe site fonctionne, mais les navigateurs affichent un avertissement de sécurité. En SSH : bash ~/certificats.sh, puis l'identifiant."
+            . "\nSi l'échec persiste, vérifier que le sous-domaine répond (CPanel, Domaines).");
+    }
+
     public function test(): void
     {
         $this->ajouter([], 'Test des alertes', 'Ce message de test confirme que le portail peut envoyer ses alertes.');

@@ -19,7 +19,9 @@ use Portail\Securite\Chiffrement;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\Certificats;
 use Portail\Sites\LigneWordPress;
+use Portail\Sites\AcmeSh;
 use Portail\Sites\PreparationWordPress;
+use Portail\Sites\RelanceCertificats;
 use Portail\Sites\Releve;
 use Portail\Sites\ServeurCpanel;
 use Portail\Tests\Aides\DossierTemporaire;
@@ -214,9 +216,25 @@ final class CreationWordPressTest extends TestCase
         $this->tourner();
         $etape = $this->pdo->query('SELECT etat, message FROM travaux_etapes')->fetch(PDO::FETCH_ASSOC);
         self::assertSame('reussi', $etape['etat']);
-        self::assertStringContainsString('certificat NON posé', (string) $etape['message']);
-        self::assertStringContainsString('certificats.sh', (string) $etape['message']);
+        self::assertStringContainsString('certificat pas encore posé (Certificat non obtenu (acme.sh, code 1) : Invalid response', (string) $etape['message']);
+        self::assertStringContainsString('réessaie seul toutes les 20 minutes', (string) $etape['message']);
         self::assertFileExists($this->personnel . '/martinel.bts-sup-sallanches.com/WP/wp-config.php');
+        // Relances : pas avant 20 minutes ; échecs comptés ; alerte au 6e essai, puis plus rien.
+        $relance = new RelanceCertificats($this->pdo);
+        $alertes = new Alertes($this->pdo, $this->boite, self::URL);
+        $debut = time();
+        self::assertNull($relance->relancerUn($this->fauxCertificats(), $this->fauxCpanel(), $this->personnel, $alertes, $debut + 60));
+        for ($essai = 2; $essai <= 6; $essai++) {
+            self::assertSame('échec : martinel.bts-sup-sallanches.com',
+                $relance->relancerUn($this->fauxCertificats(), $this->fauxCpanel(), $this->personnel, $alertes, $debut + ($essai - 1) * 1201));
+        }
+        self::assertSame(1, $alertes->nombreEnAttente());
+        self::assertNull($relance->relancerUn($this->fauxCertificats(), $this->fauxCpanel(), $this->personnel, $alertes, $debut + 99999), 'abandon : plus d\'essai');
+        // Un nouvel échec à la création relance le cycle ; une réussite retire le sous-domaine de la liste.
+        $relance->inscrire('martinel', 'nouvel essai', $debut);
+        $this->echecCertificat = false;
+        self::assertSame('posé : martinel.bts-sup-sallanches.com', $relance->relancerUn($this->fauxCertificats(), $this->fauxCpanel(), $this->personnel, $alertes, $debut + 1300));
+        self::assertSame(0, (int) $this->pdo->query('SELECT count(*) FROM certificats_a_poser')->fetchColumn());
     }
 
     public function testRefusEtPage(): void
@@ -243,6 +261,18 @@ final class CreationWordPressTest extends TestCase
         self::assertStringContainsString('Créer des WordPress', $this->en('cpetit', 'GET', '/')->corps);
     }
 
+    public function testRaisonDonneeParAcmeSh(): void
+    {
+        $sortie = "[Sat Nov 14 16:31:05 UTC 2026] Using CA: https://acme-v02.api.letsencrypt.org/directory\n"
+            . "[Sat Nov 14 16:31:09 UTC 2026] \e[31mmartinel.bts-sup-sallanches.com: Invalid status. Verification error details: 1.2.3.4: Invalid response from http://martinel.bts-sup-sallanches.com/.well-known/acme-challenge/abc: 404\e[0m\n"
+            . "[Sat Nov 14 16:31:09 UTC 2026] Please add '--debug' or '--log' to see more information.\n";
+        $raison = AcmeSh::raison($sortie);
+        self::assertStringStartsWith(' : martinel.bts-sup-sallanches.com: Invalid status. Verification error details', $raison);
+        self::assertStringNotContainsString('Sat Nov', $raison);
+        self::assertStringNotContainsString("\e[", $raison);
+        self::assertSame('.', AcmeSh::raison("tout va bien\n"));
+    }
+
     // ===== Outils =====
 
     private function tourner(): void
@@ -267,7 +297,7 @@ final class CreationWordPressTest extends TestCase
             public function poser(string $sousDomaine, string $racine): void
             {
                 if ($this->test->echecCertificat) {
-                    throw new RuntimeException('Certificat non obtenu (acme.sh, code 1).');
+                    throw new RuntimeException('Certificat non obtenu (acme.sh, code 1) : Invalid response from http://exemple/.well-known/acme-challenge/x: 404.');
                 }
                 $this->test->certificats[] = $sousDomaine . ' ' . $racine;
             }

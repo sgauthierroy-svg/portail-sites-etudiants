@@ -57,6 +57,9 @@ if ($faites === 0) {
     $lecture->execute();
     $bases = \Portail\Base\Lecture::tableau(json_decode((string) \Portail\Base\Lecture::texte($lecture->fetchColumn()), true)) ?? [];
     $ecart->purgerUne($cpanel, array_values(array_filter($bases, 'is_string')));
+    // Certificats des sous-domaines créés par le portail, pas encore posés : un essai à la fois, toutes les 20 minutes.
+    (new \Portail\Sites\RelanceCertificats($pdo))->relancerUn(new \Portail\Sites\AcmeSh($personnel), $cpanel, $personnel, $alertes);
+    $alertes->expedier();
 }
 if (in_array('--bavard', $argv, true)) {
     fwrite(STDOUT, '  Étapes traitées : ' . $faites . PHP_EOL);

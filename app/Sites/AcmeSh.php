@@ -30,11 +30,30 @@ final class AcmeSh implements Certificats
         }
         $obtention = Commande::lancer([$acme, '--issue', '-d', $sousDomaine, '-w', $racine, '--keylength', '2048'], 300);
         if ($obtention['code'] !== 0 && $obtention['code'] !== 2) {
-            throw new RuntimeException('Certificat non obtenu (acme.sh, code ' . $obtention['code'] . ').');
+            throw new RuntimeException('Certificat non obtenu (acme.sh, code ' . $obtention['code'] . ')' . self::raison($obtention['sortie'] . "\n" . $obtention['erreurs']));
         }
         $installation = Commande::lancer([$acme, '--deploy', '-d', $sousDomaine, '--deploy-hook', 'cpanel_uapi'], 300);
         if ($installation['code'] !== 0) {
-            throw new RuntimeException('Certificat obtenu mais pas installé dans CPanel (acme.sh, code ' . $installation['code'] . ').');
+            throw new RuntimeException('Certificat obtenu mais pas installé dans CPanel (acme.sh, code ' . $installation['code'] . ')'
+                . self::raison($installation['sortie'] . "\n" . $installation['erreurs']));
         }
+    }
+
+    /**
+     * Raison donnée par acme.sh (lignes d'erreur, sans couleurs ni date), pour le message du travail.
+     * acme.sh n'affiche pas de secret : adresses, codes de vérification et messages de Let's Encrypt.
+     */
+    public static function raison(string $sortie): string
+    {
+        $lignes = [];
+        foreach (explode("\n", (string) preg_replace('/\e\[[0-9;]*m/', '', $sortie)) as $ligne) {
+            $ligne = trim((string) preg_replace('/^\[[^\]]*\]\s*/', '', trim($ligne)));
+            if ($ligne !== '' && preg_match('/error|invalid|fail|timeout|refused|not found|denied|NXDOMAIN|Verify/i', $ligne) === 1) {
+                $lignes[] = $ligne;
+            }
+        }
+        $lignes = array_slice(array_values(array_unique($lignes)), -2);
+
+        return $lignes === [] ? '.' : ' : ' . mb_substr(implode(' / ', $lignes), 0, 220, 'UTF-8') . '.';
     }
 }
