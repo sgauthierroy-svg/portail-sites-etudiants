@@ -16,7 +16,8 @@ final class PagesSujet
      * @param list<array{id: int, nom: string, version_wordpress: ?string, depose_le: string, depose_par_nom: string}> $sujets
      * @param list<array{chemin: string, identifiant: string, dossier: string, motif: string, mis_le: string, expire_le: string}> $ecarts
      * @param array{sessions: list<array{id: int, annee: int}>, session: ?int,
-     *              etudiants: ?list<array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool}>} $deploiement
+     *              etudiants: ?list<array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool,
+     *                                      deploye_le: ?string, cloture_le: ?string, lecture_seule: bool, epreuve_prevue: bool}>} $deploiement
      */
     public static function page(string $jeton, array $etat, array $sujets, array $ecarts, array $deploiement, ?string $erreur): string
     {
@@ -78,6 +79,10 @@ final class PagesSujet
         if ($etat['connu'] && $etat['installe'] && $etat['travail'] === null) {
             $contenu .= self::deploiement($jeton, $etat, $deploiement);
         }
+        if ($etat['connu'] && $etat['installe']) {
+            // Pendant un travail sur le modèle, le choix de la session du déploiement est masqué : l'épreuve a le sien.
+            $contenu .= self::epreuve($jeton, $deploiement, $etat['travail'] !== null);
+        }
 
         if ($ecarts !== []) {
             $lignes = '';
@@ -98,7 +103,8 @@ final class PagesSujet
      *
      * @param array{connu: bool, installe: bool, version: ?string, gele: bool, installe_le: ?string, travail: ?int} $etat
      * @param array{sessions: list<array{id: int, annee: int}>, session: ?int,
-     *              etudiants: ?list<array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool}>} $deploiement
+     *              etudiants: ?list<array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool,
+     *                                      deploye_le: ?string, cloture_le: ?string, lecture_seule: bool, epreuve_prevue: bool}>} $deploiement
      */
     private static function deploiement(string $jeton, array $etat, array $deploiement): string
     {
@@ -141,11 +147,83 @@ final class PagesSujet
         return $contenu . '<h3>Session ' . $annee . '</h3>'
             . '<form method="post" action="/sites/sujet">' . Pages::jeton($jeton)
             . '<input type="hidden" name="action" value="deployer"><input type="hidden" name="session" value="' . (int) $deploiement['session'] . '">'
-            . '<table class="triable"><thead><tr><th>Déployer</th><th>Étudiant</th><th>Régime</th><th>État</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
+            . '<table class="triable"><thead><tr><th>' . self::toutCocher() . '</th><th>Étudiant</th><th>Régime</th><th>État</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
             . ($remplaces > 0
                 ? '<p><label><input type="checkbox" name="confirmer" value="1"> Les <code>/WP2</code> existants des étudiants cochés seront remplacés. Ils sont gardés 8 jours à l\'écart, puis effacés.</label></p>'
                 : '')
             . ($possibles > 0 ? '<button type="submit" class="btn-main">Déployer le sujet chez les étudiants cochés</button>' : '<p>Aucun étudiant de cette session ne peut recevoir le sujet.</p>')
+            . '</form>';
+    }
+
+    /** Case « Tout cocher » d'un tableau (tri.js) : coche les cases actives de la colonne, jamais les autres. */
+    private static function toutCocher(): string
+    {
+        return '<input type="checkbox" data-tout-cocher aria-label="Tout cocher" title="Tout cocher">';
+    }
+
+    /**
+     * Épreuve (paquet 3) : clôture (sessions fermées, copie datée 8 jours, lecture seule), gel levé ou refigé.
+     *
+     * @param array{sessions: list<array{id: int, annee: int}>, session: ?int,
+     *              etudiants: ?list<array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool,
+     *                                      deploye_le: ?string, cloture_le: ?string, lecture_seule: bool, epreuve_prevue: bool}>} $deploiement
+     */
+    private static function epreuve(string $jeton, array $deploiement, bool $selecteur): string
+    {
+        $annee = null;
+        $options = '';
+        foreach ($deploiement['sessions'] as $session) {
+            $choisie = $session['id'] === $deploiement['session'];
+            $annee = $choisie ? $session['annee'] : $annee;
+            $options .= '<option value="' . $session['id'] . '"' . ($choisie ? ' selected' : '') . '>Session ' . $session['annee'] . '</option>';
+        }
+        $contenu = '<h2>Épreuve : clôture et gel</h2>'
+            . '<p>La préconnexion des back-offices se fait à la main avant l\'épreuve (cochez « Se souvenir de moi » si elle a lieu plus de 2 jours avant). '
+            . 'À la fin de l\'épreuve, <strong>Clôturer</strong> : pour chaque étudiant coché, une copie datée de son <code>/WP2</code> est gardée 8 jours, '
+            . 'les sessions ouvertes sont fermées (l\'étudiant est déconnecté), puis le site passe en <strong>lecture seule</strong> : '
+            . 'les correcteurs se connectent avec le compte administrateur du modèle, voient tout, et ne peuvent rien enregistrer. '
+            . 'Déconnexion après 1 h d\'inactivité. Un enseignant peut lever le gel d\'un site, puis le refiger.</p>';
+        if ($selecteur) {
+            $contenu .= '<form method="post" action="/sites/sujet">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="afficher_deploiement">'
+                . '<label for="session-epreuve">Session</label> <select id="session-epreuve" name="session">' . $options . '</select> '
+                . '<button type="submit">Afficher les étudiants</button></form>';
+        }
+        if ($annee === null || $deploiement['etudiants'] === null) {
+            return $contenu . ($selecteur ? '' : '<p class="discret">Choisissez une session ci-dessus (« Afficher les étudiants »).</p>');
+        }
+        $lignes = '';
+        $avecWp2 = 0;
+        foreach ($deploiement['etudiants'] as $etudiant) {
+            if ($etudiant['deploye_le'] === null) {
+                continue;
+            }
+            $avecWp2++;
+            $case = $etudiant['epreuve_prevue']
+                ? ''
+                : '<input type="checkbox" name="coches[]" value="' . Html::e($etudiant['identifiant']) . '" aria-label="' . Html::e($etudiant['nom']) . '">';
+            $etat = match (true) {
+                $etudiant['epreuve_prevue'] => '<span class="badge neutre">clôture ou gel prévu</span>',
+                $etudiant['lecture_seule'] => '<span class="badge neutre">clos le ' . Html::e(Pages::heureLocale((string) $etudiant['cloture_le'])) . ' — figé</span>',
+                $etudiant['cloture_le'] !== null => '<span class="badge warn">clos le ' . Html::e(Pages::heureLocale($etudiant['cloture_le'])) . ' — gel levé</span>',
+                default => '<span class="badge ok">déployé le ' . Html::e(Pages::heureLocale($etudiant['deploye_le'] ?? '')) . ' — épreuve ouverte</span>',
+            };
+            $adresse = 'https://' . $etudiant['identifiant'] . '.bts-sup-sallanches.com/WP2/wp-admin/';
+            $lignes .= '<tr><td>' . $case . '</td><td>' . Html::e($etudiant['nom']) . '</td><td>' . $etat . '</td>'
+                . '<td><a href="' . Html::e($adresse) . '" target="_blank" rel="noopener noreferrer">administration</a></td></tr>';
+        }
+        if ($avecWp2 === 0) {
+            return $contenu . '<p>Aucun <code>/WP2</code> déployé par le portail dans la session ' . $annee . '.</p>';
+        }
+
+        return $contenu . '<h3>Session ' . $annee . '</h3>'
+            . '<form method="post" action="/sites/sujet">' . Pages::jeton($jeton)
+            . '<input type="hidden" name="session" value="' . (int) $deploiement['session'] . '">'
+            . '<table class="triable"><thead><tr><th>' . self::toutCocher() . '</th><th>Étudiant</th><th>Épreuve</th><th>Site</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
+            . '<p><label><input type="checkbox" name="confirmer_cloture" value="1"> Je confirme la fin de l\'épreuve pour les étudiants cochés : '
+            . 'ils seront déconnectés et leur <code>/WP2</code> figé.</label></p>'
+            . '<p><button type="submit" name="action" value="cloturer" class="btn-main">Clôturer l\'épreuve pour les étudiants cochés</button></p>'
+            . '<p><button type="submit" name="action" value="lever_gel">Lever le gel des étudiants cochés</button> '
+            . '<button type="submit" name="action" value="refiger">Refiger les étudiants cochés</button></p>'
             . '</form>';
     }
 }

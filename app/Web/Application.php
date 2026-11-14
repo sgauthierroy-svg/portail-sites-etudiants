@@ -22,6 +22,7 @@ use Portail\Securite\Chiffrement;
 use Portail\Securite\Horloge;
 use Portail\Sites\MiseALecart;
 use Portail\Sites\DeploiementSujet;
+use Portail\Sites\EpreuveSujet;
 use Portail\Sites\PreparationPrestaShop;
 use Portail\Sites\Releve;
 use Portail\Sites\SiteModele;
@@ -156,11 +157,12 @@ final class Application
     {
         $modele = new SiteModele($this->pdo);
         $deploiement = new DeploiementSujet($this->pdo);
+        $epreuve = new EpreuveSujet($this->pdo);
         $sessionChoisie = null;
         $erreur = null;
         if ($requete->methode === 'POST') {
             $action = $requete->champ('action');
-            if (in_array($action, ['afficher_deploiement', 'deployer'], true)) {
+            if (in_array($action, ['afficher_deploiement', 'deployer', 'cloturer', 'lever_gel', 'refiger'], true)) {
                 $sessionChoisie = self::idFacultatif($requete->champ('session'));
             }
             try {
@@ -169,6 +171,9 @@ final class Application
                     'geler' => $modele->geler(true, $moi, $requete->adresseIp),
                     'degeler' => $modele->geler(false, $moi, $requete->adresseIp),
                     'deployer' => $deploiement->lancer($sessionChoisie ?? 0, $requete->liste('coches'), $requete->champ('confirmer') === '1', $moi, $requete->adresseIp),
+                    'cloturer' => $epreuve->cloturer($sessionChoisie ?? 0, $requete->liste('coches'), $requete->champ('confirmer_cloture') === '1', $moi, $requete->adresseIp),
+                    'lever_gel' => $epreuve->gel($sessionChoisie ?? 0, $requete->liste('coches'), false, $moi, $requete->adresseIp),
+                    'refiger' => $epreuve->gel($sessionChoisie ?? 0, $requete->liste('coches'), true, $moi, $requete->adresseIp),
                     'afficher_deploiement' => 0,
                     default => null,
                 };

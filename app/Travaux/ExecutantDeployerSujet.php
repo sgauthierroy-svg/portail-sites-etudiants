@@ -193,7 +193,7 @@ final class ExecutantDeployerSujet implements Executant, ApresTravail
             "INSERT INTO sites (identifiant, dossier, logiciel, version, base, utilisateur_bdd, gele)
              VALUES (:i, :d, 'wordpress', :v, :b, :u, 1)
              ON CONFLICT (identifiant, dossier) DO UPDATE SET logiciel = 'wordpress', version = :v2, base = :b2, utilisateur_bdd = :u2,
-                 dossier_admin = NULL, gele = 1, cree_le = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+                 dossier_admin = NULL, gele = 1, cloture_le = NULL, lecture_seule = 0, cree_le = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
         )->execute([':i' => $cible, ':d' => DeploiementSujet::DOSSIER, ':v' => $version, ':b' => $base, ':u' => $utilisateur,
             ':v2' => $version, ':b2' => $base, ':u2' => $utilisateur]);
         $this->pdo->prepare(

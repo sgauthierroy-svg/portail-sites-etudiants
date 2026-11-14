@@ -18,6 +18,8 @@ use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\DeploiementSujet;
+use Portail\Sites\EpreuveSujet;
+use Portail\Sites\EpreuveWordPress;
 use Portail\Sites\LigneWordPress;
 use Portail\Sites\MiseALecart;
 use Portail\Sites\Releve;
@@ -27,7 +29,9 @@ use Portail\Tests\Aides\DossierTemporaire;
 use Portail\Tests\Aides\ExpediteurMemoire;
 use Portail\Tests\Aides\HorlogeFixe;
 use Portail\Tests\Aides\SessionMemoire;
+use Portail\Travaux\ExecutantCloturerEpreuve;
 use Portail\Travaux\ExecutantDeployerSujet;
+use Portail\Travaux\ExecutantGelEpreuve;
 use Portail\Travaux\Travailleur;
 use Portail\Web\Application;
 use Portail\Web\Reponse;
@@ -283,6 +287,186 @@ final class DeploiementSujetTest extends TestCase
         self::assertStringContainsString('déjà prévu ou en cours', $refus->corps);
     }
 
+    // ===== Épreuve : clôture et gel (paquet 3) =====
+
+    public function testClotureCopieDeconnecteEtFige(): void
+    {
+        $wp2 = $this->deployerMartinel();
+        $configAvant = (string) file_get_contents($wp2 . '/wp-config.php');
+        $this->wp = [];
+        $this->boite->envoyes = [];
+
+        $id = (new EpreuveSujet($this->pdo))->cloturer($this->session, ['martinel'], true, $this->compte('cpetit'), null);
+        $this->tourner();
+
+        $etape = $this->pdo->query('SELECT etat, message FROM travaux_etapes WHERE travail_id = ' . $id)->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('reussi', $etape['etat'], (string) $etape['message']);
+        // Copie datée d'abord (base et fichiers), puis sessions fermées.
+        $commandes = array_map(static fn (array $a): string => $a['chemin'] . ' : ' . implode(' ', $a['arguments']), $this->wp);
+        self::assertStringStartsWith($wp2 . ' : db export ', $commandes[0]);
+        self::assertContains($wp2 . " : db query DELETE FROM `wpx_usermeta` WHERE meta_key IN ('session_tokens', 'portail_activite')", $commandes);
+        $copie = $this->pdo->query("SELECT chemin, base, utilisateur_bdd, expire_le FROM mises_a_l_ecart WHERE identifiant = 'martinel' AND dossier = '/WP2'")->fetch(PDO::FETCH_ASSOC);
+        self::assertNull($copie['base'], 'la purge de la copie n\'efface jamais la base du /WP2 en place');
+        self::assertNull($copie['utilisateur_bdd']);
+        $dossierCopie = $this->personnel . '/archives_suppression/portail/' . $copie['chemin'];
+        self::assertFileExists($dossierCopie . '/base.sql');
+        self::assertFileExists($dossierCopie . '/fichiers/wp-content/uploads/2026/11/serum.png');
+        self::assertSame([], glob($this->donnees . '/tmp/copies/*'));
+        // Lecture seule : module + bloc du portail ; le reste de wp-config.php ne change pas.
+        self::assertSame(EpreuveWordPress::contenuModule(), file_get_contents($wp2 . '/' . EpreuveWordPress::MODULE));
+        self::assertSame(0644, fileperms($wp2 . '/' . EpreuveWordPress::MODULE) & 0777);
+        $config = (string) file_get_contents($wp2 . '/wp-config.php');
+        self::assertStringContainsString("define('PORTAIL_LECTURE_SEULE', true);", $config);
+        self::assertStringContainsString("define('DISALLOW_FILE_MODS', true);", $config);
+        self::assertStringContainsString("'AUTOMATIC_UPDATER_DISABLED', true", $config, 'la version reste gelée');
+        self::assertSame(self::horsBloc($configAvant), self::horsBloc($config));
+        self::assertSame(0600, fileperms($wp2 . '/wp-config.php') & 0777);
+        $site = $this->pdo->query("SELECT cloture_le, lecture_seule FROM sites WHERE identifiant = 'martinel' AND dossier = '/WP2'")->fetch(PDO::FETCH_ASSOC);
+        self::assertNotNull($site['cloture_le']);
+        self::assertSame(1, (int) $site['lecture_seule']);
+        // E-mail : administrateur et enseignants actifs, sans mot de passe.
+        self::assertCount(1, $this->boite->envoyes);
+        self::assertSame(['admin@exemple.fr', 'cpetit@exemple.fr'], $this->boite->envoyes[0]['destinataires']);
+        self::assertStringContainsString('1 /WP2 sur 1', $this->boite->envoyes[0]['texte']);
+        self::assertStringNotContainsString('DB_PASSWORD', $this->boite->envoyes[0]['texte']);
+        // Plus rien à clore pour cet étudiant ; son état est affiché.
+        $etudiant = $this->etudiant('martinel');
+        self::assertTrue($etudiant['lecture_seule']);
+    }
+
+    public function testLeverLeGelPuisRefiger(): void
+    {
+        $wp2 = $this->deployerMartinel();
+        $epreuve = new EpreuveSujet($this->pdo);
+        $epreuve->cloturer($this->session, ['martinel'], true, $this->compte('cpetit'), null);
+        $this->tourner();
+
+        $epreuve->gel($this->session, ['martinel'], false, $this->compte('cpetit'), null);
+        $this->tourner();
+        $config = (string) file_get_contents($wp2 . '/wp-config.php');
+        self::assertStringNotContainsString('PORTAIL_LECTURE_SEULE', $config);
+        self::assertStringNotContainsString('DISALLOW_FILE_MODS', $config);
+        self::assertStringContainsString("'AUTOMATIC_UPDATER_DISABLED', true", $config);
+        self::assertFalse($this->etudiant('martinel')['lecture_seule']);
+        self::assertNotNull($this->etudiant('martinel')['cloture_le']);
+
+        $epreuve->gel($this->session, ['martinel'], true, $this->compte('cpetit'), null);
+        $this->tourner();
+        self::assertStringContainsString("define('PORTAIL_LECTURE_SEULE', true);", (string) file_get_contents($wp2 . '/wp-config.php'));
+        self::assertTrue($this->etudiant('martinel')['lecture_seule']);
+        $messages = $this->pdo->query("SELECT message FROM travaux_etapes t JOIN travaux w ON w.id = t.travail_id WHERE w.type = 'lever_gel_epreuve' ORDER BY t.id")->fetchAll(PDO::FETCH_COLUMN);
+        self::assertSame(['Gel levé : le /WP2 peut de nouveau être modifié.', '/WP2 figé de nouveau (lecture seule).'], $messages);
+
+        // Un nouveau déploiement remet l'épreuve à zéro.
+        (new DeploiementSujet($this->pdo))->lancer($this->session, ['martinel'], true, $this->compte('cpetit'), null);
+        $this->tourner();
+        $etudiant = $this->etudiant('martinel');
+        self::assertNull($etudiant['cloture_le']);
+        self::assertFalse($etudiant['lecture_seule']);
+        self::assertStringNotContainsString('PORTAIL_LECTURE_SEULE', (string) file_get_contents($wp2 . '/wp-config.php'));
+    }
+
+    public function testCopieEnEchecLeWp2NeChangePas(): void
+    {
+        $wp2 = $this->deployerMartinel();
+        $configAvant = file_get_contents($wp2 . '/wp-config.php');
+        (new EpreuveSujet($this->pdo))->cloturer($this->session, ['martinel'], true, $this->compte('cpetit'), null);
+        $this->echecWp = 'db export';
+        $this->tourner();
+        $etape = $this->pdo->query("SELECT t.etat, t.message FROM travaux_etapes t JOIN travaux w ON w.id = t.travail_id WHERE w.type = 'cloturer_epreuve'")->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('echec', $etape['etat']);
+        self::assertStringContainsString('rien n\'a été changé dans son /WP2', (string) $etape['message']);
+        self::assertSame($configAvant, file_get_contents($wp2 . '/wp-config.php'));
+        self::assertFileDoesNotExist($wp2 . '/' . EpreuveWordPress::MODULE);
+        self::assertSame(0, (int) $this->pdo->query("SELECT count(*) FROM mises_a_l_ecart WHERE identifiant = 'martinel' AND dossier = '/WP2'")->fetchColumn());
+        self::assertSame([], glob($this->donnees . '/tmp/copies/*'));
+        self::assertFalse($this->etudiant('martinel')['lecture_seule']);
+        self::assertSame([], array_filter($this->wp, static fn (array $a): bool => $a['arguments'][0] === 'db' && $a['arguments'][1] === 'query' && $a['chemin'] === $wp2
+            && str_contains($a['arguments'][2], 'portail_activite')), 'aucune session fermée');
+    }
+
+    public function testRefusDeClotureEtDeGel(): void
+    {
+        $this->deployerMartinel();
+        $epreuve = new EpreuveSujet($this->pdo);
+        foreach ([
+            [fn () => $epreuve->cloturer($this->session, ['martinel'], false, $this->compte('cpetit'), null), 'Cochez la case de confirmation'],
+            [fn () => $epreuve->cloturer($this->session, ['durandca'], true, $this->compte('cpetit'), null), 'ne peut pas être clos'],
+            [fn () => $epreuve->cloturer($this->session, [], true, $this->compte('cpetit'), null), 'Cochez au moins un étudiant'],
+            [fn () => $epreuve->cloturer($this->session, ['inconnu'], true, $this->compte('cpetit'), null), 'pas dans cette session'],
+            [fn () => $epreuve->gel($this->session, ['martinel'], false, $this->compte('cpetit'), null), 'n\'a pas de /WP2 figé'],
+            [fn () => $epreuve->gel($this->session, ['martinel'], true, $this->compte('cpetit'), null), 'ne peut pas être refigé'],
+        ] as [$action, $attendu]) {
+            try {
+                $action();
+                self::fail('Refus attendu : ' . $attendu);
+            } catch (ErreurSaisie $e) {
+                self::assertStringContainsString($attendu, $e->getMessage());
+            }
+        }
+        // Clôture prévue : ni seconde clôture, ni déploiement par-dessus.
+        $epreuve->cloturer($this->session, ['martinel'], true, $this->compte('cpetit'), null);
+        self::assertSame('clôture ou gel prévu', $this->etudiant('martinel')['empechement']);
+        $this->expectException(ErreurSaisie::class);
+        $epreuve->cloturer($this->session, ['martinel'], true, $this->compte('cpetit'), null);
+    }
+
+    public function testPageDeLEpreuve(): void
+    {
+        $this->deployerMartinel();
+        $page = $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'afficher_deploiement', 'session' => (string) $this->session])->corps;
+        self::assertStringContainsString('Épreuve : clôture et gel', $page);
+        self::assertSame(2, substr_count($page, 'data-tout-cocher'), 'une case « Tout cocher » par tableau');
+        self::assertStringContainsString('épreuve ouverte', $page);
+        self::assertStringContainsString('name="confirmer_cloture"', $page);
+        $refus = $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'cloturer', 'session' => (string) $this->session], ['coches' => ['martinel']]);
+        self::assertSame(200, $refus->statut);
+        self::assertStringContainsString('Cochez la case de confirmation', $refus->corps);
+        $reponse = $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'cloturer', 'session' => (string) $this->session, 'confirmer_cloture' => '1'], ['coches' => ['martinel']]);
+        self::assertSame(303, $reponse->statut);
+        $this->tourner();
+        // Les enseignants lèvent le gel (décision du 14/11/2026) ; l'administratif n'a pas accès à la page.
+        $page = $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'afficher_deploiement', 'session' => (string) $this->session])->corps;
+        self::assertStringContainsString('— figé', $page);
+        self::assertSame(303, $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'lever_gel', 'session' => (string) $this->session], ['coches' => ['martinel']])->statut);
+        self::assertSame(403, $this->en('jroux', 'POST', '/sites/sujet', ['action' => 'lever_gel', 'session' => (string) $this->session], ['coches' => ['martinel']])->statut);
+    }
+
+    public function testLeModuleEstDuPhpValide(): void
+    {
+        $code = EpreuveWordPress::contenuModule();
+        token_get_all($code, TOKEN_PARSE); // ParseError si la syntaxe est fausse
+        self::assertStringContainsString('time() - $derniere > 3600', $code);
+        self::assertStringNotContainsString('%INACTIVITE%', $code);
+        self::assertStringContainsString("!defined('PORTAIL_LECTURE_SEULE')", $code, 'inactif sans la constante (gel levé)');
+    }
+
+    private function deployerMartinel(): string
+    {
+        (new DeploiementSujet($this->pdo))->lancer($this->session, ['martinel'], false, $this->compte('cpetit'), null);
+        $this->tourner();
+        $wp2 = $this->personnel . '/martinel.bts-sup-sallanches.com/WP2';
+        self::assertFileExists($wp2 . '/wp-config.php');
+
+        return $wp2;
+    }
+
+    /** @return array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool, deploye_le: ?string, cloture_le: ?string, lecture_seule: bool, epreuve_prevue: bool} */
+    private function etudiant(string $identifiant): array
+    {
+        foreach ((new DeploiementSujet($this->pdo))->etudiants($this->session) as $etudiant) {
+            if ($etudiant['identifiant'] === $identifiant) {
+                return $etudiant;
+            }
+        }
+        self::fail('Étudiant absent : ' . $identifiant);
+    }
+
+    private static function horsBloc(string $config): string
+    {
+        return (string) preg_replace('#// === Réglages gérés.*// === Fin des réglages gérés par le portail ===#s', '', $config);
+    }
+
     // ===== Outils =====
 
     private function tourner(): void
@@ -290,6 +474,9 @@ final class DeploiementSujetTest extends TestCase
         $travailleur = new Travailleur($this->pdo, new Alertes($this->pdo, null, self::URL), [
             'deployer_sujet_wp' => new ExecutantDeployerSujet($this->pdo, $this->fauxCpanel(), $this->fauxWp(), new MiseALecart($this->pdo, $this->personnel),
                 $this->boite, $this->personnel, $this->donnees . '/tmp'),
+            'cloturer_epreuve' => new ExecutantCloturerEpreuve($this->pdo, $this->fauxCpanel(), $this->fauxWp(), new MiseALecart($this->pdo, $this->personnel),
+                $this->boite, $this->personnel, $this->donnees . '/tmp'),
+            'lever_gel_epreuve' => new ExecutantGelEpreuve($this->pdo, $this->fauxCpanel(), $this->personnel),
         ], 0, static function (int $s): void {
         });
         $travailleur->tourner(60);

@@ -389,6 +389,12 @@ final class Schema
                 );
                 CREATE INDEX mises_a_l_ecart_a_purger ON mises_a_l_ecart (expire_le) WHERE purge_le IS NULL;
                 SQL,
+            // V2, lot 4, paquet 3 (14/11/2026) : clôture de l'épreuve dans les /WP2. cloture_le : date de la
+            // clôture (sessions fermées, copie datée, lecture seule) ; lecture_seule : 0 si un enseignant a levé le gel.
+            11 => <<<SQL
+                ALTER TABLE sites ADD COLUMN cloture_le TEXT NULL;
+                ALTER TABLE sites ADD COLUMN lecture_seule INTEGER NOT NULL DEFAULT 0 CHECK (lecture_seule IN (0, 1));
+                SQL,
         ];
     }
 

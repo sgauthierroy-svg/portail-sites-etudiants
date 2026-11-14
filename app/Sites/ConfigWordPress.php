@@ -24,7 +24,7 @@ final class ConfigWordPress
 
     /**
      * @param array{base: string, utilisateur: string, mot_de_passe: string, prefixe: string} $base
-     * @param array{gele: bool} $reglages
+     * @param array{gele: bool, lecture_seule?: bool} $reglages
      */
     public static function contenu(#[\SensitiveParameter] array $base, array $reglages): string
     {
@@ -57,7 +57,7 @@ final class ConfigWordPress
      * Remplace le bloc des réglages gérés ; l'ajoute avant le chargement de WordPress s'il manque
      * (wp-config.php d'un site copié à la main). Le reste du fichier n'est pas touché.
      *
-     * @param array{gele: bool} $reglages
+     * @param array{gele: bool, lecture_seule?: bool} $reglages
      */
     public static function remplacerBloc(string $contenu, array $reglages): string
     {
@@ -85,7 +85,7 @@ final class ConfigWordPress
         return substr($contenu, 0, $position) . self::bloc($reglages) . "\n\n" . substr($contenu, $position);
     }
 
-    /** @param array{gele: bool} $reglages */
+    /** @param array{gele: bool, lecture_seule?: bool} $reglages */
     public static function bloc(array $reglages): string
     {
         $lignes = [self::DEBUT_BLOC];
@@ -93,6 +93,12 @@ final class ConfigWordPress
             // Version gelée : aucune mise à jour automatique (WordPress, extensions, thèmes).
             $lignes[] = "define('AUTOMATIC_UPDATER_DISABLED', true);";
             $lignes[] = "define('WP_AUTO_UPDATE_CORE', false);";
+        }
+        if (($reglages['lecture_seule'] ?? false) === true) {
+            // Épreuve close : le module du portail (wp-content/mu-plugins) refuse tout enregistrement ;
+            // aucune extension ni aucun thème ne peut être ajouté, modifié ou mis à jour.
+            $lignes[] = "define('PORTAIL_LECTURE_SEULE', true);";
+            $lignes[] = "define('DISALLOW_FILE_MODS', true);";
         }
         $lignes[] = self::FIN_BLOC;
 
@@ -109,6 +115,16 @@ final class ConfigWordPress
         }
 
         return str_contains(substr($contenu, $debut, $fin - $debut), "'AUTOMATIC_UPDATER_DISABLED', true");
+    }
+
+    /** Le site est-il en lecture seule (épreuve close) d'après son fichier ? */
+    public static function estLectureSeule(string $contenu): bool
+    {
+        $debut = strpos($contenu, self::DEBUT_BLOC);
+        $fin = strpos($contenu, self::FIN_BLOC);
+
+        return $debut !== false && $fin !== false && $fin > $debut
+            && str_contains(substr($contenu, $debut, $fin - $debut), "'PORTAIL_LECTURE_SEULE', true");
     }
 
     /**

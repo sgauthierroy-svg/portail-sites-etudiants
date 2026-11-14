@@ -44,6 +44,20 @@
   });
 
   /*
+   * Case « Tout cocher » (demande du 14/11/2026) : coche ou décoche les cases actives du tableau.
+   * Les étudiants sans case (empêchement) ne sont jamais cochés ; sans JavaScript, on coche une à une.
+   */
+  document.querySelectorAll('input[data-tout-cocher]').forEach(function (tout) {
+    var tableau = tout.closest('table');
+    if (!tableau || !tableau.tBodies[0]) { return; }
+    tout.addEventListener('change', function () {
+      tableau.tBodies[0].querySelectorAll('input[type="checkbox"][name="coches[]"]:not(:disabled)').forEach(function (c) {
+        c.checked = tout.checked;
+      });
+    });
+  });
+
+  /*
    * Mots de passe : case « Afficher » sous chaque formulaire qui en contient
    * (demande du 11/11/2026 : voir ce qu'on saisit pour pouvoir l'enregistrer).
    * Les champs redeviennent masqués à l'envoi du formulaire.
