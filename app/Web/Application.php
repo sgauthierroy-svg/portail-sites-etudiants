@@ -23,6 +23,7 @@ use Portail\Securite\Horloge;
 use Portail\Sites\MiseALecart;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\EpreuveSujet;
+use Portail\Sites\PreparationWordPress;
 use Portail\Sites\PreparationPrestaShop;
 use Portail\Sites\Releve;
 use Portail\Sites\SiteModele;
@@ -89,6 +90,7 @@ final class Application
             '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
             '/sites' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->voirTout($requete, $moi)),
             '/sites/prestashop' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerPrestaShop($requete, $moi)),
+            '/sites/wordpress' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerWordPress($requete, $moi)),
             '/sites/sujet' => $this->pageConnectee($requete, Droits::SUJETS_EXAMEN, fn (Compte $moi) => $this->siteModele($requete, $moi)),
             '/bibliotheque' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
             // Ancienne adresse des documents (réunis dans la bibliothèque le 11/11/2026).
@@ -148,6 +150,40 @@ final class Application
         }
 
         return new Reponse(200, PagesSites::creerPrestaShop($this->session->jeton(), $preparation->sessions(), $preparation->paquets(), $sessionChoisie,
+            $sessionChoisie === null ? null : $preparation->etudiants($sessionChoisie), Releve::dernier($this->pdo), $erreur));
+    }
+
+    // ===== V2, lot 5 : création des WordPress /WP =====
+
+    private function creerWordPress(Requete $requete, Compte $moi): Reponse
+    {
+        $preparation = new PreparationWordPress($this->pdo);
+        $sessionChoisie = null;
+        $erreur = null;
+        if ($requete->methode === 'POST') {
+            $sessionChoisie = self::idFacultatif($requete->champ('session'));
+            switch ($requete->champ('action')) {
+                case 'afficher':
+                    break;
+                case 'lancer':
+                    try {
+                        return Reponse::redirection('/travaux/' . $preparation->lancer($sessionChoisie ?? 0, $requete->liste('coches'), $moi, $requete->adresseIp));
+                    } catch (ErreurSaisie $e) {
+                        $erreur = $e->getMessage();
+                    }
+                    break;
+                default:
+                    return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        $sessions = $preparation->sessions();
+        if ($sessionChoisie !== null && !in_array($sessionChoisie, array_column($sessions, 'id'), true)) {
+            $sessionChoisie = null;
+        }
+
+        return new Reponse(200, PagesSites::creerWordPress($this->session->jeton(), $sessions, $sessionChoisie,
             $sessionChoisie === null ? null : $preparation->etudiants($sessionChoisie), Releve::dernier($this->pdo), $erreur));
     }
 

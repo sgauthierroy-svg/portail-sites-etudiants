@@ -26,6 +26,16 @@ final class Cpanel implements ServeurCpanel
         return $this->sousDomaines;
     }
 
+    public function creerSousDomaine(string $identifiant): void
+    {
+        if (preg_match('/^[a-z0-9]{2,63}$/D', $identifiant) !== 1) {
+            throw new RuntimeException('Identifiant de sous-domaine refusé.');
+        }
+        $this->appeler(['SubDomain', 'addsubdomain', 'domain=' . $identifiant, 'rootdomain=' . Releve::DOMAINE,
+            'dir=' . $identifiant . '.' . Releve::DOMAINE]);
+        $this->sousDomaines = null;
+    }
+
     public function creerBase(string $base): void
     {
         $this->appeler(['Mysql', 'create_database', 'name=' . self::nom($base)]);

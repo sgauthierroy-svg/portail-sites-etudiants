@@ -346,6 +346,15 @@ final class PrestaShopTest extends TestCase
                 return $this->test->cpanel['sousDomaines'];
             }
 
+            public function creerSousDomaine(string $identifiant): void
+
+            {
+
+                throw new RuntimeException('Création de sous-domaine non prévue dans ce test.');
+
+            }
+
+
             public function creerBase(string $base): void
             {
                 $this->noter('creerBase ' . $base);

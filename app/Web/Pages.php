@@ -84,6 +84,7 @@ final class Pages
         'documents' => '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
         'motdepasse' => '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/>',
         'sujet' => '<path d="M6 3h9l3 3v15H6z"/><path d="M9 13l2 2 4-4"/>',
+        'wordpress' => '<circle cx="12" cy="12" r="9"/><path d="M3.6 8.5h16.8M6 9l3.5 10L12 12l2.5 7L18 9"/>',
     ];
 
     public static function icone(string $nom, string $classe = 'i'): string
@@ -103,6 +104,7 @@ final class Pages
             $liste[] = ['/travaux', 'travaux', 'Travaux en cours', 'Les travaux demandés au serveur et leur avancement, étudiant par étudiant.'];
         }
         if (Droits::peut($compte->role, Droits::CREER_SITE)) {
+            $liste[] = ['/sites/wordpress', 'wordpress', 'Créer des WordPress', 'Sous-domaine et WordPress /WP d’un nouvel étudiant, accès envoyés par e-mail.'];
             $liste[] = ['/sites/prestashop', 'boutique', 'Créer des boutiques', 'PrestaShop d’entraînement pour une session, accès envoyés par e-mail.'];
         }
         if (Droits::peut($compte->role, Droits::SUJETS_EXAMEN)) {
@@ -139,7 +141,7 @@ final class Pages
             $actif = $adresse === $chemin || ($adresse === '/etudiants' && preg_match('#^/etudiants/[0-9]+$#', $chemin) === 1)
                 || ($adresse === '/comptes' && str_starts_with($chemin, '/comptes/'))
                 || ($adresse === '/travaux' && str_starts_with($chemin, '/travaux/'));
-            $actif = $actif && !($adresse === '/sites' && in_array($chemin, ['/sites/prestashop', '/sites/sujet'], true));
+            $actif = $actif && !($adresse === '/sites' && in_array($chemin, ['/sites/prestashop', '/sites/sujet', '/sites/wordpress'], true));
             $liens .= '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . '</a>';
         }
 

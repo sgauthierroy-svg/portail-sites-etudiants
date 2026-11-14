@@ -18,13 +18,13 @@ final class WpCli implements LigneWordPress
     {
     }
 
-    public function lancer(string $chemin, array $arguments, int $delaiSecondes = 300): string
+    public function lancer(string $chemin, array $arguments, int $delaiSecondes = 300, #[\SensitiveParameter] array $environnement = []): string
     {
         if ($arguments === []) {
             throw new RuntimeException('Commande WP-CLI vide.');
         }
         $resultat = Commande::lancer(array_merge([PHP_BINARY, $this->programme, '--path=' . $chemin, '--skip-plugins', '--skip-themes', '--no-color'],
-            $arguments), $delaiSecondes, $chemin);
+            $arguments), $delaiSecondes, $chemin, $environnement);
         if ($resultat['code'] !== 0) {
             $lignes = array_slice(array_filter(explode("\n", trim($resultat['erreurs'] . "\n" . $resultat['sortie']))), -2);
             throw new RuntimeException('WP-CLI (' . $arguments[0] . ' ' . ($arguments[1] ?? '') . ') a échoué : '
