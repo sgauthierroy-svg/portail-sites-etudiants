@@ -155,7 +155,14 @@ Sur la fiche de l'étudiant, rubrique « Réinitialiser un site » (**enseignant
 
 ## Filtre des listes (15/11/2026)
 
-Au-dessus de chaque liste de plus de 5 lignes (étudiants, « Voir tout », comptes, créations, déploiement, épreuve, certificats) : une zone « Filtrer » ne garde que les lignes qui contiennent le texte tapé (sans tenir compte des majuscules ni des accents) et affiche « n ligne(s) sur N ». Le tri par clic sur l'en-tête reste possible. Avec un filtre, « Tout cocher » ne coche que les lignes affichées.
+Au-dessus de chaque liste de plus de 5 lignes (étudiants, « Voir tout », comptes, créations, déploiement, épreuve, certificats), une bande de filtre :
+
+- un menu par colonne qui n'a que quelques valeurs différentes (par exemple Régime, Session, Année, État), avec « (tous) » par défaut ;
+- une zone « Texte » : chaque mot tapé doit se trouver quelque part dans la ligne (sans tenir compte des majuscules ni des accents) ;
+- tous les critères s'ajoutent : par exemple Régime « NDRC ALT » et Session « 2026-2028 » ;
+- « n ligne(s) sur N » s'affiche, et « Effacer » remet la liste entière.
+
+Le tri par clic sur l'en-tête reste possible. Avec un filtre, « Tout cocher » ne coche que les lignes affichées.
 
 ## Certificats https : suivi et relance (administrateur, 14/11/2026)
 

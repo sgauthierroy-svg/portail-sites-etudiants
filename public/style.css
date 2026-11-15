@@ -193,5 +193,7 @@ th button.tri:focus-visible { outline: 3px solid var(--texte); outline-offset: 2
 }
 
 /* Filtre des listes (15/11/2026) */
-.filtre { margin: .5rem 0; }
-.filtre input[type="search"] { min-width: 16rem; padding: .35rem .5rem; border: 1px solid #bbb; border-radius: 6px; font: inherit; }
+.filtre { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin: .5rem 0; padding: .5rem .75rem; background: #f6f7f9; border-radius: 8px; }
+.filtre label { display: inline-flex; align-items: center; gap: .35rem; font-weight: 600; }
+.filtre select, .filtre input[type="search"] { padding: .3rem .5rem; border: 1px solid #bbb; border-radius: 6px; font: inherit; font-weight: normal; background: #fff; }
+.filtre input[type="search"] { min-width: 12rem; }
