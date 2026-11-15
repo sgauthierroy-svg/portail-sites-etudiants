@@ -145,13 +145,43 @@ Menu « Créer des WordPress » (administrateur, enseignants, administratif) : c
 
 ## Réinitialiser un WordPress ou une boutique (V2, lot 5, 15/11/2026)
 
-Sur la fiche de l'étudiant, rubrique « Réinitialiser un site » (**enseignants et administrateur** ; l'administratif passe par une demande à l'administrateur). Un bouton par site présent (`/WP`, `/Presta` créée par le portail), avec une case de confirmation obligatoire.
+Sur la fiche de l'étudiant, rubrique « Réinitialiser un site » (**enseignants et administrateur** ; l'administratif passe par une demande à l'administrateur, voir « Demandes »). Un bouton par site présent (`/WP`, `/Presta` créée par le portail), avec une case de confirmation obligatoire.
 
 - **Effet** : le site repart de zéro, exactement comme à la création (WordPress : mêmes réglages que « Créer des WordPress », version de la session si elle est fixée, sinon la dernière ; boutique : version PrestaShop de la session). Le site neuf est construit à part ; le site actuel n'est remplacé qu'à la fin et **mis à l'écart 8 jours** (`~/archives_suppression/portail/`, avec sa base), puis effacé par la purge. En cas d'échec, le site actuel reste (ou est remis) à sa place.
 - **Accès** (décision du 15/11/2026) : nouveau mot de passe tiré au hasard ; e-mail à l'étudiant (« … a été réinitialisé, nouveaux accès à conserver ») ; à la fin du travail, récapitulatif aux colonnes de la feuille envoyé à **l'adresse d'alerte et aux enseignants actifs**. Même identifiant qu'avant.
 - **Le site est-il bien celui de l'étudiant ?** Un `/WP` créé par le portail, oui. Un `/WP` plus ancien (scripts) n'est réinitialisé que s'il a un compte WordPress à l'identifiant WordPress de l'étudiant ou à son e-mail ; sinon l'étape est refusée, rien n'est touché. Une boutique n'est réinitialisée que si le portail l'a créée.
 - **Ancienne base** : celle du portail, ou celle de `wp-config.php` si elle est propre à l'étudiant (`jafl3067_identifiant…`) ; l'utilisateur partagé `jafl3067_peda` des scripts n'est jamais effacé. Depuis le 15/11/2026, la purge n'efface jamais une base encore citée par **l'un des sites en place de l'étudiant** (/WP, /WP2, /Presta, /Presta2).
 - **Redoublants** (décision du 07/11/2026) : après un changement de session vers une session plus tardive, la fiche le rappelle — 1re année : WordPress à réinitialiser ; 2e année : boutique à réinitialiser, WordPress gardé. Le rappel disparaît une fois le site refait.
+
+## Demandes à l'administrateur (lot 5, paquet B, 15/11/2026)
+
+Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administrateur seul décide.
+
+- **Demander** : fiche de l'étudiant, rubrique « Demander à l'administrateur ». Choix : supprimer un de ses sites (/WP, /WP2, /Presta, /Presta2), supprimer l'étudiant (tous ses sites et son sous-domaine), ou, pour l'administratif, réinitialiser le WordPress ou la boutique. **Motif obligatoire** (3 à 300 caractères ; propositions : départ, abandon, fin de formation, redoublement…). Une demande identique déjà en attente est refusée.
+- **E-mails** : à l'adresse d'alerte pour chaque nouvelle demande ; au demandeur pour la décision. Ni nom d'étudiant, ni motif dans ces e-mails : le détail est dans le portail.
+- **Signalement** : compteur à côté de « Demandes » dans le menu et sur la tuile d'accueil de l'administrateur ; étiquette « Suppression demandée » ou « Réinitialisation demandée » sur la ligne de l'étudiant dans « Voir tout », et rubrique « Demandes en attente » sur sa fiche.
+- **Traiter** (page « Demandes », administrateur) : demandes groupées par type, case « Tout cocher » et filtre. Cocher une demande (une par une) ou plusieurs (par lot), puis « Valider la sélection » ou « Refuser la sélection ».
+  - Valider des suppressions : taper `SUPPRIMER` dans la case de confirmation. Les suppressions d'étudiants validées ensemble font **un seul travail** (exemple : toute une session en fin de 2e année), traité un étudiant à la fois.
+  - Valider une réinitialisation : le travail habituel (« Réinitialiser un site ») est inscrit.
+  - Une demande qui ne peut pas être lancée (travail déjà prévu, site disparu…) reste en attente, avec la raison affichée.
+  - Refuser : commentaire obligatoire, transmis au demandeur.
+- **Mes demandes** : chaque demandeur suit ses demandes (en attente, validée avec le numéro du travail, refusée avec le commentaire, annulée) et peut annuler les siennes tant qu'elles sont en attente.
+
+## Supprimer un site ou un étudiant, restaurer (lot 5, paquet B, 15/11/2026)
+
+**Administrateur seul** (décision du 29/10/2026), sur la fiche de l'étudiant (rubrique « Supprimer (administrateur) ») ou en validant une demande.
+
+- **Confirmation** : sur la fiche, choisir le site ou l'étudiant, puis **taper l'identifiant de l'étudiant** ; par lot, taper `SUPPRIMER`. Un étudiant qui a déjà un travail prévu ne peut pas être supprimé avant la fin de ce travail. Les sites protégés ne sont jamais proposés.
+- **Rien n'est effacé tout de suite** (décision du 15/11/2026 : tout, restaurable 8 jours).
+  - **Un site** : son dossier est mis à l'écart 8 jours dans `~/archives_suppression/portail/`, sa base et son utilisateur MySQL restent en place.
+  - **Un étudiant** : le dossier entier du sous-domaine est mis à l'écart, la fiche quitte toutes les listes, et le portail note toutes ses bases et tous ses utilisateurs MySQL. Les bases notées sont celles du portail, celles de ses fichiers de réglages si elles sont à son nom, et toutes celles de CPanel au nom exact `jafl3067_identifiant` ou `jafl3067_identifiant_…`, comme `nettoyage_etudiants.sh`. La base partagée `jafl3067_peda` et les bases protégées ne sont jamais retenues.
+  - **Le sous-domaine** reste dans CPanel pendant les 8 jours ; son adresse ne montre plus de site. L'identifiant reste réservé : ni « Ajouter un étudiant », ni l'import ne peuvent le reprendre (l'import l'indique en rouge). Dans « Voir tout », il est listé à part, avec sa date d'effacement.
+- **Restaurer** : page « Demandes », rubrique « Suppressions restaurables », bouton « Restaurer » (administrateur). Le dossier reprend sa place tel quel, avec ses bases. Pour un étudiant, sa fiche, ses sites et son relevé reviennent ; si son sous-domaine a été retiré de CPanel entre-temps (à la main), il est recréé et son certificat redemandé. La restauration est refusée si quelque chose occupe déjà la place.
+- **Au bout des 8 jours**, le travailleur efface, quand il n'a pas d'autre travail, une mise à l'écart à la fois.
+  - Pour un site : le dossier, la base et l'utilisateur, sauf s'ils servent encore à un site en place de l'étudiant.
+  - Pour un étudiant : le dossier, toutes les bases et tous les utilisateurs notés, puis le renouvellement de son certificat (`acme.sh --remove`) et son **sous-domaine dans CPanel**.
+  - **Retrait du sous-domaine** : UAPI n'a pas de fonction pour le faire (documentation de CPanel, SubDomain::delsubdomain). Le portail utilise donc la fonction de l'API 2, au format `identifiant_bts-sup-sallanches.com`. Il passe d'abord par la commande `cpapi2` du serveur ; à défaut, comme `nettoyage_etudiants.sh`, par un jeton temporaire, détruit aussitôt après. Le résultat est vérifié en relisant la liste des sous-domaines.
+  - **En cas d'échec** : l'effacement est réessayé le lendemain, et l'échec est inscrit au journal (« effacement d'une mise à l'écart »). Si le sous-domaine reste, le retirer à la main : CPanel, Domaines, Gérer, Supprimer.
 
 ## Filtre des listes (15/11/2026)
 
@@ -246,6 +276,8 @@ Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la b
 | Comptes non confirmés depuis 6 mois (le lundi) | adresse d'alerte |
 | Certificat d'un sous-domaine créé par le portail toujours pas posé après 6 essais | adresse d'alerte |
 | Certificats à surveiller (le lundi, seulement s'il y a un problème) | adresse d'alerte |
+| Nouvelle demande à l'administrateur (type et demandeur seulement) | adresse d'alerte |
+| Décision sur ses demandes (nombres et commentaire de refus) | le demandeur seul |
 
 Aucun e-mail ne contient de mot de passe ni de donnée d'étudiant.
 

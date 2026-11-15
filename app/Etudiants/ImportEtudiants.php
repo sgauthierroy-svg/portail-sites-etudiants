@@ -197,6 +197,11 @@ final class ImportEtudiants
             $rouge[] = 'Identifiant réservé à un site protégé.';
         }
 
+        $supprime = $formeSousDomaine ? \Portail\Sites\MiseALecart::suppressionEnCours($this->pdo, $identifiant) : null;
+        if ($supprime !== null) {
+            $rouge[] = 'Étudiant supprimé, restaurable jusqu\'au ' . gmdate('d/m/Y', (int) strtotime($supprime))
+                . ' : le restaurer depuis la page « Demandes » (administrateur) plutôt que de le réimporter.';
+        }
         $existant = $formeSousDomaine ? $this->existant($identifiant) : null;
         $existantId = null;
         if ($existant !== null) {

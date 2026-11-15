@@ -52,6 +52,10 @@ $travailleur = new \Portail\Travaux\Travailleur($pdo, $alertes, [
         new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, $personnel, $temporaire),
     'reinitialiser_wordpress' => new \Portail\Travaux\ExecutantCreerWordPress($pdo, $cpanel, new \Portail\Sites\WpCli(), new \Portail\Sites\AcmeSh($personnel),
         new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, $personnel, $temporaire, $ecart, true),
+    // Lot 5, paquet B : suppressions par l'administrateur (restaurables 8 jours) et restauration.
+    'supprimer_site' => new \Portail\Travaux\ExecutantSupprimer($pdo, $cpanel, $ecart, $personnel, false),
+    'supprimer_etudiant' => new \Portail\Travaux\ExecutantSupprimer($pdo, $cpanel, $ecart, $personnel, true),
+    'restaurer' => new \Portail\Travaux\ExecutantRestaurer($pdo, $cpanel, $ecart, $personnel),
 ]);
 // 50 secondes de nouvelles étapes au plus : la tâche suivante (dans une minute) reprend la suite.
 $faites = $travailleur->tourner(50);
@@ -60,7 +64,8 @@ if ($faites === 0) {
     $lecture = $pdo->prepare("SELECT valeur FROM parametres WHERE cle = 'bases_protegees'");
     $lecture->execute();
     $bases = \Portail\Base\Lecture::tableau(json_decode((string) \Portail\Base\Lecture::texte($lecture->fetchColumn()), true)) ?? [];
-    $ecart->purgerUne($cpanel, array_values(array_filter($bases, 'is_string')));
+    // Étudiant supprimé : ses bases, ses utilisateurs MySQL et son sous-domaine sont effacés à cette échéance.
+    $ecart->purgerUne($cpanel, array_values(array_filter($bases, 'is_string')), null, $cpanel, new \Portail\Sites\AcmeSh($personnel));
     // Certificats des sous-domaines créés par le portail, pas encore posés : un essai à la fois, toutes les 20 minutes.
     (new \Portail\Sites\RelanceCertificats($pdo))->relancerUn(new \Portail\Sites\AcmeSh($personnel), $cpanel, $personnel, $alertes);
     // Vérification des certificats comme un navigateur : une fois par jour, ou à la demande de l'administrateur, par lots.

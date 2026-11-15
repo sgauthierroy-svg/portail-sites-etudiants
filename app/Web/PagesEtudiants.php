@@ -69,7 +69,7 @@ final class PagesEtudiants
         }
         $html = '<h2>Réinitialiser un site</h2>'
             . ($etat['suggestion'] === null ? '' : '<p class="alerte">' . Html::e($etat['suggestion']) . '</p>')
-            . '<p>Le site repart de zéro, comme à la création. Le site actuel est gardé 8 jours (« Restaurer »). '
+            . '<p>Le site repart de zéro, comme à la création. Le site actuel est gardé 8 jours. '
             . 'L\'étudiant reçoit ses nouveaux accès par e-mail ; l\'administrateur et les enseignants reçoivent le récapitulatif pour la feuille.</p>';
         if ($etat['prevu']) {
             return $html . '<p><span class="badge neutre">réinitialisation déjà prévue</span> — voir <a href="/travaux">Travaux en cours</a>.</p>';
@@ -139,10 +139,11 @@ final class PagesEtudiants
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
      * @param list<array{date: string, champ: string, ancienne: ?string, nouvelle: ?string, auteur: ?string}> $historique
      * @param ?array{wordpress: bool, prestashop: bool, prevu: bool, suggestion: ?string} $reinitialisation Réinitialisations possibles (enseignant, administrateur)
+     * @param string $blocDemandes HTML déjà échappé (PagesDemandes)
      * @param list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool, date: string}> $sites
      */
     public static function fiche(string $jeton, Compte $moi, Etudiant $etudiant, array $regimes, array $sessions, array $historique,
-        int $maintenant, ?string $erreur, ?string $information, array $sites = [], ?array $reinitialisation = null): string
+        int $maintenant, ?string $erreur, ?string $information, array $sites = [], ?array $reinitialisation = null, string $blocDemandes = ''): string
     {
         $action = '/etudiants/' . $etudiant->id;
         $contenu = Pages::alerte($erreur, $information)
@@ -217,6 +218,8 @@ final class PagesEtudiants
         if ($reinitialisation !== null && Droits::peut($moi->role, Droits::REINITIALISER_SITE)) {
             $contenu .= self::reinitialisation($jeton, $action, $reinitialisation);
         }
+        // Demandes en attente, suppression (administrateur) ou demande à l'administrateur (lot 5, paquet B) : déjà échappé par PagesDemandes.
+        $contenu .= $blocDemandes;
         $contenu .= '<h2>Parcours</h2>'
             . ($lignes === '' ? '<p>Aucun changement depuis l\'ajout.</p>'
                 : '<table><thead><tr><th>Date</th><th>Changement</th><th>Avant → après</th><th>Par</th></tr></thead><tbody>' . $lignes . '</tbody></table>')

@@ -26,6 +26,9 @@ final class Pages
         self::$cadre = ['compte' => $compte, 'jeton' => $jeton, 'chemin' => $chemin];
     }
 
+    /** Demandes en attente, affichées à côté de « Demandes » dans le menu de l'administrateur (lot 5, paquet B). */
+    public static int $demandesEnAttente = 0;
+
     /** Rechargement automatique de la page, en secondes (0 : jamais). Sert au suivi des travaux. */
     public static int $rafraichir = 0;
 
@@ -33,6 +36,7 @@ final class Pages
     {
         self::$cadre = null;
         self::$rafraichir = 0;
+        self::$demandesEnAttente = 0;
     }
 
     public static function page(string $titre, string $contenu): string
@@ -85,6 +89,7 @@ final class Pages
         'motdepasse' => '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/>',
         'sujet' => '<path d="M6 3h9l3 3v15H6z"/><path d="M9 13l2 2 4-4"/>',
         'certificat' => '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+        'demandes' => '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
         'wordpress' => '<circle cx="12" cy="12" r="9"/><path d="M3.6 8.5h16.8M6 9l3.5 10L12 12l2.5 7L18 9"/>',
     ];
 
@@ -103,6 +108,11 @@ final class Pages
         if (Droits::peut($compte->role, Droits::CONSULTER)) {
             $liste[] = ['/sites', 'sites', 'Voir tout', 'Une ligne par étudiant, une colonne par site, d’après le dernier relevé du serveur.'];
             $liste[] = ['/travaux', 'travaux', 'Travaux en cours', 'Les travaux demandés au serveur et leur avancement, étudiant par étudiant.'];
+        }
+        if (Droits::peut($compte->role, Droits::DEMANDER)) {
+            $liste[] = ['/demandes', 'demandes', 'Demandes', Droits::peut($compte->role, Droits::TRAITER_DEMANDES)
+                ? 'Valider ou refuser les demandes de suppression et de réinitialisation ; restaurer une suppression récente.'
+                : 'Suivre vos demandes de suppression ou de réinitialisation à l’administrateur.'];
         }
         if (Droits::peut($compte->role, Droits::CREER_SITE)) {
             $liste[] = ['/sites/wordpress', 'wordpress', 'Créer des WordPress', 'Sous-domaine et WordPress /WP d’un nouvel étudiant, accès envoyés par e-mail.'];
@@ -146,7 +156,9 @@ final class Pages
                 || ($adresse === '/comptes' && str_starts_with($chemin, '/comptes/'))
                 || ($adresse === '/travaux' && str_starts_with($chemin, '/travaux/'));
             $actif = $actif && !($adresse === '/sites' && in_array($chemin, ['/sites/prestashop', '/sites/sujet', '/sites/wordpress', '/sites/certificats'], true));
-            $liens .= '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . '</a>';
+            $compteur = $adresse === '/demandes' && self::$demandesEnAttente > 0
+                ? ' <span class="compteur" aria-label="' . self::$demandesEnAttente . ' en attente">' . self::$demandesEnAttente . '</span>' : '';
+            $liens .= '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . $compteur . '</a>';
         }
 
         return '<nav class="nav" aria-label="Menu principal">' . $liens . '</nav>';
@@ -245,8 +257,9 @@ final class Pages
         }
         $tuiles = '';
         foreach (array_slice(self::destinations($compte), 1) as [$adresse, $icone, $libelle, $description]) {
+            $compteur = $adresse === '/demandes' && self::$demandesEnAttente > 0 ? ' <span class="compteur">' . self::$demandesEnAttente . ' en attente</span>' : '';
             $tuiles .= '<a class="tuile" href="' . $adresse . '"><span class="ico">' . self::icone($icone, 'i m') . '</span>'
-                . '<span class="tuile-texte"><span class="tuile-titre">' . Html::e($libelle) . '</span><span>' . Html::e($description) . '</span></span></a>';
+                . '<span class="tuile-texte"><span class="tuile-titre">' . Html::e($libelle) . $compteur . '</span><span>' . Html::e($description) . '</span></span></a>';
         }
 
         return self::page('Portail des sites étudiants',

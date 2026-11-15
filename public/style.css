@@ -197,3 +197,13 @@ th button.tri:focus-visible { outline: 3px solid var(--texte); outline-offset: 2
 .filtre label { display: inline-flex; align-items: center; gap: .35rem; font-weight: 600; }
 .filtre select, .filtre input[type="search"] { padding: .3rem .5rem; border: 1px solid #bbb; border-radius: 6px; font: inherit; font-weight: normal; background: #fff; }
 .filtre input[type="search"] { min-width: 12rem; }
+
+/* Lot 5, paquet B : suppression (bouton rouge), choix sur la fiche, compteur des demandes. */
+button.btn-danger { background: var(--err-texte); border-color: var(--err-texte); color: #fff; }
+button.btn-danger:hover { background: #6f150f; border-color: #6f150f; }
+fieldset { border: 1px solid var(--trait-fort); border-radius: 12px; padding: .75rem 1rem; margin: .75rem 0; }
+fieldset legend { font-weight: 600; padding: 0 .4rem; }
+label.choix { display: inline-flex; gap: .5rem; align-items: baseline; margin: .2rem 0; }
+.compteur { display: inline-flex; align-items: center; justify-content: center; min-width: 1.4rem; padding: 0 .4rem; margin-left: .35rem;
+  border-radius: 999px; background: var(--orange); color: var(--texte); font-size: 13px; font-weight: 700; }
+p.boutons { display: flex; flex-wrap: wrap; gap: .75rem; }

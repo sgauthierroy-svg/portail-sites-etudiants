@@ -29,9 +29,12 @@ final class PagesTravaux
      * @param list<array{id: int, nom: string, actif: bool}> $regimes
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
      * @param array<string, string> $horsGel identifiant => raison
+     * @param array<string, list<string>> $etiquettes identifiant => demandes en attente
+     * @param array<string, string> $supprimes identifiant => date d'effacement (étudiants supprimés, restaurables)
      */
     public static function voirTout(string $jeton, Compte $moi, array $etudiants, array $sites, array $sousDomaines, ?string $dernierReleve,
-        ?int $relevePrevu, array $regimes, array $sessions, ?int $regimeChoisi, ?int $sessionChoisie, ?string $information, array $horsGel = []): string
+        ?int $relevePrevu, array $regimes, array $sessions, ?int $regimeChoisi, ?int $sessionChoisie, ?string $information, array $horsGel = [],
+        array $etiquettes = [], array $supprimes = []): string
     {
         $colonnes = self::COLONNES;
         foreach ($etudiants as $etudiant) {
@@ -50,6 +53,10 @@ final class PagesTravaux
         $lignes = '';
         foreach ($etudiants as $etudiant) {
             $nom = $fiches ? '<a href="/etudiants/' . $etudiant->id . '">' . Html::e($etudiant->nomComplet) . '</a>' : Html::e($etudiant->nomComplet);
+            // Demandes en attente (décision du 05/11/2026) : « Suppression demandée », « Réinitialisation demandée ».
+            foreach ($etiquettes[$etudiant->identifiant] ?? [] as $etiquette) {
+                $nom .= ' <span class="badge warn">' . Html::e($etiquette) . '</span>';
+            }
             $lignes .= '<tr><td>' . $nom . '</td><td>' . Html::e($etudiant->classe()) . '</td><td>'
                 . (isset($existants[$etudiant->identifiant]) ? '<span class="badge ok">oui</span>' : '<span class="badge neutre">absent</span>') . '</td>';
             foreach ($colonnes as $dossier) {
@@ -71,13 +78,19 @@ final class PagesTravaux
         $orphelins = '';
         if ($fiches && $regimeChoisi === null && $sessionChoisie === null) {
             // Le site modèle d'examen a sa propre page : il n'est pas un « sous-domaine sans étudiant ».
-            $sans = array_values(array_filter($sousDomaines, static fn (string $i): bool => !isset($connus[$i]) && $i !== \Portail\Sites\SiteModele::IDENTIFIANT));
+            $sans = array_values(array_filter($sousDomaines, static fn (string $i): bool => !isset($connus[$i]) && !isset($supprimes[$i])
+                && $i !== \Portail\Sites\SiteModele::IDENTIFIANT));
             if (in_array(\Portail\Sites\SiteModele::IDENTIFIANT, $sousDomaines, true)) {
                 $orphelins .= '<p>Site modèle d\'examen : <code>' . \Portail\Sites\SiteModele::IDENTIFIANT . '</code>'
                     . (Droits::peut($moi->role, Droits::SUJETS_EXAMEN) ? ' (<a href="/sites/sujet">sa page</a>)' : '') . '.</p>';
             }
+            if ($supprimes !== []) {
+                $orphelins .= '<p>Étudiants supprimés, restaurables (page <a href="/demandes">Demandes</a>) : '
+                    . implode(', ', array_map(static fn (string $i, string $fin): string => '<code>' . Html::e($i) . '</code> jusqu\'au '
+                        . Html::e(gmdate('d/m/Y', (int) strtotime($fin))), array_keys($supprimes), array_values($supprimes))) . '.</p>';
+            }
             if ($sans !== []) {
-                $orphelins = '<h2>Sous-domaines sans étudiant dans le portail (' . count($sans) . ')</h2>'
+                $orphelins .= '<h2>Sous-domaines sans étudiant dans le portail (' . count($sans) . ')</h2>'
                     . '<p>Anciens étudiants, étudiants pas encore importés, ou outils de l\'établissement. Rien n\'est fait sur eux.</p>'
                     . '<p>' . implode(', ', array_map(static fn (string $i): string => '<code>' . Html::e($i) . '</code>', $sans)) . '</p>';
             }

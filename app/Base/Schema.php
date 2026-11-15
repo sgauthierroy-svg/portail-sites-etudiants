@@ -423,6 +423,36 @@ final class Schema
                 );
                 INSERT INTO verification_certificats (id) VALUES (1);
                 SQL,
+            // V2, lot 5, paquet B (15/11/2026). Suppression d'un site ou d'un étudiant par l'administrateur seul,
+            // restaurable 8 jours (décision du 15/11/2026 : tout, sous-domaine compris). Une mise à l'écart
+            // « restaurable » garde dans contenu ce qu'il faut pour revenir en arrière (fiche de l'étudiant, lignes des
+            // sites, bases et utilisateurs MySQL à effacer au bout des 8 jours). dossier = '/Sousdomaine' : le dossier
+            // entier du sous-domaine ; le sous-domaine lui-même n'est retiré de CPanel qu'à l'effacement.
+            // Demandes à l'administrateur (décision du 05/11/2026) : motif obligatoire, validées ou refusées par lui.
+            14 => <<<SQL
+                ALTER TABLE mises_a_l_ecart ADD COLUMN restaurable INTEGER NOT NULL DEFAULT 0 CHECK (restaurable IN (0, 1));
+                ALTER TABLE mises_a_l_ecart ADD COLUMN contenu TEXT NULL CHECK (contenu IS NULL OR length(contenu) <= 20000);
+                ALTER TABLE mises_a_l_ecart ADD COLUMN restaure_le TEXT NULL;
+
+                CREATE TABLE demandes (
+                    id              INTEGER PRIMARY KEY,
+                    type            TEXT NOT NULL CHECK (type IN ('supprimer_site', 'supprimer_etudiant', 'reinitialiser_wordpress', 'reinitialiser_prestashop')),
+                    identifiant     TEXT NOT NULL CHECK (length(identifiant) BETWEEN 2 AND 63 AND identifiant NOT GLOB '*[^a-z0-9]*'),
+                    dossier         TEXT NULL CHECK (dossier IS NULL OR dossier IN ('/WP', '/WP2', '/Presta', '/Presta2')),
+                    motif           TEXT NOT NULL CHECK (length(motif) BETWEEN 3 AND 300),
+                    demande_le      TEXT NOT NULL DEFAULT ({$maintenant}),
+                    demande_par     INTEGER NULL REFERENCES comptes (id) ON DELETE SET NULL,
+                    demande_par_nom TEXT NOT NULL CHECK (length(demande_par_nom) BETWEEN 1 AND 100),
+                    etat            TEXT NOT NULL DEFAULT 'en_attente' CHECK (etat IN ('en_attente', 'validee', 'refusee', 'annulee')),
+                    traitee_le      TEXT NULL,
+                    traitee_par_nom TEXT NULL CHECK (traitee_par_nom IS NULL OR length(traitee_par_nom) <= 100),
+                    commentaire     TEXT NULL CHECK (commentaire IS NULL OR length(commentaire) <= 300),
+                    travail_id      INTEGER NULL REFERENCES travaux (id) ON DELETE SET NULL,
+                    CHECK ((type = 'supprimer_site') = (dossier IS NOT NULL))
+                );
+                CREATE UNIQUE INDEX demandes_une_en_attente ON demandes (type, identifiant, coalesce(dossier, '')) WHERE etat = 'en_attente';
+                CREATE INDEX demandes_par_etat ON demandes (etat, demande_le);
+                SQL,
         ];
     }
 

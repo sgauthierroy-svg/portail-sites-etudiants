@@ -23,15 +23,15 @@ final class SchemaTest extends TestCase
         Schema::mettreAJour($this->pdo);
     }
 
-    public function testLesVingtTablesExistent(): void
+    public function testLesVingtEtUneTablesExistent(): void
     {
         $tables = $this->pdo->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name <> 'schema_versions' ORDER BY name")
             ?->fetchAll(PDO::FETCH_COLUMN);
         self::assertSame([
-            'certificats_a_poser', 'comptes', 'documents', 'etat_certificats', 'etudiants', 'historique_etudiants', 'journal', 'mises_a_l_ecart', 'paquets', 'parametres',
+            'certificats_a_poser', 'comptes', 'demandes', 'documents', 'etat_certificats', 'etudiants', 'historique_etudiants', 'journal', 'mises_a_l_ecart', 'paquets', 'parametres',
             'regimes', 'releve_sites', 'secours_verifies', 'sessions', 'sites', 'sous_domaines', 'tentatives_connexion',
             'travaux', 'travaux_etapes', 'verification_certificats',
-        ], $tables, 'v13 (14/11/2026) : suivi des certificats');
+        ], $tables, 'v14 (15/11/2026) : demandes à l\'administrateur');
     }
 
     public function testLaMiseAJourPeutEtreRelanceeSansEffet(): void

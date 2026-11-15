@@ -64,17 +64,19 @@ final class GestionEtudiants
 
     /**
      * Un identifiant est pris s'il appartient déjà à un étudiant, à un
-     * sous-domaine ou un site relevé sur le serveur, ou à un site protégé.
+     * sous-domaine ou un site relevé sur le serveur, ou à un site protégé. Un étudiant supprimé garde son identifiant
+     * tant qu'il est restaurable (8 jours, lot 5).
      */
     public function identifiantPris(string $identifiant): bool
     {
         if (in_array($identifiant, Installation::SITES_PROTEGES, true)) {
             return true;
         }
-        $requete = $this->pdo->prepare('SELECT 1 FROM etudiants WHERE identifiant = :i
+        $requete = $this->pdo->prepare("SELECT 1 FROM etudiants WHERE identifiant = :i
             UNION SELECT 1 FROM releve_sites WHERE identifiant = :i2
-            UNION SELECT 1 FROM sous_domaines WHERE identifiant = :i3');
-        $requete->execute([':i' => $identifiant, ':i2' => $identifiant, ':i3' => $identifiant]);
+            UNION SELECT 1 FROM sous_domaines WHERE identifiant = :i3
+            UNION SELECT 1 FROM mises_a_l_ecart WHERE identifiant = :i4 AND dossier = '/Sousdomaine' AND purge_le IS NULL AND restaure_le IS NULL");
+        $requete->execute([':i' => $identifiant, ':i2' => $identifiant, ':i3' => $identifiant, ':i4' => $identifiant]);
 
         return $requete->fetchColumn() !== false;
     }

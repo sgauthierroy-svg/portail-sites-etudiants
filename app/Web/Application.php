@@ -20,7 +20,9 @@ use Portail\Journal\Journal;
 use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\Horloge;
+use Portail\Sites\Demandes;
 use Portail\Sites\MiseALecart;
+use Portail\Sites\Suppressions;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\EpreuveSujet;
 use Portail\Sites\PreparationWordPress;
@@ -100,6 +102,7 @@ final class Application
             '/documents' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => Reponse::redirection('/bibliotheque')),
             '/travaux' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travaux($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
+            '/demandes' => $this->pageConnectee($requete, Droits::DEMANDER, fn (Compte $moi) => $this->demandes($requete, $moi)),
             default => $this->pageNumerotee($requete),
         };
     }
@@ -426,7 +429,8 @@ final class Application
 
         return new Reponse(200, PagesTravaux::voirTout($this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste($regime, $session),
             Releve::parIdentifiant($this->pdo), Releve::identifiants($this->pdo), Releve::dernier($this->pdo), $file->dejaPrevu('releve'),
-            $referentiel->regimes(), $referentiel->sessions(), $regime, $session, null, Releve::horsGel($this->pdo)));
+            $referentiel->regimes(), $referentiel->sessions(), $regime, $session, null, Releve::horsGel($this->pdo),
+            (new Demandes($this->pdo))->etiquettes(), Suppressions::etudiantsSupprimes($this->pdo)));
     }
 
     private function travaux(Requete $requete, Compte $moi): Reponse
@@ -632,6 +636,21 @@ final class Application
                         return Reponse::redirection('/travaux/' . (new Reinitialisations($this->pdo))->lancer(
                             $requete->champ('action') === 'reinitialiser_wp' ? Reinitialisations::WORDPRESS : Reinitialisations::PRESTASHOP,
                             $etudiant->identifiant, $requete->champ('confirmer') === '1', $moi, $requete->adresseIp, $this->horloge->maintenant()));
+                    case 'supprimer':
+                        // Seul l'administrateur supprime (décision du 29/10/2026), en tapant l'identifiant pour confirmer.
+                        if (!Droits::peut($moi->role, Droits::SUPPRIMER)) {
+                            return $this->refuser($requete, $moi);
+                        }
+
+                        return Reponse::redirection('/travaux/' . (new Suppressions($this->pdo))->depuisFiche($etudiant->identifiant, $requete->champ('choix'),
+                            $requete->champ('confirmation'), $moi, $requete->adresseIp));
+                    case 'demander':
+                        if (!Droits::peut($moi->role, Droits::DEMANDER)) {
+                            return $this->refuser($requete, $moi);
+                        }
+                        (new Demandes($this->pdo, $this->alertes))->creer($requete->champ('choix'), $etudiant->identifiant, $requete->champ('motif'), $moi, $requete->adresseIp);
+                        $information = 'Demande envoyée à l\'administrateur. Vous serez prévenu par e-mail de sa décision (suivi : page « Demandes »).';
+                        break;
                     default:
                         return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
                 }
@@ -646,8 +665,96 @@ final class Application
 
         return new Reponse(200, PagesEtudiants::fiche($this->session->jeton(), $moi, $etudiant, $referentiel->regimes(), $referentiel->sessions(),
             $gestion->historique($etudiant->identifiant), $this->horloge->maintenant(), $erreur, $information,
-            Releve::sitesEtudiant($this->pdo, $etudiant->identifiant),
-            Droits::peut($moi->role, Droits::REINITIALISER_SITE) ? (new Reinitialisations($this->pdo))->etat($etudiant->identifiant, $this->horloge->maintenant()) : null));
+            $sites = Releve::sitesEtudiant($this->pdo, $etudiant->identifiant),
+            Droits::peut($moi->role, Droits::REINITIALISER_SITE) ? (new Reinitialisations($this->pdo))->etat($etudiant->identifiant, $this->horloge->maintenant()) : null,
+            $this->blocDemandes($moi, $etudiant->identifiant, '/etudiants/' . $etudiant->id, $sites)));
+    }
+
+    /**
+     * Fiche : demandes en attente, puis suppression directe (administrateur) ou formulaire de demande (enseignant, administratif).
+     *
+     * @param list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool, date: string}> $sites
+     */
+    private function blocDemandes(Compte $moi, string $identifiant, string $action, array $sites): string
+    {
+        $demandes = new Demandes($this->pdo);
+        $html = PagesDemandes::enAttenteFiche($demandes->enAttentePour($identifiant), Droits::peut($moi->role, Droits::TRAITER_DEMANDES));
+        $supprimables = array_values(array_filter($sites, static fn (array $s): bool => in_array($s['dossier'], Suppressions::DOSSIERS, true)));
+        if (Droits::peut($moi->role, Droits::SUPPRIMER)) {
+            $requete = $this->pdo->prepare("SELECT 1 FROM travaux_etapes WHERE cible = :i AND etat IN ('en_attente', 'en_cours') LIMIT 1");
+            $requete->execute([':i' => $identifiant]);
+
+            return $html . PagesDemandes::suppressionFiche($this->session->jeton(), $action, $identifiant, $supprimables, $requete->fetchColumn() !== false);
+        }
+        if (!Droits::peut($moi->role, Droits::DEMANDER)) {
+            return $html;
+        }
+        $choix = [];
+        foreach ($supprimables as $site) {
+            $choix['supprimer_site:' . $site['dossier']] = 'Supprimer le site ' . $site['dossier'] . ' (' . ($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ')';
+        }
+        $choix['supprimer_etudiant'] = 'Supprimer l\'étudiant (tous ses sites et son sous-domaine)';
+        if (!Droits::peut($moi->role, Droits::REINITIALISER_SITE)) {
+            $dossiers = array_column($sites, 'dossier');
+            if (in_array('/WP', $dossiers, true)) {
+                $choix['reinitialiser_wordpress'] = 'Réinitialiser le WordPress (/WP)';
+            }
+            if (in_array('/Presta', $dossiers, true)) {
+                $choix['reinitialiser_prestashop'] = 'Réinitialiser la boutique (/Presta)';
+            }
+        }
+
+        return $html . PagesDemandes::formulaireFiche($this->session->jeton(), $action, $choix);
+    }
+
+    private function demandes(Requete $requete, Compte $moi): Reponse
+    {
+        $demandes = new Demandes($this->pdo, $this->alertes);
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            try {
+                $coches = array_map('intval', $requete->liste('coches'));
+                switch ($requete->champ('action')) {
+                    case 'valider':
+                        if (!Droits::peut($moi->role, Droits::TRAITER_DEMANDES)) {
+                            return $this->refuser($requete, $moi);
+                        }
+                        $resultat = $demandes->valider($coches, $requete->champ('confirmation'), $moi, $requete->adresseIp, $this->horloge->maintenant());
+                        $information = $resultat['validees'] . ' demande(s) validée(s)' . ($resultat['travaux'] === [] ? '.' : ' : travail n° '
+                            . implode(', n° ', $resultat['travaux']) . ' (« Travaux en cours »).');
+                        $erreur = $resultat['erreurs'] === [] ? null : 'Restées en attente : ' . implode(' ; ', $resultat['erreurs']);
+                        break;
+                    case 'refuser':
+                        if (!Droits::peut($moi->role, Droits::TRAITER_DEMANDES)) {
+                            return $this->refuser($requete, $moi);
+                        }
+                        $information = $demandes->refuser($coches, $requete->champ('commentaire'), $moi, $requete->adresseIp) . ' demande(s) refusée(s) : le demandeur est prévenu.';
+                        break;
+                    case 'annuler':
+                        $demandes->annuler(self::idFacultatif($requete->champ('id')) ?? 0, $moi, $requete->adresseIp);
+                        $information = 'Demande annulée.';
+                        break;
+                    case 'restaurer':
+                        if (!Droits::peut($moi->role, Droits::SUPPRIMER)) {
+                            return $this->refuser($requete, $moi);
+                        }
+
+                        return Reponse::redirection('/travaux/' . (new Suppressions($this->pdo))->restaurer($requete->champ('chemin'), $moi, $requete->adresseIp));
+                    default:
+                        return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+                }
+            } catch (ErreurSaisie $e) {
+                $erreur = $e->getMessage();
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        Pages::$demandesEnAttente = Droits::peut($moi->role, Droits::TRAITER_DEMANDES) ? $demandes->nombreEnAttente() : 0;
+
+        return new Reponse(200, PagesDemandes::page($this->session->jeton(), $moi,
+            Droits::peut($moi->role, Droits::TRAITER_DEMANDES) ? $demandes->enAttente() : [], $demandes->de($moi->id),
+            Droits::peut($moi->role, Droits::SUPPRIMER) ? MiseALecart::restaurables($this->pdo) : [], $erreur, $information));
     }
 
     private function regimesSessions(Requete $requete, Compte $moi): Reponse
@@ -753,6 +860,7 @@ final class Application
             return Reponse::redirection('/mot-de-passe');
         }
         Pages::cadre($moi, $this->session->jeton(), $requete->chemin);
+        Pages::$demandesEnAttente = Droits::peut($moi->role, Droits::TRAITER_DEMANDES) ? (new Demandes($this->pdo))->nombreEnAttente() : 0;
         if (!Droits::peut($moi->role, $droit)) {
             (new Journal($this->pdo))->ecrire('administration', 'accès refusé', 'refus', $moi->id, $moi->nomAffiche, $requete->adresseIp, $requete->chemin);
 
@@ -967,6 +1075,7 @@ final class Application
         $this->session->noterActivite();
 
         Pages::cadre($compte, $this->session->jeton(), $requete->chemin);
+        Pages::$demandesEnAttente = Droits::peut($compte->role, Droits::TRAITER_DEMANDES) ? (new Demandes($this->pdo))->nombreEnAttente() : 0;
         if ($requete->methode === 'POST') {
             if ($requete->champ('action') !== 'secours_verifies' || $compte->role !== 'administrateur') {
                 return $this->refuser($requete, $compte);

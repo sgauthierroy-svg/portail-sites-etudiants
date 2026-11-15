@@ -353,7 +353,7 @@ final class SiteModeleTest extends TestCase
         $pdo->exec("INSERT INTO travaux (type, demande_par_nom, parametres) VALUES ('creer_prestashop', 'Cpetit', '{\"paquet_id\":1}')");
         $pdo->exec("INSERT INTO travaux_etapes (travail_id, rang, cible, libelle, etat) VALUES (1, 1, 'martinel', 'MARTIN Élodie', 'reussi')");
 
-        self::assertSame([10, 11, 12, 13], Schema::mettreAJour($pdo));
+        self::assertSame([10, 11, 12, 13, 14], Schema::mettreAJour($pdo));
         self::assertSame('1', (string) $pdo->query('PRAGMA foreign_keys')->fetchColumn());
         self::assertSame(['creer_prestashop', '{"paquet_id":1}'], $pdo->query('SELECT type, parametres FROM travaux')->fetch(PDO::FETCH_NUM));
         self::assertSame('martinel', $pdo->query('SELECT cible FROM travaux_etapes')->fetchColumn());

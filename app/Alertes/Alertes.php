@@ -154,6 +154,31 @@ final class Alertes
             . "\n\nDétail, vérification et relance (administrateur) : " . rtrim($this->urlPortail, '/') . '/sites/certificats');
     }
 
+    /** Nouvelle demande à l'administrateur (décision du 05/11/2026). Aucun nom d'étudiant ni motif : le détail est dans le portail. */
+    public function nouvelleDemande(string $libelle, string $auteur, int $enAttente): void
+    {
+        $this->ajouter([], 'Nouvelle demande : ' . $libelle,
+            $auteur . ' a envoyé une demande à l\'administrateur : « ' . $libelle . ' ».'
+            . "\n\nDemandes en attente : " . $enAttente . '. À valider ou refuser dans le portail : ' . rtrim($this->urlPortail, '/') . '/demandes');
+    }
+
+    /** Décision sur ses demandes, au seul demandeur. Aucun nom d'étudiant : il retrouve le détail dans « Mes demandes ». */
+    public function decisionDemandes(string $email, int $validees, int $refusees, ?string $commentaire): void
+    {
+        $lignes = [];
+        if ($validees > 0) {
+            $lignes[] = '- ' . $validees . ' demande(s) validée(s) : le travail est inscrit dans « Travaux en cours » ;';
+        }
+        if ($refusees > 0) {
+            $lignes[] = '- ' . $refusees . ' demande(s) refusée(s)' . ($commentaire === null ? '' : ', commentaire de l\'administrateur : « ' . $commentaire . ' »') . ' ;';
+        }
+        if ($lignes === []) {
+            return;
+        }
+        $this->ajouter([$email], 'Réponse à vos demandes', "L'administrateur a traité vos demandes :\n" . implode("\n", $lignes)
+            . "\n\nDétail dans « Mes demandes » : " . rtrim($this->urlPortail, '/') . '/demandes', false);
+    }
+
     public function test(): void
     {
         $this->ajouter([], 'Test des alertes', 'Ce message de test confirme que le portail peut envoyer ses alertes.');
@@ -192,11 +217,11 @@ final class Alertes
         return $reussis;
     }
 
-    /** @param list<string|null> $autres Destinataires en plus de l'adresse d'alerte */
-    private function ajouter(array $autres, string $sujet, string $texte): void
+    /** @param list<string|null> $autres Destinataires en plus de l'adresse d'alerte (ou à sa place, sans $avecAdresseAlertes) */
+    private function ajouter(array $autres, string $sujet, string $texte, bool $avecAdresseAlertes = true): void
     {
         $destinataires = [];
-        foreach (array_merge([$this->adresseAlertes()], $autres) as $adresse) {
+        foreach (array_merge($avecAdresseAlertes ? [$this->adresseAlertes()] : [], $autres) as $adresse) {
             if (is_string($adresse) && filter_var($adresse, FILTER_VALIDATE_EMAIL) !== false
                 && !in_array(strtolower($adresse), array_map('strtolower', $destinataires), true)) {
                 $destinataires[] = $adresse;
