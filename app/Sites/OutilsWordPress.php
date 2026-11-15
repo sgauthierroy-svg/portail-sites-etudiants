@@ -147,4 +147,35 @@ final class OutilsWordPress
             }
         }
     }
+
+    /**
+     * Base et utilisateur MySQL d'un site existant, pour la purge après sa mise à l'écart : ceux du portail
+     * (table sites), sinon ceux de wp-config.php seulement s'ils sont propres à l'étudiant
+     * (jafl3067_identifiant ou jafl3067_identifiant_…). L'utilisateur partagé jafl3067_peda des scripts
+     * n'est jamais retenu : il sert à tous les sites créés avant le portail.
+     *
+     * @return array{0: ?string, 1: ?string} Base, utilisateur
+     */
+    public static function ancienneBase(\PDO $pdo, string $identifiant, string $dossier, string $site): array
+    {
+        $requete = $pdo->prepare('SELECT base, utilisateur_bdd FROM sites WHERE identifiant = :i AND dossier = :d');
+        $requete->execute([':i' => $identifiant, ':d' => $dossier]);
+        $ligne = \Portail\Base\Lecture::ligne($requete);
+        if ($ligne !== null) {
+            return [\Portail\Base\Lecture::texte($ligne['base']), \Portail\Base\Lecture::texte($ligne['utilisateur_bdd'])];
+        }
+        $config = is_file($site . '/wp-config.php') && !is_link($site . '/wp-config.php')
+            ? (string) file_get_contents($site . '/wp-config.php', false, null, 0, 65536) : '';
+        $propre = '/^jafl3067_' . preg_quote($identifiant, '/') . '(_[A-Za-z0-9_]{1,40})?$/D';
+        $lire = static function (string $nom) use ($config, $propre): ?string {
+            if (preg_match('/define\(\s*[\'"]' . $nom . '[\'"]\s*,\s*[\'"]([A-Za-z0-9_]{1,64})[\'"]\s*\)/', $config, $trouve) !== 1) {
+                return null;
+            }
+
+            return preg_match($propre, $trouve[1]) === 1 ? $trouve[1] : null;
+        };
+        $utilisateur = $lire('DB_USER');
+
+        return [$lire('DB_NAME'), $utilisateur !== null && strtolower($utilisateur) === $utilisateur ? $utilisateur : null];
+    }
 }

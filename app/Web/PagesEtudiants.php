@@ -61,6 +61,31 @@ final class PagesEtudiants
             );
     }
 
+    /** @param array{wordpress: bool, prestashop: bool, prevu: bool, suggestion: ?string} $etat */
+    private static function reinitialisation(string $jeton, string $action, array $etat): string
+    {
+        if (!$etat['wordpress'] && !$etat['prestashop']) {
+            return '';
+        }
+        $html = '<h2>Réinitialiser un site</h2>'
+            . ($etat['suggestion'] === null ? '' : '<p class="alerte">' . Html::e($etat['suggestion']) . '</p>')
+            . '<p>Le site repart de zéro, comme à la création. Le site actuel est gardé 8 jours (« Restaurer »). '
+            . 'L\'étudiant reçoit ses nouveaux accès par e-mail ; l\'administrateur et les enseignants reçoivent le récapitulatif pour la feuille.</p>';
+        if ($etat['prevu']) {
+            return $html . '<p><span class="badge neutre">réinitialisation déjà prévue</span> — voir <a href="/travaux">Travaux en cours</a>.</p>';
+        }
+        foreach ([[$etat['wordpress'], 'reinitialiser_wp', 'le WordPress (/WP)'], [$etat['prestashop'], 'reinitialiser_presta', 'la boutique PrestaShop (/Presta)']] as [$present, $valeur, $libelle]) {
+            if (!$present) {
+                continue;
+            }
+            $html .= '<form method="post" action="' . $action . '">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="' . $valeur . '">'
+                . '<p><label><input type="checkbox" name="confirmer" value="1"> Je confirme : ' . $libelle . ' de cet étudiant sera remplacé par un site neuf.</label></p>'
+                . '<button type="submit">Réinitialiser ' . $libelle . '</button></form>';
+        }
+
+        return $html;
+    }
+
     /**
      * @param list<array{id: int, nom: string, actif: bool}> $regimes
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
@@ -113,10 +138,11 @@ final class PagesEtudiants
      * @param list<array{id: int, nom: string, actif: bool}> $regimes
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
      * @param list<array{date: string, champ: string, ancienne: ?string, nouvelle: ?string, auteur: ?string}> $historique
+     * @param ?array{wordpress: bool, prestashop: bool, prevu: bool, suggestion: ?string} $reinitialisation Réinitialisations possibles (enseignant, administrateur)
      * @param list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool, date: string}> $sites
      */
     public static function fiche(string $jeton, Compte $moi, Etudiant $etudiant, array $regimes, array $sessions, array $historique,
-        int $maintenant, ?string $erreur, ?string $information, array $sites = []): string
+        int $maintenant, ?string $erreur, ?string $information, array $sites = [], ?array $reinitialisation = null): string
     {
         $action = '/etudiants/' . $etudiant->id;
         $contenu = Pages::alerte($erreur, $information)
@@ -188,6 +214,9 @@ final class PagesEtudiants
                 : '<table><thead><tr><th>Site</th><th>Logiciel</th><th>Administration</th><th>Origine</th></tr></thead><tbody>' . $lignesSites . '</tbody></table>'
                     . ($voirAcces ? '<p class="discret">Les liens s\'ouvrent dans un nouvel onglet. Le lien d\'administration d\'une boutique est personnel à l\'étudiant : ne le diffusez pas. '
                         . 'Pour une boutique créée avant le portail, il n\'est pas connu.</p>' : ''));
+        if ($reinitialisation !== null && Droits::peut($moi->role, Droits::REINITIALISER_SITE)) {
+            $contenu .= self::reinitialisation($jeton, $action, $reinitialisation);
+        }
         $contenu .= '<h2>Parcours</h2>'
             . ($lignes === '' ? '<p>Aucun changement depuis l\'ajout.</p>'
                 : '<table><thead><tr><th>Date</th><th>Changement</th><th>Avant → après</th><th>Par</th></tr></thead><tbody>' . $lignes . '</tbody></table>')

@@ -19,6 +19,8 @@ use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\InstallateurPrestaShop;
+use Portail\Sites\MiseALecart;
+use Portail\Sites\Reinitialisations;
 use Portail\Sites\PreparationPrestaShop;
 use Portail\Sites\Releve;
 use Portail\Sites\ServeurCpanel;
@@ -212,6 +214,65 @@ final class PrestaShopTest extends TestCase
         self::assertStringContainsString('créé par le portail le', $fiche);
     }
 
+    public function testReinitialiserUneBoutique(): void
+    {
+        (new PreparationPrestaShop($this->pdo))->lancer($this->session, $this->paquet, ['martinel'], $this->compte('cpetit'), null);
+        $this->travailleur()->tourner(50);
+        $presta = $this->personnel . '/martinel.bts-sup-sallanches.com/Presta';
+        file_put_contents($presta . '/produits-de-l-etudiant.txt', 'ancien');
+        $this->boite->envoyes = [];
+        $this->cpanel['appels'] = [];
+
+        $id = (new Reinitialisations($this->pdo))->lancer(Reinitialisations::PRESTASHOP, 'martinel', true, $this->compte('cpetit'), null, time());
+        $this->travailleur()->tourner(50);
+
+        $travail = (new FileTravaux($this->pdo))->detail($id);
+        self::assertNotNull($travail);
+        self::assertSame('reussi', $travail['etapes'][0]['etat'], (string) $travail['etapes'][0]['message']);
+        self::assertStringContainsString('réinitialisée (installée en https) ; l\'ancienne est gardée 8 jours', (string) $travail['etapes'][0]['message']);
+        // Ancienne boutique mise à l'écart avec sa base ; nouvelle base au nom unique (l'ancienne existe encore 8 jours).
+        $ecart = $this->pdo->query("SELECT chemin, base, utilisateur_bdd FROM mises_a_l_ecart WHERE identifiant = 'martinel'")?->fetch(\PDO::FETCH_ASSOC);
+        self::assertIsArray($ecart);
+        self::assertSame(['jafl3067_martinel_Presta', 'jafl3067_martinel_presta'], [$ecart['base'], $ecart['utilisateur_bdd']]);
+        self::assertFileExists($this->personnel . '/archives_suppression/portail/' . $ecart['chemin'] . '/produits-de-l-etudiant.txt');
+        self::assertFileDoesNotExist($presta . '/produits-de-l-etudiant.txt');
+        self::assertCount(1, array_filter($this->cpanel['appels'], static fn (string $a): bool => preg_match('/^creerBase jafl3067_martinel_Presta_[a-z0-9]{6}$/', $a) === 1));
+        self::assertCount(1, array_filter($this->cpanel['appels'], static fn (string $a): bool => preg_match('/^creerUtilisateur jafl3067_martinel_pr[a-z0-9]{6}$/', $a) === 1));
+        // E-mails : l'étudiant ; récapitulatif à l'administrateur et aux enseignants (décision du 15/11/2026).
+        self::assertSame(ExecutantCreerPrestaShop::SUJET_REINITIALISATION, $this->boite->envoyes[0]['sujet']);
+        self::assertStringContainsString('a été réinitialisée', $this->boite->envoyes[0]['texte']);
+        self::assertSame(['admin@exemple.fr', 'cpetit@exemple.fr'], $this->boite->envoyes[1]['destinataires']);
+        self::assertStringContainsString('Boutiques PrestaShop réinitialisées', $this->boite->envoyes[1]['texte']);
+
+        // Échec de la boutique neuve : l'ancienne (la nouvelle d'avant) est remise à sa place.
+        $this->echecInstallation = 'base injoignable';
+        $parametres = (string) file_get_contents($presta . '/app/config/parameters.php');
+        file_put_contents($presta . '/marqueur.txt', 'en place');
+        (new Reinitialisations($this->pdo))->lancer(Reinitialisations::PRESTASHOP, 'martinel', true, $this->compte('cpetit'), null, time());
+        $this->travailleur()->tourner(50);
+        $etape = $this->pdo->query("SELECT etat, message FROM travaux_etapes ORDER BY id DESC LIMIT 1")?->fetch(\PDO::FETCH_ASSOC);
+        self::assertIsArray($etape);
+        self::assertSame('echec', $etape['etat']);
+        self::assertStringContainsString('L\'ancienne boutique a été remise à sa place', (string) $etape['message']);
+        self::assertSame('en place', file_get_contents($presta . '/marqueur.txt'));
+        self::assertSame($parametres, file_get_contents($presta . '/app/config/parameters.php'));
+        self::assertSame(1, (int) $this->pdo->query("SELECT count(*) FROM mises_a_l_ecart WHERE identifiant = 'martinel'")?->fetchColumn());
+    }
+
+    public function testReinitialiserUneBoutiqueInconnueDuPortailEstRefuse(): void
+    {
+        $this->pdo->prepare('UPDATE sessions SET paquet_prestashop_id = :p WHERE id = :s')->execute([':p' => $this->paquet, ':s' => $this->session]);
+        try {
+            (new Reinitialisations($this->pdo))->lancer(Reinitialisations::PRESTASHOP, 'martinel', true, $this->compte('cpetit'), null, time());
+            self::fail('Refus attendu');
+        } catch (\Portail\Noyau\ErreurSaisie $e) {
+            self::assertStringContainsString('pas de boutique créée par le portail', $e->getMessage());
+        }
+        // L'administratif ne voit pas le bouton (il passe par une demande).
+        $id = (int) $this->pdo->query("SELECT id FROM etudiants WHERE identifiant = 'martinel'")?->fetchColumn();
+        self::assertSame(403, $this->en('jroux', 'POST', '/etudiants/' . $id, ['action' => 'reinitialiser_presta', 'confirmer' => '1'])->statut);
+    }
+
     public function testUnEchecDInstallationEffaceCeQueLEtapeACree(): void
     {
         $this->echecInstallation = 'base injoignable';
@@ -347,13 +408,9 @@ final class PrestaShopTest extends TestCase
             }
 
             public function creerSousDomaine(string $identifiant): void
-
             {
-
                 throw new RuntimeException('Création de sous-domaine non prévue dans ce test.');
-
             }
-
 
             public function creerBase(string $base): void
             {
@@ -408,8 +465,11 @@ final class PrestaShopTest extends TestCase
         };
         $executant = new ExecutantCreerPrestaShop($this->pdo, $cpanel, new Bibliotheque($this->pdo, $this->donnees), $installateur,
             $this->chiffrement, $this->boite, $this->personnel, $this->donnees . '/tmp');
+        $reinitialisation = new ExecutantCreerPrestaShop($this->pdo, $cpanel, new Bibliotheque($this->pdo, $this->donnees), $installateur,
+            $this->chiffrement, $this->boite, $this->personnel, $this->donnees . '/tmp', new MiseALecart($this->pdo, $this->personnel), true);
 
-        return new Travailleur($this->pdo, new Alertes($this->pdo, $this->boite, self::URL), ['creer_prestashop' => $executant], 0);
+        return new Travailleur($this->pdo, new Alertes($this->pdo, $this->boite, self::URL),
+            ['creer_prestashop' => $executant, 'reinitialiser_prestashop' => $reinitialisation], 0);
     }
 
     private function compte(string $identifiant): Compte

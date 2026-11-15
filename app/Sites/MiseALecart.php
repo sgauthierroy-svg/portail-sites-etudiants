@@ -125,14 +125,20 @@ final class MiseALecart
         return $liste;
     }
 
-    /** Configuration du site actuellement à l'adresse d'origine (vide s'il n'y en a pas). */
+    /**
+     * Configurations des sites actuellement en place chez cet étudiant (dossier d'origine et ses autres sites) :
+     * une base partagée entre deux de ses sites (scripts d'avant le portail) n'est jamais effacée.
+     */
     private function configurationEnPlace(string $identifiant, string $dossier): string
     {
-        $site = $this->dossierPersonnel . '/' . $identifiant . '.' . Releve::DOMAINE . $dossier;
+        $racine = $this->dossierPersonnel . '/' . $identifiant . '.' . Releve::DOMAINE;
         $contenu = '';
-        foreach (['/wp-config.php', '/app/config/parameters.php'] as $fichier) {
-            if (is_file($site . $fichier) && !is_link($site . $fichier)) {
-                $contenu .= (string) file_get_contents($site . $fichier, false, null, 0, 65536);
+        foreach (array_unique([$dossier, '/WP', '/WP2', '/Presta', '/Presta2']) as $sousDossier) {
+            foreach (['/wp-config.php', '/app/config/parameters.php'] as $fichier) {
+                $chemin = $racine . $sousDossier . $fichier;
+                if (is_file($chemin) && !is_link($chemin)) {
+                    $contenu .= (string) file_get_contents($chemin, false, null, 0, 65536);
+                }
             }
         }
 

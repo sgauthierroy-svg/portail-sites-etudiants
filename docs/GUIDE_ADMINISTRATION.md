@@ -143,6 +143,20 @@ Menu « Créer des WordPress » (administrateur, enseignants, administratif) : c
 - **E-mails** : à l'étudiant, objet « IMPORTANT – Sup'Sallanches (BTS NDRC) : vos accès à votre site WordPress, à conserver » (site, administration, identifiant, mot de passe) ; à la fin du travail, à l'adresse d'alerte, le récapitulatif aux colonnes de la feuille des accès (`Site wordpress` = lien sans l'administration, `Identifiant WP`, `Mot de passe WP`), dans l'ordre alphabétique. Supprimer ce récapitulatif une fois la feuille à jour.
 - **Essais du 14/11/2026** : installation, mot de passe et réglages vérifiés avec le vrai WP-CLI sur un WordPress de test. Premier essai réel (un nouvel entrant) : sous-domaine, WordPress et e-mails conformes ; certificat posé à la main ensuite (d'où les relances automatiques ci-dessus).
 
+## Réinitialiser un WordPress ou une boutique (V2, lot 5, 15/11/2026)
+
+Sur la fiche de l'étudiant, rubrique « Réinitialiser un site » (**enseignants et administrateur** ; l'administratif passe par une demande à l'administrateur). Un bouton par site présent (`/WP`, `/Presta` créée par le portail), avec une case de confirmation obligatoire.
+
+- **Effet** : le site repart de zéro, exactement comme à la création (WordPress : mêmes réglages que « Créer des WordPress », version de la session si elle est fixée, sinon la dernière ; boutique : version PrestaShop de la session). Le site neuf est construit à part ; le site actuel n'est remplacé qu'à la fin et **mis à l'écart 8 jours** (`~/archives_suppression/portail/`, avec sa base), puis effacé par la purge. En cas d'échec, le site actuel reste (ou est remis) à sa place.
+- **Accès** (décision du 15/11/2026) : nouveau mot de passe tiré au hasard ; e-mail à l'étudiant (« … a été réinitialisé, nouveaux accès à conserver ») ; à la fin du travail, récapitulatif aux colonnes de la feuille envoyé à **l'adresse d'alerte et aux enseignants actifs**. Même identifiant qu'avant.
+- **Le site est-il bien celui de l'étudiant ?** Un `/WP` créé par le portail, oui. Un `/WP` plus ancien (scripts) n'est réinitialisé que s'il a un compte WordPress à l'identifiant WordPress de l'étudiant ou à son e-mail ; sinon l'étape est refusée, rien n'est touché. Une boutique n'est réinitialisée que si le portail l'a créée.
+- **Ancienne base** : celle du portail, ou celle de `wp-config.php` si elle est propre à l'étudiant (`jafl3067_identifiant…`) ; l'utilisateur partagé `jafl3067_peda` des scripts n'est jamais effacé. Depuis le 15/11/2026, la purge n'efface jamais une base encore citée par **l'un des sites en place de l'étudiant** (/WP, /WP2, /Presta, /Presta2).
+- **Redoublants** (décision du 07/11/2026) : après un changement de session vers une session plus tardive, la fiche le rappelle — 1re année : WordPress à réinitialiser ; 2e année : boutique à réinitialiser, WordPress gardé. Le rappel disparaît une fois le site refait.
+
+## Filtre des listes (15/11/2026)
+
+Au-dessus de chaque liste de plus de 5 lignes (étudiants, « Voir tout », comptes, créations, déploiement, épreuve, certificats) : une zone « Filtrer » ne garde que les lignes qui contiennent le texte tapé (sans tenir compte des majuscules ni des accents) et affiche « n ligne(s) sur N ». Le tri par clic sur l'en-tête reste possible. Avec un filtre, « Tout cocher » ne coche que les lignes affichées.
+
 ## Certificats https : suivi et relance (administrateur, 14/11/2026)
 
 Menu « Certificats », **visible de l'administrateur seulement** (demande du 14/11/2026).

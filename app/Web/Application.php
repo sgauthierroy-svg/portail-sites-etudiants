@@ -24,6 +24,7 @@ use Portail\Sites\MiseALecart;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\EpreuveSujet;
 use Portail\Sites\PreparationWordPress;
+use Portail\Sites\Reinitialisations;
 use Portail\Sites\SuiviCertificats;
 use Portail\Sites\PreparationPrestaShop;
 use Portail\Sites\Releve;
@@ -622,6 +623,15 @@ final class Application
                         $gestion->changerParcours($id, $regimeId, $sessionId);
                         $information = 'Changement enregistré dans le parcours de l\'étudiant. Les sites n\'ont pas été modifiés.';
                         break;
+                    case 'reinitialiser_wp':
+                    case 'reinitialiser_presta':
+                        if (!Droits::peut($moi->role, Droits::REINITIALISER_SITE)) {
+                            return $this->refuser($requete, $moi);
+                        }
+
+                        return Reponse::redirection('/travaux/' . (new Reinitialisations($this->pdo))->lancer(
+                            $requete->champ('action') === 'reinitialiser_wp' ? Reinitialisations::WORDPRESS : Reinitialisations::PRESTASHOP,
+                            $etudiant->identifiant, $requete->champ('confirmer') === '1', $moi, $requete->adresseIp, $this->horloge->maintenant()));
                     default:
                         return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
                 }
@@ -636,7 +646,8 @@ final class Application
 
         return new Reponse(200, PagesEtudiants::fiche($this->session->jeton(), $moi, $etudiant, $referentiel->regimes(), $referentiel->sessions(),
             $gestion->historique($etudiant->identifiant), $this->horloge->maintenant(), $erreur, $information,
-            Releve::sitesEtudiant($this->pdo, $etudiant->identifiant)));
+            Releve::sitesEtudiant($this->pdo, $etudiant->identifiant),
+            Droits::peut($moi->role, Droits::REINITIALISER_SITE) ? (new Reinitialisations($this->pdo))->etat($etudiant->identifiant, $this->horloge->maintenant()) : null));
     }
 
     private function regimesSessions(Requete $requete, Compte $moi): Reponse

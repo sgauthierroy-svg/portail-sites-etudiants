@@ -44,15 +44,58 @@
   });
 
   /*
+   * Filtre des listes (décision du 11/11/2026, demandée le 15/11/2026) : une zone de recherche au-dessus
+   * de chaque liste triable de plus de 5 lignes ; ne garde que les lignes qui contiennent le texte tapé
+   * (sans tenir compte des majuscules ni des accents). Le tri par en-tête reste possible.
+   */
+  function sansAccents(texte) {
+    return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+  document.querySelectorAll('table.triable').forEach(function (tableau, rang) {
+    var corps = tableau.tBodies[0];
+    if (!corps || corps.rows.length <= 5) { return; }
+    var zone = document.createElement('p');
+    zone.className = 'filtre';
+    var etiquette = document.createElement('label');
+    etiquette.htmlFor = 'filtre-' + rang;
+    etiquette.textContent = 'Filtrer : ';
+    var saisie = document.createElement('input');
+    saisie.type = 'search';
+    saisie.id = 'filtre-' + rang;
+    saisie.autocomplete = 'off';
+    saisie.placeholder = 'nom, identifiant, session…';
+    var compte = document.createElement('span');
+    compte.className = 'discret';
+    compte.setAttribute('aria-live', 'polite');
+    zone.appendChild(etiquette);
+    zone.appendChild(saisie);
+    zone.appendChild(document.createTextNode(' '));
+    zone.appendChild(compte);
+    tableau.parentNode.insertBefore(zone, tableau);
+    saisie.addEventListener('input', function () {
+      var cherche = sansAccents(saisie.value.trim());
+      var vues = 0;
+      Array.prototype.forEach.call(corps.rows, function (ligne) {
+        var garde = cherche === '' || sansAccents(ligne.textContent).indexOf(cherche) !== -1;
+        ligne.hidden = !garde;
+        vues += garde ? 1 : 0;
+      });
+      compte.textContent = cherche === '' ? '' : vues + ' ligne(s) sur ' + corps.rows.length;
+    });
+  });
+
+  /*
    * Case « Tout cocher » (demande du 14/11/2026) : coche ou décoche les cases actives du tableau.
-   * Les étudiants sans case (empêchement) ne sont jamais cochés ; sans JavaScript, on coche une à une.
+   * Les étudiants sans case (empêchement) ne sont jamais cochés ; avec un filtre, seulement les lignes
+   * affichées. Sans JavaScript, on coche une à une.
    */
   document.querySelectorAll('input[data-tout-cocher]').forEach(function (tout) {
     var tableau = tout.closest('table');
     if (!tableau || !tableau.tBodies[0]) { return; }
     tout.addEventListener('change', function () {
       tableau.tBodies[0].querySelectorAll('input[type="checkbox"][name="coches[]"]:not(:disabled)').forEach(function (c) {
-        c.checked = tout.checked;
+        var ligne = c.closest('tr');
+        c.checked = tout.checked && !(ligne && ligne.hidden);
       });
     });
   });

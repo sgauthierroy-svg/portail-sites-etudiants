@@ -40,6 +40,8 @@ $travailleur = new \Portail\Travaux\Travailleur($pdo, $alertes, [
     'releve' => new \Portail\Travaux\ExecutantReleve($pdo, null, $alertes),
     'creer_prestashop' => new \Portail\Travaux\ExecutantCreerPrestaShop($pdo, $cpanel, $bibliotheque, new \Portail\Sites\InstallateurPrestaShop(),
         new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, $personnel, $temporaire),
+    'reinitialiser_prestashop' => new \Portail\Travaux\ExecutantCreerPrestaShop($pdo, $cpanel, $bibliotheque, new \Portail\Sites\InstallateurPrestaShop(),
+        new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, $personnel, $temporaire, $ecart, true),
     'installer_sujet_modele' => new \Portail\Travaux\ExecutantInstallerSujetModele($pdo, $cpanel, $bibliotheque, new \Portail\Sites\WpCli(),
         $ecart, $expediteur, $personnel, $temporaire),
     'geler_sujet_modele' => new \Portail\Travaux\ExecutantGelerSujetModele($pdo, $cpanel, $personnel),
@@ -48,6 +50,8 @@ $travailleur = new \Portail\Travaux\Travailleur($pdo, $alertes, [
     'lever_gel_epreuve' => new \Portail\Travaux\ExecutantGelEpreuve($pdo, $cpanel, $personnel),
     'creer_wordpress' => new \Portail\Travaux\ExecutantCreerWordPress($pdo, $cpanel, new \Portail\Sites\WpCli(), new \Portail\Sites\AcmeSh($personnel),
         new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, $personnel, $temporaire),
+    'reinitialiser_wordpress' => new \Portail\Travaux\ExecutantCreerWordPress($pdo, $cpanel, new \Portail\Sites\WpCli(), new \Portail\Sites\AcmeSh($personnel),
+        new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, $personnel, $temporaire, $ecart, true),
 ]);
 // 50 secondes de nouvelles étapes au plus : la tâche suivante (dans une minute) reprend la suite.
 $faites = $travailleur->tourner(50);

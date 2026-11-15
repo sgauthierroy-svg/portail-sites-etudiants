@@ -216,27 +216,10 @@ final class ExecutantDeployerSujet implements Executant, ApresTravail
      *
      * @return array{?string, ?string}
      */
+    /** @return array{0: ?string, 1: ?string} */
     private function ancienneBase(string $identifiant, string $final): array
     {
-        $requete = $this->pdo->prepare('SELECT base, utilisateur_bdd FROM sites WHERE identifiant = :i AND dossier = :d');
-        $requete->execute([':i' => $identifiant, ':d' => DeploiementSujet::DOSSIER]);
-        $ligne = Lecture::ligne($requete);
-        if ($ligne !== null) {
-            return [Lecture::texte($ligne['base']), Lecture::texte($ligne['utilisateur_bdd'])];
-        }
-        $config = is_file($final . '/wp-config.php') && !is_link($final . '/wp-config.php')
-            ? (string) file_get_contents($final . '/wp-config.php', false, null, 0, 65536) : '';
-        $propre = '/^' . self::PREFIXE . preg_quote($identifiant, '/') . '_[A-Za-z0-9_]{1,40}$/D';
-        $lire = static function (string $nom) use ($config, $propre): ?string {
-            if (preg_match('/define\(\s*[\'"]' . $nom . '[\'"]\s*,\s*[\'"]([A-Za-z0-9_]{1,64})[\'"]\s*\)/', $config, $trouve) !== 1) {
-                return null;
-            }
-
-            return preg_match($propre, $trouve[1]) === 1 ? $trouve[1] : null;
-        };
-        $utilisateur = $lire('DB_USER');
-
-        return [$lire('DB_NAME'), $utilisateur !== null && strtolower($utilisateur) === $utilisateur ? $utilisateur : null];
+        return OutilsWordPress::ancienneBase($this->pdo, $identifiant, DeploiementSujet::DOSSIER, $final);
     }
 
     // ===== Fin du travail =====

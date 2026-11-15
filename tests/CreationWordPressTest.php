@@ -18,6 +18,8 @@ use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\Certificats;
+use Portail\Sites\MiseALecart;
+use Portail\Sites\Reinitialisations;
 use Portail\Sites\LigneWordPress;
 use Portail\Sites\AcmeSh;
 use Portail\Sites\PreparationWordPress;
@@ -55,6 +57,8 @@ final class CreationWordPressTest extends TestCase
     /** @var list<array{chemin: string, arguments: list<string>, environnement: array<string, string>}> */
     public array $wp = [];
     public ?string $echecWp = null;
+    /** Sortie simulée de « wp user list » (CSV) sur un site existant. */
+    public string $comptesWp = "user_login,user_email\n";
     public bool $echecCertificat = false;
     /** @var list<string> */
     public array $certificats = [];
@@ -273,6 +277,112 @@ final class CreationWordPressTest extends TestCase
         self::assertSame('.', AcmeSh::raison("tout va bien\n"));
     }
 
+    // ===== Réinitialisation (15/11/2026) =====
+
+    public function testReinitialiserUnWordPressCreeParLePortail(): void
+    {
+        (new PreparationWordPress($this->pdo))->lancer($this->session, ['leroyhu'], $this->compte('cpetit'), null);
+        $this->tourner();
+        $wp = $this->personnel . '/leroyhu.bts-sup-sallanches.com/WP';
+        file_put_contents($wp . '/travail-de-l-etudiant.txt', 'ancien contenu');
+        $ancienne = $this->pdo->query("SELECT base, utilisateur_bdd FROM sites WHERE identifiant = 'leroyhu'")->fetch(PDO::FETCH_ASSOC);
+        $this->boite->envoyes = [];
+        $this->wp = [];
+        (new DepotComptes($this->pdo))->creer('cpetit2', 'Cpetit2', 'cpetit2@exemple.fr', 'enseignant', MotsDePasse::hacher('un mot de passe solide'));
+
+        $id = (new Reinitialisations($this->pdo))->lancer(Reinitialisations::WORDPRESS, 'leroyhu', true, $this->compte('cpetit'), null, time());
+        $this->tourner();
+
+        $etape = $this->pdo->query('SELECT etat, message FROM travaux_etapes WHERE travail_id = ' . $id)->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('reussi', $etape['etat'], (string) $etape['message']);
+        self::assertStringContainsString('l\'ancien est gardé 8 jours', (string) $etape['message']);
+        self::assertSame([], array_filter($this->wp, static fn (array $a): bool => $a['arguments'][0] === 'user'), 'créé par le portail : pas besoin de vérifier les comptes');
+        // Ancien /WP mis à l'écart avec sa base et son utilisateur (purgés au bout de 8 jours) ; nouveau /WP en place.
+        $ecart = $this->pdo->query("SELECT chemin, base, utilisateur_bdd, motif FROM mises_a_l_ecart WHERE identifiant = 'leroyhu'")->fetch(PDO::FETCH_ASSOC);
+        self::assertSame([$ancienne['base'], $ancienne['utilisateur_bdd'], 'WordPress réinitialisé'], [$ecart['base'], $ecart['utilisateur_bdd'], $ecart['motif']]);
+        self::assertFileExists($this->personnel . '/archives_suppression/portail/' . $ecart['chemin'] . '/travail-de-l-etudiant.txt');
+        self::assertFileDoesNotExist($wp . '/travail-de-l-etudiant.txt');
+        self::assertFileExists($wp . '/wp-config.php');
+        $nouvelle = $this->pdo->query("SELECT base FROM sites WHERE identifiant = 'leroyhu'")->fetchColumn();
+        self::assertNotSame($ancienne['base'], $nouvelle);
+        // E-mails : l'étudiant (objet de réinitialisation) ; récapitulatif à l'administrateur ET aux enseignants.
+        self::assertSame(ExecutantCreerWordPress::SUJET_REINITIALISATION, $this->boite->envoyes[0]['sujet']);
+        self::assertStringContainsString('a été réinitialisé', $this->boite->envoyes[0]['texte']);
+        self::assertSame(['admin@exemple.fr', 'cpetit@exemple.fr', 'cpetit2@exemple.fr'], $this->boite->envoyes[1]['destinataires']);
+        self::assertStringContainsString('Sites WordPress réinitialisés', $this->boite->envoyes[1]['texte']);
+    }
+
+    public function testReinitialiserUnAncienSiteSeulementSIlEstALEtudiant(): void
+    {
+        // durandca : /WP créé par les scripts (base jafl3067_durandca, utilisateur partagé jafl3067_peda).
+        $wp = $this->personnel . '/durandca.bts-sup-sallanches.com/WP';
+        file_put_contents($wp . '/wp-config.php', "<?php\ndefine('DB_NAME', 'jafl3067_durandca');\ndefine('DB_USER', 'jafl3067_peda');\n\$table_prefix = 'wp_';\n");
+        $identifiantWp = (new PreparationWordPress($this->pdo))->etudiants($this->session)[0]['identifiant_wp'];
+        $reinitialiser = fn (): int => (new Reinitialisations($this->pdo))->lancer(Reinitialisations::WORDPRESS, 'durandca', true, $this->compte('cpetit'), null, time());
+
+        // Aucun compte à son nom : refus, rien n'est touché.
+        $this->comptesWp = "user_login,user_email\nAutreA,autre@exemple.fr\n";
+        $reinitialiser();
+        $this->tourner();
+        $etape = $this->pdo->query("SELECT etat, message FROM travaux_etapes ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('echec', $etape['etat']);
+        self::assertStringContainsString('site non reconnu comme le sien, rien n\'a été fait', (string) $etape['message']);
+        self::assertFileExists($wp . '/index.php');
+        self::assertSame([], array_filter($this->cpanel['appels'], static fn (string $a): bool => str_starts_with($a, 'creerBase')));
+
+        // Son compte (identifiant WordPress, sans tenir compte des majuscules) : réinitialisé ; ancienne base purgeable,
+        // utilisateur partagé jamais retenu.
+        $this->comptesWp = "user_login,user_email\n" . strtolower($identifiantWp) . ",ancienne@exemple.fr\n";
+        $reinitialiser();
+        $this->tourner();
+        $etape = $this->pdo->query("SELECT etat, message FROM travaux_etapes ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('reussi', $etape['etat'], (string) $etape['message']);
+        $ecart = $this->pdo->query("SELECT base, utilisateur_bdd FROM mises_a_l_ecart WHERE identifiant = 'durandca'")->fetch(PDO::FETCH_ASSOC);
+        self::assertSame(['jafl3067_durandca', null], [$ecart['base'], $ecart['utilisateur_bdd']]);
+    }
+
+    public function testEchecDeConstructionLAncienSiteResteEnPlace(): void
+    {
+        (new PreparationWordPress($this->pdo))->lancer($this->session, ['leroyhu'], $this->compte('cpetit'), null);
+        $this->tourner();
+        $wp = $this->personnel . '/leroyhu.bts-sup-sallanches.com/WP';
+        $config = file_get_contents($wp . '/wp-config.php');
+        (new Reinitialisations($this->pdo))->lancer(Reinitialisations::WORDPRESS, 'leroyhu', true, $this->compte('cpetit'), null, time());
+        $this->echecWp = 'core install';
+        $this->tourner();
+        $etape = $this->pdo->query("SELECT etat, message FROM travaux_etapes ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        self::assertSame('echec', $etape['etat']);
+        self::assertStringContainsString('Le WordPress en place n\'a pas été touché', (string) $etape['message']);
+        self::assertSame($config, file_get_contents($wp . '/wp-config.php'));
+        self::assertSame(0, (int) $this->pdo->query('SELECT count(*) FROM mises_a_l_ecart')->fetchColumn());
+        self::assertSame([], glob($this->donnees . '/tmp/wp-*'));
+    }
+
+    public function testFicheBoutonsConfirmationEtRedoublant(): void
+    {
+        (new PreparationWordPress($this->pdo))->lancer($this->session, ['leroyhu'], $this->compte('cpetit'), null);
+        $this->tourner();
+        $id = (int) $this->pdo->query("SELECT id FROM etudiants WHERE identifiant = 'leroyhu'")->fetchColumn();
+        $page = $this->en('cpetit', 'GET', '/etudiants/' . $id)->corps;
+        self::assertStringContainsString('Réinitialiser le WordPress (/WP)', $page);
+        self::assertStringNotContainsString('Réinitialiser la boutique', $page, 'pas de boutique créée par le portail');
+        self::assertStringNotContainsString('Redoublant', $page);
+        $refus = $this->en('cpetit', 'POST', '/etudiants/' . $id, ['action' => 'reinitialiser_wp']);
+        self::assertStringContainsString('Cochez la case de confirmation', $refus->corps);
+        self::assertSame(303, $this->en('cpetit', 'POST', '/etudiants/' . $id, ['action' => 'reinitialiser_wp', 'confirmer' => '1'])->statut);
+        self::assertStringContainsString('réinitialisation déjà prévue', $this->en('cpetit', 'GET', '/etudiants/' . $id)->corps);
+        // Consultation : ni bouton, ni droit.
+        self::assertStringNotContainsString('Réinitialiser le WordPress', $this->en('pmoreau', 'GET', '/etudiants/' . $id)->corps);
+        // Redoublant de 1re année (session 2028 → 2029, en 1re année cette année scolaire) : suggestion affichée.
+        $this->pdo->exec("DELETE FROM travaux_etapes; DELETE FROM travaux; UPDATE sites SET cree_le = '2026-09-01T00:00:00Z'");
+        $this->pdo->exec("INSERT INTO historique_etudiants (date, etudiant_identifiant, champ, ancienne_valeur, nouvelle_valeur) VALUES ('2026-11-15T08:00:00Z', 'leroyhu', 'session', '2027', '2028')");
+        $etat = (new Reinitialisations($this->pdo))->etat('leroyhu', strtotime('2026-11-15T09:00:00Z'));
+        self::assertSame('Redoublant de 1re année : son WordPress est à réinitialiser (décision du 07/11/2026).', $etat['suggestion']);
+        // Une fois le WordPress refait, plus de suggestion.
+        $this->pdo->exec("UPDATE sites SET cree_le = '2026-11-15T10:00:00Z'");
+        self::assertNull((new Reinitialisations($this->pdo))->etat('leroyhu', strtotime('2026-11-15T11:00:00Z'))['suggestion']);
+    }
+
     // ===== Outils =====
 
     private function tourner(): void
@@ -280,6 +390,8 @@ final class CreationWordPressTest extends TestCase
         $travailleur = new Travailleur($this->pdo, new Alertes($this->pdo, null, self::URL), [
             'creer_wordpress' => new ExecutantCreerWordPress($this->pdo, $this->fauxCpanel(), $this->fauxWp(), $this->fauxCertificats(), $this->chiffrement,
                 $this->boite, $this->personnel, $this->donnees . '/tmp'),
+            'reinitialiser_wordpress' => new ExecutantCreerWordPress($this->pdo, $this->fauxCpanel(), $this->fauxWp(), $this->fauxCertificats(), $this->chiffrement,
+                $this->boite, $this->personnel, $this->donnees . '/tmp', new MiseALecart($this->pdo, $this->personnel), true),
         ], 0, static function (int $s): void {
         });
         $travailleur->tourner(60);
@@ -369,6 +481,9 @@ final class CreationWordPressTest extends TestCase
                 $commande = implode(' ', array_slice($arguments, 0, 2));
                 if ($this->test->echecWp === $commande) {
                     throw new RuntimeException('WP-CLI (' . $commande . ') a échoué : simulé.');
+                }
+                if ($commande === 'user list') {
+                    return $this->test->comptesWp;
                 }
                 if ($commande === 'core download') {
                     $version = '7.1.4';

@@ -11,9 +11,10 @@ use Portail\Journal\Journal;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\Certificats;
-use Portail\Sites\ConfigWordPress;
+use Portail\Sites\ConstructionWordPress;
 use Portail\Sites\EpreuveWordPress;
 use Portail\Sites\LigneWordPress;
+use Portail\Sites\MiseALecart;
 use Portail\Sites\OutilsWordPress;
 use Portail\Sites\PreparationWordPress;
 use Portail\Sites\RelanceCertificats;
@@ -39,20 +40,15 @@ use Throwable;
  */
 final class ExecutantCreerWordPress implements Executant, ApresTravail
 {
-    private const PREFIXE = 'jafl3067_';
-
     /** Colonnes du récapitulatif : en-têtes exacts de la feuille des accès (donnés le 11/11/2026). */
     public const COLONNES = ['Site wordpress', 'Identifiant WP', 'Mot de passe WP'];
 
     public const SUJET_ETUDIANT = 'IMPORTANT – Sup\'Sallanches (BTS NDRC) : vos accès à votre site WordPress, à conserver';
 
-    /** Redirection vers https des sites étudiants (passage_https.sh, 25/10/2026). */
-    public const REDIRECTION_HTTPS = "# BEGIN HTTPS-PORTAIL\n<IfModule mod_rewrite.c>\nRewriteEngine On\nRewriteCond %{HTTPS} off\n"
-        . "RewriteCond %{HTTP:X-Forwarded-Proto} !https\nRewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]\n</IfModule>\n# END HTTPS-PORTAIL\n";
+    public const SUJET_REINITIALISATION = 'IMPORTANT – Sup\'Sallanches (BTS NDRC) : votre site WordPress a été réinitialisé, nouveaux accès à conserver';
 
-    /** Mot de passe posé sans passer par la ligne de commande (lu dans l'environnement de cette seule commande). */
-    private const POSER_MOT_DE_PASSE = '$u = get_user_by("login", (string) getenv("PORTAIL_IDENTIFIANT")); '
-        . 'if (!$u) { fwrite(STDERR, "compte introuvable"); exit(1); } wp_set_password((string) getenv("PORTAIL_MDP"), $u->ID);';
+    /** Redirection vers https des sites étudiants (voir ConstructionWordPress). */
+    public const REDIRECTION_HTTPS = ConstructionWordPress::REDIRECTION_HTTPS;
 
     public function __construct(
         private readonly PDO $pdo,
@@ -63,6 +59,9 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         private readonly ?Expediteur $expediteur,
         private readonly string $dossierPersonnel,
         private readonly string $dossierTemporaire,
+        private readonly ?MiseALecart $ecart = null,
+        /** Réinitialisation (15/11/2026) : le /WP en place est mis à l'écart 8 jours et remplacé par un WordPress neuf. */
+        private readonly bool $reinitialiser = false,
     ) {
     }
 
@@ -71,7 +70,7 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         // Fichiers d'un site : lisibles par le serveur web (755/644), voir ExecutantCreerPrestaShop.
         $masque = umask(0022);
         try {
-            return $this->creer($cible, $parametres);
+            return $this->reinitialiser ? $this->reinitialiser($cible, $parametres) : $this->creer($cible, $parametres);
         } finally {
             umask($masque);
         }
@@ -108,68 +107,23 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
             return ['etat' => 'ignore', 'message' => 'Le dossier /WP existe déjà et n\'est pas vide : rien n\'a été fait.'];
         }
 
-        // 2. Préparation à part : WordPress, base, configuration, installation.
-        $suffixe = OutilsWordPress::suffixe();
-        $base = self::PREFIXE . $cible . '_WP_' . $suffixe;
-        $utilisateur = self::PREFIXE . $cible . '_wp' . $suffixe;
-        $motDePasseBdd = str_replace('-', '', MotsDePasse::provisoire() . MotsDePasse::provisoire());
+        // 2. Préparation à part (ConstructionWordPress), puis mise en place.
         $motDePasse = MotsDePasse::provisoire();
-        $preparation = $this->dossierTemporaire . '/wp-' . $cible . '-' . $suffixe;
         $adresse = 'https://' . $sousDomaine . PreparationWordPress::DOSSIER;
-        $crees = ['base' => false, 'utilisateur' => false];
+        $construction = new ConstructionWordPress($this->cpanel, $this->wp, $this->dossierTemporaire);
         try {
-            if (!mkdir($preparation, 0755)) {
-                throw new RuntimeException('Création du dossier de préparation impossible.');
-            }
-            $this->wp->lancer($preparation, array_merge(['core', 'download', '--locale=fr_FR'], $version === null ? [] : ['--version=' . $version]), 600);
-            $installee = OutilsWordPress::versionWordPress($preparation);
-            if ($installee === null) {
-                throw new RuntimeException('WordPress téléchargé incomplet (version illisible).');
-            }
-            $this->cpanel->creerBase($base);
-            $crees['base'] = true;
-            $this->cpanel->creerUtilisateur($utilisateur, $motDePasseBdd);
-            $crees['utilisateur'] = true;
-            $this->cpanel->donnerDroits($utilisateur, $base);
-            self::ecrire($preparation . '/wp-config.php', ConfigWordPress::contenu(
-                ['base' => $base, 'utilisateur' => $utilisateur, 'mot_de_passe' => $motDePasseBdd, 'prefixe' => 'wp_'], ['gele' => $version !== null]), 0600);
-            // Compte créé avec un mot de passe jetable, aussitôt remplacé par le vrai (lu dans l'environnement).
-            $this->wp->lancer($preparation, ['core', 'install', '--url=' . $adresse, '--title=' . $titre, '--admin_user=' . $etudiant['identifiant_wp'],
-                '--admin_password=' . bin2hex(random_bytes(24)), '--admin_email=' . $etudiant['email'], '--locale=fr_FR', '--skip-email']);
-            $this->wp->lancer($preparation, ['eval', self::POSER_MOT_DE_PASSE], 120,
-                ['PORTAIL_IDENTIFIANT' => $etudiant['identifiant_wp'], 'PORTAIL_MDP' => $motDePasse]);
-            $alerte = $this->parametre('adresse_alertes');
-            if ($alerte !== null) {
-                $this->wp->lancer($preparation, ['option', 'update', 'admin_email', $alerte]);
-            }
-            $this->wp->lancer($preparation, ['option', 'update', 'timezone_string', 'Europe/Paris']);
-            $this->wp->lancer($preparation, ['option', 'update', 'WPLANG', 'fr_FR']);
-            self::ecrire($preparation . '/.htaccess', self::REDIRECTION_HTTPS, 0644);
-
-            // 3. Mise en place.
-            if (is_dir($final) && !rmdir($final)) {
-                throw new RuntimeException('Dossier /WP vide impossible à remplacer.');
-            }
-            if (!rename($preparation, $final)) {
-                throw new RuntimeException('Mise en place du /WP impossible.');
-            }
+            $construit = $construction->construire($cible, $etudiant, $version, $titre, $adresse, $motDePasse, $this->parametre('adresse_alertes'));
         } catch (Throwable $e) {
-            $this->defaire($crees, $preparation, $base, $utilisateur);
             throw new RuntimeException($e->getMessage() . ' Ce que cette étape avait créé a été effacé'
                 . ($nouveau ? ' (le sous-domaine créé est gardé, vide).' : '.'), 0, $e);
         }
+        if ((is_dir($final) && !rmdir($final)) || !rename($construit['preparation'], $final)) {
+            $construction->abandonner($construit);
+            throw new RuntimeException('Mise en place du /WP impossible. Ce que cette étape avait créé a été effacé.');
+        }
+        $installee = $construit['version'];
 
-        $this->pdo->prepare(
-            "INSERT INTO sites (identifiant, dossier, logiciel, version, base, utilisateur_bdd, gele)
-             VALUES (:i, '/WP', 'wordpress', :v, :b, :u, :g)
-             ON CONFLICT (identifiant, dossier) DO UPDATE SET logiciel = 'wordpress', version = :v2, base = :b2, utilisateur_bdd = :u2, gele = :g2,
-                 dossier_admin = NULL, cloture_le = NULL, lecture_seule = 0, cree_le = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
-        )->execute([':i' => $cible, ':v' => $installee, ':b' => $base, ':u' => $utilisateur, ':g' => $version !== null ? 1 : 0,
-            ':v2' => $installee, ':b2' => $base, ':u2' => $utilisateur, ':g2' => $version !== null ? 1 : 0]);
-        $this->pdo->prepare(
-            "INSERT INTO releve_sites (identifiant, dossier, logiciel, version, releve_le) VALUES (:i, '/WP', 'wordpress', :v, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-             ON CONFLICT (identifiant, dossier) DO UPDATE SET logiciel = 'wordpress', version = :v2"
-        )->execute([':i' => $cible, ':v' => $installee, ':v2' => $installee]);
+        $this->enregistrer($cible, $construit, $version !== null);
 
         // 4. Certificat d'un sous-domaine neuf, à la fin : le sous-domaine a eu le temps de devenir joignable
         //    (premier essai réel du 14/11/2026 : échec juste après la création, réussite plus tard).
@@ -197,6 +151,100 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         ];
     }
 
+    /**
+     * Réinitialisation du /WP (redoublant de 1re année, site cassé ; décisions des 07 et 15/11/2026).
+     * WordPress neuf construit à part ; le /WP en place n'est remplacé qu'à la fin, et mis à l'écart 8 jours
+     * (« Restaurer »). Un /WP que le portail n'a pas créé n'est touché que s'il a un compte au nom de l'étudiant.
+     *
+     * @param array<array-key, mixed> $parametres
+     * @return array{etat: 'reussi', message: string, secret: string}
+     */
+    private function reinitialiser(string $cible, array $parametres): array
+    {
+        if ($this->ecart === null) {
+            throw new RuntimeException('Mise à l\'écart non configurée : rien n\'a été fait.');
+        }
+        $etudiant = $this->etudiant($cible);
+        $version = Lecture::texte($parametres['version'] ?? null);
+        $titre = Lecture::texte($parametres['titre'] ?? null) ?? PreparationWordPress::TITRE;
+        $final = EpreuveWordPress::racine($this->cpanel, $this->dossierPersonnel, $cible) . PreparationWordPress::DOSSIER;
+        if (is_link($final) || !is_file($final . '/wp-config.php') || is_link($final . '/wp-config.php')) {
+            throw new RuntimeException('Aucun WordPress dans /WP : rien à réinitialiser (utiliser « Créer des WordPress »).');
+        }
+        $this->verifierAppartenance($cible, $final, $etudiant);
+        [$ancienneBase, $ancienUtilisateur] = OutilsWordPress::ancienneBase($this->pdo, $cible, PreparationWordPress::DOSSIER, $final);
+
+        $motDePasse = MotsDePasse::provisoire();
+        $adresse = 'https://' . $cible . '.' . Releve::DOMAINE . PreparationWordPress::DOSSIER;
+        $construction = new ConstructionWordPress($this->cpanel, $this->wp, $this->dossierTemporaire);
+        try {
+            $construit = $construction->construire($cible, $etudiant, $version, $titre, $adresse, $motDePasse, $this->parametre('adresse_alertes'));
+        } catch (Throwable $e) {
+            throw new RuntimeException($e->getMessage() . ' Le WordPress en place n\'a pas été touché.', 0, $e);
+        }
+        try {
+            $nom = $this->ecart->mettre($final, $cible, PreparationWordPress::DOSSIER, $ancienneBase, $ancienUtilisateur, 'WordPress réinitialisé');
+        } catch (Throwable $e) {
+            $construction->abandonner($construit);
+            throw new RuntimeException($e->getMessage() . ' Le WordPress en place n\'a pas été touché.', 0, $e);
+        }
+        if (!rename($construit['preparation'], $final)) {
+            $construction->abandonner($construit);
+            $this->ecart->remettre($nom, $final);
+            throw new RuntimeException('Mise en place du WordPress neuf impossible : l\'ancien a été remis à sa place.');
+        }
+        $this->enregistrer($cible, $construit, $version !== null);
+        $site = $adresse . '/';
+        $envoye = $this->ecrireEtudiant($etudiant, $site, $motDePasse, false, true);
+
+        return [
+            'etat' => 'reussi',
+            'message' => 'WordPress réinitialisé (' . $construit['version'] . ($version === null ? ', dernière version' : ', version de la session, gelée')
+                . ') ; l\'ancien est gardé 8 jours (« Restaurer »). ' . ($envoye ? 'Nouveaux accès envoyés à l\'étudiant.' : 'E-mail à l\'étudiant NON envoyé : accès dans le récapitulatif.'),
+            'secret' => $this->chiffrement->chiffrer(implode("\t", [$cible, $site, $etudiant['identifiant_wp'], $motDePasse]), 'recapitulatif-wordpress'),
+        ];
+    }
+
+    /**
+     * Le /WP est-il bien celui de l'étudiant ? Oui s'il a été créé par le portail ; sinon, il faut un compte
+     * WordPress à son identifiant WordPress ou à son e-mail (identifiants hors règle, sites d'avant le portail).
+     *
+     * @param array{nom: string, email: string, identifiant_wp: string} $etudiant
+     */
+    private function verifierAppartenance(string $cible, string $site, array $etudiant): void
+    {
+        $connu = $this->pdo->prepare("SELECT 1 FROM sites WHERE identifiant = :i AND dossier = '/WP'");
+        $connu->execute([':i' => $cible]);
+        if ($connu->fetchColumn() !== false) {
+            return;
+        }
+        $comptes = $this->wp->lancer($site, ['user', 'list', '--fields=user_login,user_email', '--format=csv'], 120);
+        foreach (preg_split('/\R/', $comptes) ?: [] as $ligne) {
+            [$login, $email] = array_pad(str_getcsv($ligne), 2, '');
+            if (strcasecmp((string) $login, $etudiant['identifiant_wp']) === 0 || strcasecmp((string) $email, $etudiant['email']) === 0) {
+                return;
+            }
+        }
+        throw new RuntimeException('Aucun compte de ce WordPress n\'est à l\'identifiant ' . $etudiant['identifiant_wp']
+            . ' ni à l\'e-mail de l\'étudiant : site non reconnu comme le sien, rien n\'a été fait. Vérifier à la main.');
+    }
+
+    /** @param array{preparation: string, base: string, utilisateur: string, version: string} $construit */
+    private function enregistrer(string $cible, array $construit, bool $gele): void
+    {
+        $this->pdo->prepare(
+            "INSERT INTO sites (identifiant, dossier, logiciel, version, base, utilisateur_bdd, gele)
+             VALUES (:i, '/WP', 'wordpress', :v, :b, :u, :g)
+             ON CONFLICT (identifiant, dossier) DO UPDATE SET logiciel = 'wordpress', version = :v2, base = :b2, utilisateur_bdd = :u2, gele = :g2,
+                 dossier_admin = NULL, cloture_le = NULL, lecture_seule = 0, cree_le = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
+        )->execute([':i' => $cible, ':v' => $construit['version'], ':b' => $construit['base'], ':u' => $construit['utilisateur'], ':g' => $gele ? 1 : 0,
+            ':v2' => $construit['version'], ':b2' => $construit['base'], ':u2' => $construit['utilisateur'], ':g2' => $gele ? 1 : 0]);
+        $this->pdo->prepare(
+            "INSERT INTO releve_sites (identifiant, dossier, logiciel, version, releve_le) VALUES (:i, '/WP', 'wordpress', :v, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+             ON CONFLICT (identifiant, dossier) DO UPDATE SET logiciel = 'wordpress', version = :v2"
+        )->execute([':i' => $cible, ':v' => $construit['version'], ':v2' => $construit['version']]);
+    }
+
     public function apresTravail(int $travailId, array $parametres): void
     {
         $requete = $this->pdo->prepare('SELECT libelle, secret FROM travaux_etapes WHERE travail_id = :t AND secret IS NOT NULL ORDER BY rang');
@@ -219,8 +267,10 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         if ($lignes === []) {
             return;
         }
-        $adresse = $this->parametre('adresse_alertes');
-        $texte = 'Sites WordPress créés par le travail n° ' . $travailId . ' (' . count($lignes) . ").\n\n"
+        // Création : l'administrateur ; réinitialisation : l'administrateur et les enseignants (décision du 15/11/2026).
+        $destinataires = $this->destinataires($this->reinitialiser);
+        $quoi = $this->reinitialiser ? 'Sites WordPress réinitialisés' : 'Sites WordPress créés';
+        $texte = $quoi . ' par le travail n° ' . $travailId . ' (' . count($lignes) . ").\n\n"
             . "Le tableau à copier dans la feuille des accès est dans la version HTML de ce message.\n"
             . "Version texte (colonnes séparées par des tabulations), dans l'ordre alphabétique des étudiants :\n"
             . implode("\t", self::COLONNES) . "\n";
@@ -229,8 +279,8 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         }
         $texte .= "\nCe message contient des mots de passe : supprimez-le une fois la feuille mise à jour."
             . "\nLe portail ne les a pas gardés.\n\n-- \nMessage automatique du portail des sites étudiants.";
-        $this->envoyer($adresse === null ? [] : [$adresse], 'Accès WordPress à reporter dans la feuille (travail n° ' . $travailId . ')', $texte,
-            'récapitulatif à l\'administrateur', Recapitulatif::html('Sites WordPress créés par le travail n° ' . $travailId . ' (' . count($lignes) . ').',
+        $this->envoyer($destinataires, 'Accès WordPress à reporter dans la feuille (travail n° ' . $travailId . ')', $texte,
+            'récapitulatif des accès', Recapitulatif::html($quoi . ' par le travail n° ' . $travailId . ' (' . count($lignes) . ').',
                 self::COLONNES, $lignes, $reperes));
     }
 
@@ -255,30 +305,16 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         return ['nom' => (string) Lecture::texte($ligne['nom_complet']), 'email' => (string) Lecture::texte($ligne['email']), 'identifiant_wp' => $identifiantWp];
     }
 
-    /** @param array{base: bool, utilisateur: bool} $crees */
-    private function defaire(array $crees, string $preparation, string $base, string $utilisateur): void
-    {
-        try {
-            if (is_dir($preparation) && !is_link($preparation)) {
-                Fichiers::effacerDossier($preparation, $this->dossierTemporaire);
-            }
-            if ($crees['utilisateur']) {
-                $this->cpanel->supprimerUtilisateur($utilisateur);
-            }
-            if ($crees['base']) {
-                $this->cpanel->supprimerBase($base);
-            }
-        } catch (Throwable $e) {
-            (new Journal($this->pdo))->ecrire('site', 'nettoyage après échec incomplet', 'echec', null, 'travailleur', null, $base, mb_substr($e->getMessage(), 0, 300, 'UTF-8'));
-        }
-    }
 
     /** @param array{nom: string, email: string, identifiant_wp: string} $etudiant */
-    private function ecrireEtudiant(array $etudiant, string $site, #[\SensitiveParameter] string $motDePasse, bool $nouveau): bool
+    private function ecrireEtudiant(array $etudiant, string $site, #[\SensitiveParameter] string $motDePasse, bool $nouveau, bool $reinitialise = false): bool
     {
         $texte = "Bonjour,\n\n"
             . "Ce message vous est envoyé par votre établissement, Sup'Sallanches (BTS NDRC). "
-            . "Il contient les accès à votre site WordPress, qui servira en cours : CONSERVEZ-LE.\n\n"
+            . ($reinitialise
+                ? "Votre site WordPress a été réinitialisé à la demande de vos enseignants : il repart de zéro, avec les nouveaux accès ci-dessous. "
+                    . "Les anciens ne fonctionnent plus. CONSERVEZ ce message.\n\n"
+                : "Il contient les accès à votre site WordPress, qui servira en cours : CONSERVEZ-LE.\n\n")
             . 'Votre site : ' . $site . "\n"
             . 'Administration du site : ' . $site . "wp-admin/\n"
             . 'Identifiant : ' . $etudiant['identifiant_wp'] . "\n"
@@ -288,7 +324,7 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
             . "En cas de difficulté, adressez-vous à votre enseignant.\n\n"
             . "-- \nSup'Sallanches – BTS NDRC, portail des sites étudiants. Message automatique : ne pas y répondre.";
 
-        return $this->envoyer([$etudiant['email']], self::SUJET_ETUDIANT, $texte, 'accès WordPress à l\'étudiant');
+        return $this->envoyer([$etudiant['email']], $reinitialise ? self::SUJET_REINITIALISATION : self::SUJET_ETUDIANT, $texte, 'accès WordPress à l\'étudiant');
     }
 
     /** @param list<string> $destinataires */
@@ -310,6 +346,26 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         }
     }
 
+    /** @return list<string> Adresse d'alerte, et comptes enseignants actifs si demandé (sans doublon) */
+    private function destinataires(bool $avecEnseignants): array
+    {
+        $liste = [];
+        $alerte = $this->parametre('adresse_alertes');
+        if ($alerte !== null) {
+            $liste[] = $alerte;
+        }
+        if ($avecEnseignants) {
+            foreach (Lecture::lignes($this->pdo->query("SELECT email FROM comptes WHERE role = 'enseignant' AND actif = 1 ORDER BY id")) as $ligne) {
+                $email = Lecture::texte($ligne['email']);
+                if ($email !== null && !in_array(strtolower($email), array_map('strtolower', $liste), true)) {
+                    $liste[] = $email;
+                }
+            }
+        }
+
+        return $liste;
+    }
+
     private function parametre(string $cle): ?string
     {
         $requete = $this->pdo->prepare('SELECT valeur FROM parametres WHERE cle = :c');
@@ -318,10 +374,4 @@ final class ExecutantCreerWordPress implements Executant, ApresTravail
         return Lecture::texte($requete->fetchColumn());
     }
 
-    private static function ecrire(string $fichier, string $contenu, int $droits): void
-    {
-        if (file_put_contents($fichier, $contenu, LOCK_EX) === false || !chmod($fichier, $droits)) {
-            throw new RuntimeException('Écriture de ' . basename($fichier) . ' impossible.');
-        }
-    }
 }

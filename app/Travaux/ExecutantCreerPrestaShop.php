@@ -13,6 +13,8 @@ use Portail\Journal\Journal;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\InstallateurPrestaShop;
+use Portail\Sites\MiseALecart;
+use Portail\Sites\OutilsWordPress;
 use Portail\Sites\Releve;
 use Portail\Sites\ServeurCpanel;
 use Portail\Systeme\Fichiers;
@@ -41,6 +43,8 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
     /** Objet de l'e-mail à l'étudiant : il doit reconnaître l'établissement et l'importance du message (11/11/2026). */
     public const SUJET_ETUDIANT = 'IMPORTANT – Sup\'Sallanches (BTS NDRC) : vos accès à votre boutique PrestaShop, à conserver';
 
+    public const SUJET_REINITIALISATION = 'IMPORTANT – Sup\'Sallanches (BTS NDRC) : votre boutique PrestaShop a été réinitialisée, nouveaux accès à conserver';
+
     /** @var array<string, string> empreinte => chemin du prestashop.zip intérieur déjà extrait */
     private array $interieurs = [];
 
@@ -53,6 +57,9 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
         private readonly ?Expediteur $expediteur,
         private readonly string $dossierPersonnel,
         private readonly string $dossierTemporaire,
+        private readonly ?MiseALecart $ecart = null,
+        /** Réinitialisation (redoublant de 2e année, 07 et 15/11/2026) : la boutique en place est mise à l'écart 8 jours. */
+        private readonly bool $reinitialiser = false,
     ) {
     }
 
@@ -64,7 +71,7 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
         // (constaté le 08/11/2026 : « Server unable to read htaccess file »).
         $masque = umask(0022);
         try {
-            return $this->creer($cible, $parametres);
+            return $this->reinitialiser ? $this->reinitialiserBoutique($cible, $parametres) : $this->creer($cible, $parametres);
         } finally {
             umask($masque);
         }
@@ -74,7 +81,7 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
      * @param array<array-key, mixed> $parametres
      * @return array{etat: 'reussi'|'ignore', message: string, secret?: string}
      */
-    private function creer(string $cible, array $parametres): array
+    private function creer(string $cible, array $parametres, bool $nomsUniques = false): array
     {
         $etudiant = $this->etudiant($cible);
         $racine = $this->racine($cible);
@@ -89,8 +96,10 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
         }
         [$zipInterieur, $version] = $this->paquet($paquetId);
 
-        $base = self::PREFIXE . $cible . '_Presta';
-        $utilisateur = self::PREFIXE . $cible . '_presta';
+        // Réinitialisation : l'ancienne base est gardée 8 jours, la nouvelle a donc un nom à elle.
+        $suffixe = $nomsUniques ? OutilsWordPress::suffixe() : '';
+        $base = self::PREFIXE . $cible . '_Presta' . ($nomsUniques ? '_' . $suffixe : '');
+        $utilisateur = self::PREFIXE . $cible . ($nomsUniques ? '_pr' . $suffixe : '_presta');
         // Majuscules, minuscules et chiffres (CPanel exige un mot de passe « fort »), sans caractère spécial.
         $motDePasseBdd = str_replace('-', '', MotsDePasse::provisoire() . MotsDePasse::provisoire());
         $motDePasse = MotsDePasse::provisoire();
@@ -139,7 +148,7 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
 
         $boutique = 'https://' . $cible . '.' . self::DOMAINE . '/Presta/';
         $administration = $boutique . $dossierAdmin . '/';
-        $envoye = $this->ecrireEtudiant($etudiant, $boutique, $administration, $motDePasse);
+        $envoye = $this->ecrireEtudiant($etudiant, $boutique, $administration, $motDePasse, $nomsUniques);
         $ligne = implode("\t", [$cible, $boutique, $administration, $etudiant['email'], $motDePasse]);
 
         return [
@@ -147,6 +156,42 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
             'message' => 'Boutique PrestaShop ' . $version . ' installée en https. ' . ($envoye ? 'Accès envoyés à l\'étudiant.' : 'E-mail à l\'étudiant NON envoyé : accès dans le récapitulatif de l\'administrateur.'),
             'secret' => $this->chiffrement->chiffrer($ligne, 'recapitulatif-prestashop'),
         ];
+    }
+
+    /**
+     * Réinitialisation de la boutique : seulement une boutique créée par le portail (elle est à l'étudiant).
+     * La boutique en place est mise à l'écart 8 jours (« Restaurer »), puis une boutique neuve est installée ;
+     * en cas d'échec, l'ancienne est remise à sa place.
+     *
+     * @param array<array-key, mixed> $parametres
+     * @return array{etat: 'reussi'|'ignore', message: string, secret?: string}
+     */
+    private function reinitialiserBoutique(string $cible, array $parametres): array
+    {
+        if ($this->ecart === null) {
+            throw new RuntimeException('Mise à l\'écart non configurée : rien n\'a été fait.');
+        }
+        $requete = $this->pdo->prepare("SELECT base, utilisateur_bdd FROM sites WHERE identifiant = :i AND dossier = '/Presta'");
+        $requete->execute([':i' => $cible]);
+        $connue = Lecture::ligne($requete);
+        if ($connue === null) {
+            throw new RuntimeException('Boutique non créée par le portail : elle n\'est pas reconnue comme celle de l\'étudiant, rien n\'a été fait. Vérifier à la main.');
+        }
+        $this->etudiant($cible);
+        $presta = $this->racine($cible) . '/Presta';
+        if (is_link($presta) || !is_file($presta . '/app/config/parameters.php')) {
+            throw new RuntimeException('Aucune boutique dans /Presta : rien à réinitialiser (utiliser « Créer des boutiques »).');
+        }
+        $nom = $this->ecart->mettre($presta, $cible, '/Presta', Lecture::texte($connue['base']), Lecture::texte($connue['utilisateur_bdd']), 'Boutique PrestaShop réinitialisée');
+        try {
+            $resultat = $this->creer($cible, $parametres, true);
+        } catch (Throwable $e) {
+            $this->ecart->remettre($nom, $presta);
+            throw new RuntimeException($e->getMessage() . ' L\'ancienne boutique a été remise à sa place.', 0, $e);
+        }
+        $resultat['message'] = str_replace('installée en https.', 'réinitialisée (installée en https) ; l\'ancienne est gardée 8 jours (« Restaurer »).', $resultat['message']);
+
+        return $resultat;
     }
 
     public function apresTravail(int $travailId, array $parametres): void
@@ -181,8 +226,30 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
         }
         $texte .= "\nCe message contient des mots de passe : supprimez-le une fois la feuille mise à jour."
             . "\nLe portail ne les a pas gardés.\n\n-- \nMessage automatique du portail des sites étudiants.";
+        if ($this->reinitialiser) {
+            // Réinitialisation : l'administrateur et les enseignants (décision du 15/11/2026).
+            $this->envoyer($this->destinatairesAvecEnseignants($adresse), 'Accès PrestaShop réinitialisés à reporter dans la feuille (travail n° ' . $travailId . ')',
+                str_replace('Boutiques PrestaShop créées', 'Boutiques PrestaShop réinitialisées', $texte), 'récapitulatif des accès',
+                Recapitulatif::html('Boutiques PrestaShop réinitialisées par le travail n° ' . $travailId . ' (' . count($lignes) . ').', self::COLONNES, $lignes, $reperes));
+
+            return;
+        }
         $this->envoyer($adresse === null ? [] : [$adresse], 'Accès PrestaShop à reporter dans la feuille (travail n° ' . $travailId . ')', $texte,
             'récapitulatif à l\'administrateur', self::tableauHtml($travailId, $lignes, $reperes));
+    }
+
+    /** @return list<string> */
+    private function destinatairesAvecEnseignants(?string $alerte): array
+    {
+        $liste = $alerte === null ? [] : [$alerte];
+        foreach (Lecture::lignes($this->pdo->query("SELECT email FROM comptes WHERE role = 'enseignant' AND actif = 1 ORDER BY id")) as $ligne) {
+            $email = Lecture::texte($ligne['email']);
+            if ($email !== null && !in_array(strtolower($email), array_map('strtolower', $liste), true)) {
+                $liste[] = $email;
+            }
+        }
+
+        return $liste;
     }
 
     private function parametre(string $cle): ?string
@@ -306,11 +373,14 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
     }
 
     /** @param array{nom: string, email: string} $etudiant */
-    private function ecrireEtudiant(array $etudiant, string $boutique, string $administration, #[\SensitiveParameter] string $motDePasse): bool
+    private function ecrireEtudiant(array $etudiant, string $boutique, string $administration, #[\SensitiveParameter] string $motDePasse, bool $reinitialisee = false): bool
     {
         $texte = "Bonjour,\n\n"
             . "Ce message vous est envoyé par votre établissement, Sup'Sallanches (BTS NDRC). "
-            . "Il contient les accès à votre boutique PrestaShop, qui servira en cours : CONSERVEZ-LE.\n\n"
+            . ($reinitialisee
+                ? "Votre boutique PrestaShop a été réinitialisée à la demande de vos enseignants : elle repart de zéro, avec les nouveaux accès ci-dessous. "
+                    . "Les anciens ne fonctionnent plus. CONSERVEZ ce message.\n\n"
+                : "Il contient les accès à votre boutique PrestaShop, qui servira en cours : CONSERVEZ-LE.\n\n")
             . 'Votre boutique : ' . $boutique . "\n"
             . 'Administration de la boutique : ' . $administration . "\n"
             . 'Identifiant : ' . $etudiant['email'] . "\n"
@@ -319,7 +389,7 @@ final class ExecutantCreerPrestaShop implements Executant, ApresTravail
             . "En cas de difficulté, adressez-vous à votre enseignant.\n\n"
             . "-- \nSup'Sallanches – BTS NDRC, portail des sites étudiants. Message automatique : ne pas y répondre.";
 
-        return $this->envoyer([$etudiant['email']], self::SUJET_ETUDIANT, $texte, 'accès PrestaShop à l\'étudiant');
+        return $this->envoyer([$etudiant['email']], $reinitialisee ? self::SUJET_REINITIALISATION : self::SUJET_ETUDIANT, $texte, 'accès PrestaShop à l\'étudiant');
     }
 
     /**

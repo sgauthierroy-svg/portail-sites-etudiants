@@ -191,3 +191,7 @@ th button.tri:focus-visible { outline: 3px solid var(--texte); outline-offset: 2
   input[type="text"], input[type="email"], input[type="password"], input:not([type]) { width: 100%; }
   .carte { padding: 24px 18px; }
 }
+
+/* Filtre des listes (15/11/2026) */
+.filtre { margin: .5rem 0; }
+.filtre input[type="search"] { min-width: 16rem; padding: .35rem .5rem; border: 1px solid #bbb; border-radius: 6px; font: inherit; }
