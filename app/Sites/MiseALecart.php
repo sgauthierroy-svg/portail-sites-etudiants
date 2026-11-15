@@ -136,6 +136,12 @@ final class MiseALecart
                     }
                 }
                 $nettoyage->supprimerSousDomaine($identifiant);
+                // CPanel peut laisser un dossier vide à l'adresse du sous-domaine retiré (nettoyage_etudiants.sh) : effacé s'il est vide.
+                $restant = $this->dossierPersonnel . '/' . $identifiant . '.' . Releve::DOMAINE;
+                $liste = is_dir($restant) && !is_link($restant) ? scandir($restant) : false;
+                if (is_array($liste) && count($liste) === 2) {
+                    rmdir($restant);
+                }
                 $this->pdo->prepare('DELETE FROM sous_domaines WHERE identifiant = :i')->execute([':i' => $identifiant]);
                 $this->pdo->prepare('DELETE FROM releve_sites WHERE identifiant = :i')->execute([':i' => $identifiant]);
                 $this->pdo->prepare('DELETE FROM etat_certificats WHERE identifiant = :i')->execute([':i' => $identifiant]);

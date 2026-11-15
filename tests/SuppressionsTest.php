@@ -190,6 +190,7 @@ final class SuppressionsTest extends TestCase
         self::assertNull($ecart->purgerUne($this->fauxCpanel(), ['jafl3067_peda'], time() + 9 * 86400), 'Sans accès au nettoyage CPanel : rien n\'est effacé');
         self::assertSame([], $this->cpanel['appels']);
         $this->pdo->exec("UPDATE mises_a_l_ecart SET expire_le = '2020-01-01T00:00:00Z'");
+        mkdir($this->personnel . '/martinel.bts-sup-sallanches.com');
 
         self::assertNotNull($ecart->purgerUne($this->fauxCpanel(), ['jafl3067_peda'], time(), $this->fauxCpanel(), $this->fauxCertificats()));
         $appels = $this->cpanel['appels'];
@@ -197,6 +198,7 @@ final class SuppressionsTest extends TestCase
         self::assertSame(['base jafl3067_martinel_Presta', 'base jafl3067_martinel_WP', 'base jafl3067_martinel_ancienne', 'sous-domaine martinel',
             'utilisateur jafl3067_martinel_presta', 'utilisateur jafl3067_martinel_wp'], $appels);
         self::assertSame(['martinel.bts-sup-sallanches.com'], $this->certificatsRetires);
+        self::assertDirectoryDoesNotExist($this->personnel . '/martinel.bts-sup-sallanches.com', 'Dossier vide laissé par CPanel effacé');
         self::assertSame(0, $this->nombre("SELECT count(*) FROM sous_domaines WHERE identifiant = 'martinel'"));
         self::assertSame([], glob($ecart->racine() . '/*martinel*') ?: []);
         self::assertFalse((new GestionEtudiants($this->pdo))->identifiantPris('martinel'), 'Identifiant libre après l\'effacement');
