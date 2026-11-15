@@ -47,12 +47,14 @@
    * Filtre des listes (décision du 11/11/2026, demandée le 15/11/2026, revue le 15/11/2026 : pouvoir
    * combiner plusieurs critères, par exemple le régime et la session).
    * Au-dessus de chaque liste triable de plus de 5 lignes :
-   * - un menu par colonne qui n'a que quelques valeurs différentes (Régime, Session, Année, État…) ;
+   * - un menu pour la colonne Régime et un pour la colonne Session, quand la liste en a
+   *   (demande du 15/11/2026 : régime, session et texte seulement) ;
    * - une zone de texte : chaque mot tapé doit se trouver dans la ligne, dans n'importe quelle colonne
    *   (sans tenir compte des majuscules ni des accents).
    * Tous les critères s'ajoutent. Le tri par en-tête reste possible ; « Effacer » remet la liste entière.
    */
-  var MAX_VALEURS = 12;
+  var MAX_VALEURS = 40;
+  var COLONNES_A_MENU = ['regime', 'session'];
   function sansAccents(texte) {
     return texte.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   }
@@ -69,7 +71,7 @@
         if (liste.length > MAX_VALEURS) { return null; }
       }
     }
-    if (liste.length < 2 || liste.length >= corps.rows.length) { return null; }
+    if (liste.length === 0) { return null; }
     return liste.sort(comparer);
   }
   document.querySelectorAll('table.triable').forEach(function (tableau, numero) {
@@ -80,7 +82,7 @@
     var menus = [];
     Array.prototype.forEach.call(tableau.tHead.rows[0].cells, function (th, rang) {
       var titre = th.textContent.trim();
-      if (titre === '') { return; }
+      if (COLONNES_A_MENU.indexOf(sansAccents(titre)) === -1) { return; }
       var valeurs = valeursDeColonne(corps, rang);
       if (!valeurs) { return; }
       var etiquette = document.createElement('label');

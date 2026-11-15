@@ -157,7 +157,7 @@ Sur la fiche de l'étudiant, rubrique « Réinitialiser un site » (**enseignant
 
 Au-dessus de chaque liste de plus de 5 lignes (étudiants, « Voir tout », comptes, créations, déploiement, épreuve, certificats), une bande de filtre :
 
-- un menu par colonne qui n'a que quelques valeurs différentes (par exemple Régime, Session, Année, État), avec « (tous) » par défaut ;
+- un menu « Régime » et un menu « Session », dans les listes qui ont ces colonnes, avec « (tous) » par défaut (demande du 15/11/2026 : pas de menu pour l'année ni les autres colonnes) ;
 - une zone « Texte » : chaque mot tapé doit se trouver quelque part dans la ligne (sans tenir compte des majuscules ni des accents) ;
 - tous les critères s'ajoutent : par exemple Régime « NDRC ALT » et Session « 2026-2028 » ;
 - « n ligne(s) sur N » s'affiche, et « Effacer » remet la liste entière.
