@@ -321,7 +321,8 @@ Le compte `sgauthierroy` est temporaire (développement et tests) : à la remise
 
 Menu « Comptes du portail » : créer un compte, changer le nom, l'e-mail ou le rôle, réinitialiser le mot de passe (nouveau mot de passe provisoire affiché une fois), réinitialiser le code à 6 chiffres (téléphone perdu ou changé), désactiver ou réactiver.
 
-- Un compte n'est jamais supprimé, seulement désactivé : le journal garde ses actions.
+- **Supprimer un compte** (administrateur seul, demande du 16/11/2026 ; auparavant : jamais supprimé) : départ définitif d'un enseignant, par exemple. D'abord « Désactiver le compte », puis, sur sa fiche, taper son identifiant et cliquer « Supprimer définitivement ». On ne supprime pas son propre compte, ni le dernier administrateur. Le journal garde ses actions sous son nom ; ses demandes et ses dépôts restent, sans lien vers lui. Une erreur ne se rattrape qu'en recréant le compte.
+- **Téléphone à relier de nouveau** (application d'authentification supprimée, téléphone changé) : sur la fiche du compte actif, « Réinitialiser le code à 6 chiffres ». À la connexion suivante, après le mot de passe, le code QR s'affiche. Pour un compte réactivé après un long arrêt, réinitialiser à la fois le mot de passe et le code.
 - Changer le rôle, réinitialiser ou désactiver ferme **immédiatement** les sessions ouvertes de la personne.
 - Le dernier administrateur actif ne peut être ni désactivé ni rétrogradé.
 - Chaque action est inscrite au journal (catégorie « administration », conservée 1 an).

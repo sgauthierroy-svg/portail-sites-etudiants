@@ -924,8 +924,16 @@ final class Application
                     break;
                 case 'reactiver':
                     $gestion->reactiver($id);
-                    $information = 'Compte réactivé.';
+                    $information = 'Compte réactivé.' . ($compte->doubleAuthActive
+                        ? ' Si la personne n\'a plus le code à 6 chiffres sur son téléphone (application supprimée, téléphone changé), cliquez aussi '
+                            . '« Réinitialiser le code à 6 chiffres » : elle reliera de nouveau son téléphone à sa prochaine connexion.'
+                        : '');
                     break;
+                case 'supprimer':
+                    $gestion->supprimer($id, $requete->champ('confirmation'));
+
+                    return new Reponse(200, Pages::message('Compte supprimé', 'Le compte « ' . $compte->identifiant
+                        . ' » est supprimé. Ses actions restent dans le journal sous son nom.'));
                 case 'confirmer':
                     $gestion->confirmer($id, $this->horloge->maintenant());
                     $information = 'Compte confirmé : il ne sera plus signalé avant 6 mois.';

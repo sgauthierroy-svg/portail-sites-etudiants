@@ -205,6 +205,46 @@ final class RolesEtComptesTest extends TestCase
         self::assertNull($claire->bloqueJusqua, 'La réinitialisation débloque le compte');
     }
 
+    public function testLAdministrateurSupprimeUnCompteDesactiveEnTapantSonIdentifiant(): void
+    {
+        $fiche = '/comptes/' . $this->ids['cpetit'];
+        self::assertStringNotContainsString('Supprimer définitivement', $this->en('mzanelli', 'GET', $fiche)->corps, 'Compte actif : pas de suppression');
+        self::assertStringContainsString('Désactivez d&apos;abord', $this->en('mzanelli', 'POST', $fiche, ['action' => 'supprimer', 'confirmation' => 'cpetit'])->corps);
+        $this->en('mzanelli', 'POST', $fiche, ['action' => 'desactiver']);
+        self::assertStringContainsString('Supprimer définitivement', $this->en('mzanelli', 'GET', $fiche)->corps);
+        self::assertStringNotContainsString('Supprimer définitivement', $this->en('pmoreau', 'GET', $fiche)->corps, 'La direction ne supprime pas');
+        self::assertStringContainsString('Seul un administrateur', $this->en('pmoreau', 'POST', $fiche, ['action' => 'supprimer', 'confirmation' => 'cpetit'])->corps);
+        self::assertStringContainsString('tapez exactement', $this->en('mzanelli', 'POST', $fiche, ['action' => 'supprimer', 'confirmation' => 'cpeti'])->corps);
+        self::assertSame(1, $this->nombre("SELECT count(*) FROM comptes WHERE identifiant = 'cpetit'"));
+
+        self::assertStringContainsString('Compte supprimé', $this->en('mzanelli', 'POST', $fiche, ['action' => 'supprimer', 'confirmation' => 'cpetit'])->corps);
+        self::assertSame(0, $this->nombre("SELECT count(*) FROM comptes WHERE identifiant = 'cpetit'"));
+        self::assertSame(1, $this->nombre("SELECT count(*) FROM journal WHERE action = 'suppression de compte' AND cible = 'cpetit'"));
+        // Un nouveau compte qui reprendrait le même numéro ne retrouve aucune session de l'ancien.
+        $nouveau = (new DepotComptes($this->pdo))->creer('lbernard', 'Léa BERNARD', 'lbernard@exemple.fr', 'enseignant', MotsDePasse::hacher('un mot de passe solide'));
+        self::assertGreaterThan(1_000_000, $this->nombre('SELECT generation FROM comptes WHERE id = ' . $nouveau));
+    }
+
+    public function testOnNeSupprimePasSonPropreCompte(): void
+    {
+        (new DepotComptes($this->pdo))->creer('admin2', 'Admin 2', 'a2@exemple.fr', 'administrateur', MotsDePasse::hacher('un mot de passe solide'));
+        $gestion = new \Portail\Comptes\GestionComptes($this->pdo, (new DepotComptes($this->pdo))->parIdentifiant('mzanelli'), null, null);
+        try {
+            $gestion->supprimer($this->ids['mzanelli'], 'mzanelli');
+            self::fail('Suppression de son propre compte acceptée');
+        } catch (\Portail\Noyau\ErreurSaisie $e) {
+            self::assertStringContainsString('votre propre compte', $e->getMessage());
+        }
+    }
+
+    public function testApresReactivationLaFicheRappelleDeReinitialiserLeCode(): void
+    {
+        $this->pdo->exec("UPDATE comptes SET double_auth_active = 1, secret_2fa_chiffre = 'v1:x' WHERE identifiant = 'cpetit'");
+        $this->en('mzanelli', 'POST', '/comptes/' . $this->ids['cpetit'], ['action' => 'desactiver']);
+        $page = $this->en('mzanelli', 'POST', '/comptes/' . $this->ids['cpetit'], ['action' => 'reactiver'])->corps;
+        self::assertStringContainsString('cliquez aussi « Réinitialiser le code à 6 chiffres »', $page);
+    }
+
     // ===== Commande de secours (SSH) =====
 
     public function testLaCommandeDeSecoursCreeUnAdministrateur(): void

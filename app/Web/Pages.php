@@ -323,7 +323,10 @@ final class Pages
             . '<button type="submit">Enregistrer</button></form>'
             . '<h2>Actions</h2>'
             . ($compte->actif
-                ? '<p>Double authentification : ' . ($compte->doubleAuthActive ? 'activée' : 'à activer à la prochaine connexion') . '.</p>'
+                ? '<p>Double authentification : ' . ($compte->doubleAuthActive
+                    ? 'activée. Si la personne n\'a plus le code sur son téléphone (application supprimée, téléphone perdu ou changé), '
+                        . 'cliquez « Réinitialiser le code à 6 chiffres » : elle reliera de nouveau son téléphone à sa prochaine connexion'
+                    : 'à relier à la prochaine connexion (un code QR s\'affichera après le mot de passe)') . '.</p>'
                     . $bouton('mot_de_passe', 'Réinitialiser le mot de passe')
                     . $bouton('double_auth', 'Réinitialiser le code à 6 chiffres (téléphone perdu ou changé)')
                 : '<p role="status"><strong>Ce compte est désactivé : il ne peut pas se connecter.</strong> '
@@ -335,6 +338,15 @@ final class Pages
                 : '')
             . ($compte->actif ? $bouton('desactiver', $soi ? 'Désactiver mon propre compte' : 'Désactiver le compte')
                 : $bouton('reactiver', 'Réactiver le compte'))
+            . (!$compte->actif && !$soi && $moi->role === 'administrateur'
+                ? '<h2>Supprimer le compte (administrateur)</h2>'
+                    . '<p>Départ définitif : le compte disparaît de la liste et ne pourra plus être réactivé. '
+                    . 'Ses actions restent dans le journal sous son nom ; ses demandes et ses dépôts restent, sans lien vers lui.</p>'
+                    . '<form method="post" action="' . $action . '">' . self::jeton($jeton) . '<input type="hidden" name="action" value="supprimer">'
+                    . '<p><label for="confirmation">Pour confirmer, tapez l\'identifiant du compte (<code>' . Html::e($compte->identifiant) . '</code>)</label><br>'
+                    . '<input id="confirmation" name="confirmation" type="text" autocomplete="off" required maxlength="32"></p>'
+                    . '<button type="submit" class="btn-danger">Supprimer définitivement</button></form>'
+                : '')
             . '<p>Toute modification du rôle, toute réinitialisation et toute désactivation ferment immédiatement '
             . 'les sessions ouvertes de ce compte.</p>'
             . '<p><a href="/comptes">Retour aux comptes</a></p>');

@@ -86,6 +86,32 @@ final class GestionComptes
         $this->tracer('réactivation de compte', $compte->identifiant);
     }
 
+    /**
+     * Suppression définitive d'un compte par l'administrateur (demande du 16/11/2026, départ d'un enseignant par exemple ;
+     * auparavant, décision du 05/11 : jamais supprimé). Le compte doit d'abord être désactivé, et l'administrateur tape
+     * son identifiant. Le journal garde ses actions sous son nom ; ses demandes et ses dépôts restent, sans lien vers lui.
+     */
+    public function supprimer(int $id, string $confirmation): void
+    {
+        $compte = $this->trouver($id);
+        if ($this->auteur === null || $this->auteur->role !== 'administrateur') {
+            throw new ErreurSaisie('Seul un administrateur peut supprimer un compte.');
+        }
+        if ($compte->id === $this->auteur->id) {
+            throw new ErreurSaisie('Vous ne pouvez pas supprimer votre propre compte.');
+        }
+        if ($compte->actif) {
+            throw new ErreurSaisie('Désactivez d\'abord ce compte : seul un compte désactivé peut être supprimé.');
+        }
+        if (trim($confirmation) !== $compte->identifiant) {
+            throw new ErreurSaisie('Pour confirmer, tapez exactement l\'identifiant du compte (« ' . $compte->identifiant . ' ») : rien n\'a été supprimé.');
+        }
+        if (!$this->comptes->supprimer($id)) {
+            throw new ErreurSaisie('Le compte n\'a pas pu être supprimé.');
+        }
+        $this->tracer('suppression de compte', $compte->identifiant, $compte->nomAffiche . ', ' . $compte->libelleRole() . ', ' . $compte->email);
+    }
+
     /** @return string Nouveau mot de passe provisoire, à transmettre */
     public function reinitialiserMotDePasse(int $id): string
     {

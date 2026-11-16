@@ -40,11 +40,13 @@ final class DepotComptes
     public function creer(string $identifiant, string $nomAffiche, string $email, string $role, string $motDePasseHache): int
     {
         $requete = $this->pdo->prepare(
-            'INSERT INTO comptes (identifiant, nom_affiche, email, role, mot_de_passe_hache, doit_changer_mdp)
-             VALUES (:identifiant, :nom, :email, :role, :hache, 1)'
+            'INSERT INTO comptes (identifiant, nom_affiche, email, role, mot_de_passe_hache, doit_changer_mdp, generation)
+             VALUES (:identifiant, :nom, :email, :role, :hache, 1, :generation)'
         );
+        // Depuis que les comptes peuvent être supprimés (16/11/2026), un nouveau compte peut reprendre le numéro d'un compte
+        // supprimé : sa génération de départ (l'heure) ne correspond à aucune session de l'ancien compte.
         $requete->execute([':identifiant' => $identifiant, ':nom' => $nomAffiche, ':email' => $email,
-            ':role' => $role, ':hache' => $motDePasseHache]);
+            ':role' => $role, ':hache' => $motDePasseHache, ':generation' => time()]);
 
         return (int) $this->pdo->lastInsertId();
     }
@@ -124,6 +126,15 @@ final class DepotComptes
     {
         $requete = $this->pdo->prepare('UPDATE comptes SET actif = :actif, generation = generation + 1 WHERE id = :id');
         $requete->execute([':actif' => $actif ? 1 : 0, ':id' => $id]);
+    }
+
+    /** Supprime un compte désactivé (départ). @return bool Vrai si un compte a été supprimé */
+    public function supprimer(int $id): bool
+    {
+        $requete = $this->pdo->prepare('DELETE FROM comptes WHERE id = :id AND actif = 0');
+        $requete->execute([':id' => $id]);
+
+        return $requete->rowCount() === 1;
     }
 
     /** Mot de passe provisoire : à changer à la prochaine connexion ; le compte est débloqué. */
