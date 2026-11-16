@@ -103,6 +103,7 @@ final class Application
             '/travaux' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travaux($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
             '/demandes' => $this->pageConnectee($requete, Droits::DEMANDER, fn (Compte $moi) => $this->demandes($requete, $moi)),
+            '/sites/supprimer' => $this->pageConnectee($requete, Droits::SUPPRIMER, fn (Compte $moi) => $this->supprimerEnMasse($requete, $moi)),
             default => $this->pageNumerotee($requete),
         };
     }
@@ -705,6 +706,42 @@ final class Application
         }
 
         return $html . PagesDemandes::formulaireFiche($this->session->jeton(), $action, $choix);
+    }
+
+    /** Suppression en masse par session (administrateur, demande du 16/11/2026). */
+    private function supprimerEnMasse(Requete $requete, Compte $moi): Reponse
+    {
+        $suppressions = new Suppressions($this->pdo);
+        $sessionChoisie = null;
+        $erreur = null;
+        if ($requete->methode === 'POST') {
+            $sessionChoisie = self::idFacultatif($requete->champ('session'));
+            switch ($requete->champ('action')) {
+                case 'afficher':
+                    break;
+                case 'supprimer':
+                    try {
+                        $resultat = $suppressions->enMasse($sessionChoisie ?? 0, $requete->liste('coches'), $requete->champ('choix'),
+                            $requete->champ('confirmation'), $requete->champ('motif'), $moi, $requete->adresseIp);
+
+                        return Reponse::redirection('/travaux/' . $resultat['travaux'][0]);
+                    } catch (ErreurSaisie $e) {
+                        $erreur = $e->getMessage();
+                    }
+                    break;
+                default:
+                    return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        $sessions = $suppressions->sessions();
+        if ($sessionChoisie !== null && !in_array($sessionChoisie, array_column($sessions, 'id'), true)) {
+            $sessionChoisie = null;
+        }
+
+        return new Reponse(200, PagesDemandes::masse($this->session->jeton(), $sessions, $sessionChoisie,
+            $sessionChoisie === null ? null : $suppressions->etudiantsDeSession($sessionChoisie), $erreur));
     }
 
     private function demandes(Requete $requete, Compte $moi): Reponse

@@ -89,6 +89,7 @@ final class Pages
         'motdepasse' => '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3"/>',
         'sujet' => '<path d="M6 3h9l3 3v15H6z"/><path d="M9 13l2 2 4-4"/>',
         'certificat' => '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+        'corbeille' => '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
         'demandes' => '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/>',
         'wordpress' => '<circle cx="12" cy="12" r="9"/><path d="M3.6 8.5h16.8M6 9l3.5 10L12 12l2.5 7L18 9"/>',
     ];
@@ -113,6 +114,9 @@ final class Pages
             $liste[] = ['/demandes', 'demandes', 'Demandes', Droits::peut($compte->role, Droits::TRAITER_DEMANDES)
                 ? 'Valider ou refuser les demandes de suppression et de réinitialisation ; restaurer une suppression récente.'
                 : 'Suivre vos demandes de suppression ou de réinitialisation à l’administrateur.'];
+        }
+        if (Droits::peut($compte->role, Droits::SUPPRIMER)) {
+            $liste[] = ['/sites/supprimer', 'corbeille', 'Supprimer en masse', 'Supprimer les sites ou les étudiants d’une session (restaurable 8 jours).'];
         }
         if (Droits::peut($compte->role, Droits::CREER_SITE)) {
             $liste[] = ['/sites/wordpress', 'wordpress', 'Créer des WordPress', 'Sous-domaine et WordPress /WP d’un nouvel étudiant, accès envoyés par e-mail.'];

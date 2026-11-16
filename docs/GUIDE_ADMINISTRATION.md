@@ -176,6 +176,12 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
   - **Un site** : son dossier est mis à l'écart 8 jours dans `~/archives_suppression/portail/`, sa base et son utilisateur MySQL restent en place.
   - **Un étudiant** : le dossier entier du sous-domaine est mis à l'écart, la fiche quitte toutes les listes, et le portail note toutes ses bases et tous ses utilisateurs MySQL. Les bases notées sont celles du portail, celles de ses fichiers de réglages si elles sont à son nom, et toutes celles de CPanel au nom exact `jafl3067_identifiant` ou `jafl3067_identifiant_…`, comme `nettoyage_etudiants.sh`. La base partagée `jafl3067_peda` et les bases protégées ne sont jamais retenues.
   - **Le sous-domaine** reste dans CPanel pendant les 8 jours ; son adresse ne montre plus de site. L'identifiant reste réservé : ni « Ajouter un étudiant », ni l'import ne peuvent le reprendre (l'import l'indique en rouge). Dans « Voir tout », il est listé à part, avec sa date d'effacement.
+- **Supprimer en masse** (menu « Supprimer en masse », administrateur seul, demande du 16/11/2026) : pour une session entière, par exemple la session 2027 en juillet 2027.
+  - Choisir la session (actives et archivées, avec le nombre d'étudiants), puis « Afficher les étudiants ». Les sites connus de chacun s'affichent ; les filtres et « Tout cocher » sont disponibles.
+  - Choisir ce qu'il faut supprimer : **tout** (les étudiants, leurs sites, leurs bases et leurs sous-domaines), ou **seulement un site** (/WP, /WP2, /Presta ou /Presta2) ; dans ce dernier cas, les étudiants restent.
+  - Un motif facultatif est gardé au journal. Taper `SUPPRIMER`, puis valider.
+  - Un seul travail est créé pour toute la sélection, traité un étudiant à la fois. Un étudiant qui n'a pas le site choisi, ou qui a déjà un travail prévu, est passé.
+  - Comme pour une suppression depuis la fiche, tout reste restaurable 8 jours.
 - **Restaurer** : page « Demandes », rubrique « Suppressions restaurables », bouton « Restaurer » (administrateur). Le dossier reprend sa place tel quel, avec ses bases. Pour un étudiant, sa fiche, ses sites et son relevé reviennent ; si son sous-domaine a été retiré de CPanel entre-temps (à la main), il est recréé et son certificat redemandé. La restauration est refusée si quelque chose occupe déjà la place.
 - **Au bout des 8 jours**, le travailleur efface, quand il n'a pas d'autre travail, une mise à l'écart à la fois.
   - Pour un site : le dossier, la base et l'utilisateur, sauf s'ils servent encore à un site en place de l'étudiant.

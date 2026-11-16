@@ -234,6 +234,39 @@ final class SuppressionsTest extends TestCase
         self::assertNull($this->pdo->query('SELECT utilisateur_bdd FROM mises_a_l_ecart')->fetchColumn());
     }
 
+    public function testSuppressionEnMasseDUneSessionParLAdministrateur(): void
+    {
+        self::assertSame(403, $this->en('cpetit', 'GET', '/sites/supprimer')->statut, 'Administrateur seul');
+        $page = $this->en('mzanelli', 'POST', '/sites/supprimer', ['action' => 'afficher', 'session' => (string) $this->session])->corps;
+        self::assertStringContainsString('Session 2027 (3 étudiants)', $page);
+        self::assertMatchesRegularExpression('#<td>(/[A-Za-z0-9]+ ?){3}</td>#', $page, 'Les trois sites de martinel');
+        self::assertStringContainsString('data-tout-cocher', $page);
+
+        $tous = ['martinel', 'durandca', 'leroyhu'];
+        $sansMot = $this->en('mzanelli', 'POST', '/sites/supprimer', ['action' => 'supprimer', 'session' => (string) $this->session, 'choix' => 'etudiant',
+            'confirmation' => 'oui'], ['coches' => $tous]);
+        self::assertStringContainsString('tapez SUPPRIMER', $sansMot->corps);
+        self::assertSame(0, $this->nombre('SELECT count(*) FROM travaux'));
+
+        // Seulement les /WP : l'étudiant sans /WP est passé.
+        $resultat = (new Suppressions($this->pdo))->enMasse($this->session, $tous, 'site:/WP', 'SUPPRIMER', 'Fin de formation', $this->compte('mzanelli'), null);
+        self::assertSame(2, $resultat['retenus']);
+        self::assertSame(['LEROY Hugo (pas de site /WP)'], $resultat['passes']);
+        $this->tourner();
+        self::assertDirectoryDoesNotExist($this->personnel . '/durandca.bts-sup-sallanches.com/WP');
+        self::assertSame(3, $this->nombre('SELECT count(*) FROM etudiants'), 'Les étudiants restent');
+
+        // Puis tout : un seul travail pour la session.
+        $reponse = $this->en('mzanelli', 'POST', '/sites/supprimer', ['action' => 'supprimer', 'session' => (string) $this->session, 'choix' => 'etudiant',
+            'confirmation' => 'SUPPRIMER', 'motif' => 'Fin de formation'], ['coches' => $tous]);
+        self::assertSame(303, $reponse->statut);
+        self::assertSame(3, $this->nombre("SELECT count(*) FROM travaux_etapes e JOIN travaux t ON t.id = e.travail_id WHERE t.type = 'supprimer_etudiant'"));
+        $this->tourner();
+        self::assertSame(0, $this->nombre('SELECT count(*) FROM etudiants'));
+        self::assertCount(3, Suppressions::etudiantsSupprimes($this->pdo));
+        self::assertStringContainsString('Fin de formation', (string) $this->pdo->query("SELECT motif FROM mises_a_l_ecart WHERE identifiant = 'leroyhu'")->fetchColumn());
+    }
+
     // ===== Demandes à l'administrateur =====
 
     public function testUneDemandeAUnMotifObligatoireEtPrevientLAdministrateurSansNomDEtudiant(): void

@@ -77,6 +77,98 @@ final class Suppressions
         return $travaux;
     }
 
+    /**
+     * Toutes les sessions, actives ou archivées, avec leur nombre d'étudiants (page « Supprimer en masse »).
+     *
+     * @return list<array{id: int, annee: int, etudiants: int}>
+     */
+    public function sessions(): array
+    {
+        $liste = [];
+        $resultat = $this->pdo->query('SELECT s.id, s.annee, count(e.id) AS nombre FROM sessions s LEFT JOIN etudiants e ON e.session_id = s.id
+            GROUP BY s.id, s.annee ORDER BY s.annee');
+        foreach (Lecture::lignes($resultat) as $ligne) {
+            $liste[] = ['id' => (int) Lecture::entier($ligne['id']), 'annee' => (int) Lecture::entier($ligne['annee']), 'etudiants' => (int) Lecture::entier($ligne['nombre'])];
+        }
+
+        return $liste;
+    }
+
+    /**
+     * Étudiants d'une session avec leurs sites (dernier relevé et portail) et ce qui empêche de les supprimer.
+     *
+     * @return list<array{identifiant: string, nom: string, regime: string, sites: list<string>, empechement: ?string}>
+     */
+    public function etudiantsDeSession(int $session): array
+    {
+        $requete = $this->pdo->prepare('SELECT e.identifiant, e.nom_complet, r.nom AS regime FROM etudiants e JOIN regimes r ON r.id = e.regime_id
+            WHERE e.session_id = :s ORDER BY e.nom_complet');
+        $requete->execute([':s' => $session]);
+        $liste = [];
+        foreach (Lecture::lignes($requete) as $ligne) {
+            $identifiant = (string) Lecture::texte($ligne['identifiant']);
+            $empechement = null;
+            if (in_array($identifiant, Installation::SITES_PROTEGES, true) || $identifiant === SiteModele::IDENTIFIANT) {
+                $empechement = 'site protégé';
+            } elseif ($this->travailPrevu($identifiant)) {
+                $empechement = 'travail déjà prévu';
+            }
+            $liste[] = ['identifiant' => $identifiant, 'nom' => (string) Lecture::texte($ligne['nom_complet']), 'regime' => (string) Lecture::texte($ligne['regime']),
+                'sites' => array_values(array_intersect(array_column(Releve::sitesEtudiant($this->pdo, $identifiant), 'dossier'), self::DOSSIERS)),
+                'empechement' => $empechement];
+        }
+
+        return $liste;
+    }
+
+    /**
+     * Suppression en masse (demande du 16/11/2026, par exemple toute la session 2027 en juillet), administrateur seul,
+     * confirmée en tapant SUPPRIMER. Choix « etudiant » (tout, sous-domaine compris) ou « site:/WP »… : un étudiant coché
+     * qui n'a pas ce site est simplement passé.
+     *
+     * @param list<string> $coches
+     * @return array{travaux: list<int>, retenus: int, passes: list<string>}
+     */
+    public function enMasse(int $session, array $coches, string $choix, string $confirmation, string $motif, Compte $auteur, ?string $adresseIp): array
+    {
+        if (trim($confirmation) !== Demandes::MOT_CONFIRMATION) {
+            throw new ErreurSaisie('Pour confirmer, tapez ' . Demandes::MOT_CONFIRMATION . ' en majuscules : rien n\'a été supprimé.');
+        }
+        $dossier = null;
+        if ($choix !== 'etudiant') {
+            $dossier = str_starts_with($choix, 'site:') ? substr($choix, 5) : '';
+            if (!in_array($dossier, self::DOSSIERS, true)) {
+                throw new ErreurSaisie('Choisissez ce qu\'il faut supprimer.');
+            }
+        }
+        $etudiants = [];
+        foreach ($this->etudiantsDeSession($session) as $etudiant) {
+            $etudiants[$etudiant['identifiant']] = $etudiant;
+        }
+        $cibles = [];
+        $passes = [];
+        foreach (array_values(array_unique($coches)) as $identifiant) {
+            $etudiant = $etudiants[$identifiant] ?? null;
+            if ($etudiant === null) {
+                continue;
+            }
+            if ($etudiant['empechement'] !== null) {
+                $passes[] = $etudiant['nom'] . ' (' . $etudiant['empechement'] . ')';
+            } elseif ($dossier !== null && !in_array($dossier, $etudiant['sites'], true)) {
+                $passes[] = $etudiant['nom'] . ' (pas de site ' . $dossier . ')';
+            } else {
+                $cibles[] = [$identifiant, $dossier];
+            }
+        }
+        if ($cibles === []) {
+            throw new ErreurSaisie('Aucun étudiant coché ne peut être supprimé' . ($passes === [] ? '.' : ' : ' . implode(', ', $passes) . '.'));
+        }
+        $motif = trim((string) preg_replace('/\s+/u', ' ', $motif));
+
+        return ['travaux' => $this->lancer($dossier === null ? self::ETUDIANT : self::SITE, $cibles, $auteur, $adresseIp,
+            $motif === '' ? 'suppression en masse' : mb_substr($motif, 0, 200, 'UTF-8')), 'retenus' => count($cibles), 'passes' => $passes];
+    }
+
     /** Restauration d'une suppression de moins de 8 jours. @return int Numéro du travail */
     public function restaurer(string $chemin, Compte $auteur, ?string $adresseIp): int
     {

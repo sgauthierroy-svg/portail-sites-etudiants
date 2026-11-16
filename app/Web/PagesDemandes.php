@@ -97,6 +97,67 @@ final class PagesDemandes
             . '<button type="submit" class="btn-danger">Supprimer</button></form>';
     }
 
+    /**
+     * Suppression en masse par session (administrateur, demande du 16/11/2026).
+     *
+     * @param list<array{id: int, annee: int, etudiants: int}> $sessions
+     * @param ?list<array{identifiant: string, nom: string, regime: string, sites: list<string>, empechement: ?string}> $etudiants
+     */
+    public static function masse(string $jeton, array $sessions, ?int $sessionChoisie, ?array $etudiants, ?string $erreur): string
+    {
+        $options = '';
+        $annee = null;
+        foreach ($sessions as $session) {
+            $choisie = $session['id'] === $sessionChoisie;
+            $annee = $choisie ? $session['annee'] : $annee;
+            $options .= '<option value="' . $session['id'] . '"' . ($choisie ? ' selected' : '') . '>Session ' . $session['annee']
+                . ' (' . $session['etudiants'] . ' étudiant' . ($session['etudiants'] > 1 ? 's' : '') . ')</option>';
+        }
+        $contenu = Pages::alerte($erreur, null)
+            . '<p>Pour une session entière (par exemple une promotion partie en juillet) ou une partie de ses étudiants : '
+            . 'choisissez la session, cochez les étudiants, puis ce qu\'il faut supprimer. Rien n\'est effacé tout de suite : tout est gardé '
+            . MiseALecart::JOURS . ' jours (bouton « Restaurer » de la page <a href="/demandes">Demandes</a>), puis effacé définitivement, '
+            . 'sous-domaines compris pour une suppression complète. Le travail se fait en arrière-plan, un étudiant après l\'autre.</p>'
+            . '<form method="post" action="/sites/supprimer">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="afficher">'
+            . '<label for="session">Session</label> <select id="session" name="session">' . $options . '</select> '
+            . '<button type="submit">Afficher les étudiants</button></form>';
+        if ($etudiants === null || $sessionChoisie === null) {
+            return Pages::page('Supprimer en masse', $contenu);
+        }
+        $lignes = '';
+        $possibles = 0;
+        foreach ($etudiants as $etudiant) {
+            $possible = $etudiant['empechement'] === null;
+            $possibles += $possible ? 1 : 0;
+            $lignes .= '<tr><td>' . ($possible ? '<input type="checkbox" name="coches[]" value="' . Html::e($etudiant['identifiant']) . '" aria-label="'
+                    . Html::e($etudiant['nom']) . '">' : '') . '</td>'
+                . '<td>' . Html::e($etudiant['nom']) . '</td><td><code>' . Html::e($etudiant['identifiant']) . '</code></td><td>' . Html::e($etudiant['regime']) . '</td>'
+                . '<td>' . ($etudiant['sites'] === [] ? '<span class="discret">aucun</span>' : Html::e(implode(' ', $etudiant['sites']))) . '</td>'
+                . '<td>' . ($possible ? '' : '<span class="badge neutre">' . Html::e((string) $etudiant['empechement']) . '</span>') . '</td></tr>';
+        }
+        if ($etudiants === []) {
+            return Pages::page('Supprimer en masse', $contenu . '<p>Aucun étudiant dans cette session.</p>');
+        }
+        $choix = '<label class="choix"><input type="radio" name="choix" value="etudiant" required> <strong>tout</strong> : les étudiants cochés, '
+            . 'tous leurs sites, toutes leurs bases et leurs sous-domaines</label><br>';
+        foreach (['/WP' => 'WordPress', '/WP2' => 'WordPress d\'examen', '/Presta' => 'boutique PrestaShop', '/Presta2' => 'boutique d\'examen'] as $dossier => $libelle) {
+            $choix .= '<label class="choix"><input type="radio" name="choix" value="site:' . $dossier . '" required> seulement le site <code>' . $dossier
+                . '</code> (' . $libelle . ') et sa base ; les étudiants restent</label><br>';
+        }
+
+        return Pages::page('Supprimer en masse', $contenu . '<h2>Session ' . (int) $annee . '</h2>'
+            . '<form method="post" action="/sites/supprimer">' . Pages::jeton($jeton)
+            . '<input type="hidden" name="action" value="supprimer"><input type="hidden" name="session" value="' . $sessionChoisie . '">'
+            . '<table class="triable"><thead><tr><th><input type="checkbox" data-tout-cocher aria-label="Tout cocher" title="Tout cocher"></th>'
+            . '<th>Étudiant</th><th>Identifiant</th><th>Régime</th><th>Sites</th><th>État</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
+            . ($possibles === 0 ? '<p>Aucun étudiant de cette session ne peut être supprimé pour l\'instant.</p>' : '<fieldset><legend>Supprimer</legend>' . $choix . '</fieldset>'
+                . self::champMotif(false)
+                . '<p><label for="confirmation">Pour confirmer, tapez <code>' . Demandes::MOT_CONFIRMATION . '</code></label><br>'
+                . '<input id="confirmation" name="confirmation" type="text" autocomplete="off" required maxlength="20"></p>'
+                . '<button type="submit" class="btn-danger">Supprimer pour les étudiants cochés</button>')
+            . '</form>');
+    }
+
     /** @param list<Demande> $demandes */
     public static function enAttenteFiche(array $demandes, bool $traiter): string
     {
@@ -212,15 +273,15 @@ final class PagesDemandes
             . '<tbody>' . $lignes . '</tbody></table>';
     }
 
-    private static function champMotif(): string
+    private static function champMotif(bool $obligatoire = true): string
     {
         $options = '';
         foreach (self::MOTIFS as $motif) {
             $options .= '<option value="' . Html::e($motif) . '"></option>';
         }
 
-        return '<p><label for="motif">Motif (obligatoire)</label><br>'
-            . '<input id="motif" name="motif" type="text" list="motifs" required minlength="3" maxlength="300" autocomplete="off">'
+        return '<p><label for="motif">Motif' . ($obligatoire ? ' (obligatoire)' : ' (facultatif, gardé au journal)') . '</label><br>'
+            . '<input id="motif" name="motif" type="text" list="motifs"' . ($obligatoire ? ' required minlength="3"' : '') . ' maxlength="300" autocomplete="off">'
             . '<datalist id="motifs">' . $options . '</datalist></p>';
     }
 }
