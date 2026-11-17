@@ -692,16 +692,16 @@ final class Application
         }
         $choix = [];
         foreach ($supprimables as $site) {
-            $choix['supprimer_site:' . $site['dossier']] = 'Supprimer le site ' . $site['dossier'] . ' (' . ($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ')';
+            $choix['supprimer_site:' . $site['dossier']] = 'Supprimer : ' . Pages::nomSiteTexte($site['dossier']);
         }
-        $choix['supprimer_etudiant'] = 'Supprimer l\'étudiant (tous ses sites et son sous-domaine)';
+        $choix['supprimer_etudiant'] = 'Supprimer l\'étudiant (tous ses sites et son adresse)';
         if (!Droits::peut($moi->role, Droits::REINITIALISER_SITE)) {
             $dossiers = array_column($sites, 'dossier');
             if (in_array('/WP', $dossiers, true)) {
-                $choix['reinitialiser_wordpress'] = 'Réinitialiser le WordPress (/WP)';
+                $choix['reinitialiser_wordpress'] = 'Réinitialiser : ' . Pages::nomSiteTexte('/WP');
             }
             if (in_array('/Presta', $dossiers, true)) {
-                $choix['reinitialiser_prestashop'] = 'Réinitialiser la boutique (/Presta)';
+                $choix['reinitialiser_prestashop'] = 'Réinitialiser : ' . Pages::nomSiteTexte('/Presta');
             }
         }
 

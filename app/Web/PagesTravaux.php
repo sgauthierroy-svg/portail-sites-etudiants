@@ -18,7 +18,7 @@ final class PagesTravaux
     private const COLONNES = ['/WP', '/WP2', '/Presta', '/Presta2'];
 
     private const BADGES = [
-        'en_attente' => 'neutre', 'en_cours' => 'warn', 'termine' => 'ok', 'annule' => 'neutre',
+        'en_attente' => 'neutre', 'en_cours' => 'warn encours', 'termine' => 'ok', 'annule' => 'neutre',
         'reussi' => 'ok', 'echec' => 'err', 'ignore' => 'neutre',
     ];
 
@@ -46,9 +46,9 @@ final class PagesTravaux
         }
         $fiches = Droits::peut($moi->role, Droits::VOIR_FICHE);
         $existants = array_flip($sousDomaines);
-        $entete = '<th>Étudiant</th><th>Classe</th><th>Sous-domaine</th>';
+        $entete = '<th>Étudiant</th><th>Classe</th><th>Adresse du site</th>';
         foreach ($colonnes as $dossier) {
-            $entete .= '<th>' . Html::e($dossier) . '</th>';
+            $entete .= '<th>' . Pages::nomSite($dossier) . '</th>';
         }
         $lignes = '';
         foreach ($etudiants as $etudiant) {
@@ -58,7 +58,7 @@ final class PagesTravaux
                 $nom .= ' <span class="badge warn">' . Html::e($etiquette) . '</span>';
             }
             $lignes .= '<tr><td>' . $nom . '</td><td>' . Html::e($etudiant->classe()) . '</td><td>'
-                . (isset($existants[$etudiant->identifiant]) ? '<span class="badge ok">oui</span>' : '<span class="badge neutre">absent</span>') . '</td>';
+                . (isset($existants[$etudiant->identifiant]) ? '<span class="badge ok">existe</span>' : '<span class="badge neutre">pas encore créée</span>') . '</td>';
             foreach ($colonnes as $dossier) {
                 $site = $sites[$etudiant->identifiant][$dossier] ?? null;
                 $texte = $site === null ? '—' : Html::e(self::nomLogiciel($site['logiciel']) . ($site['version'] === null ? '' : ' ' . $site['version']));
@@ -96,7 +96,7 @@ final class PagesTravaux
             }
         }
 
-        return Pages::page('Voir tout',
+        return Pages::page('Liste des sites',
             Pages::alerte(null, $information)
             . self::blocReleve($jeton, $moi, $dernierReleve, $relevePrevu)
             . '<form method="post" action="/sites">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="filtrer">'
@@ -158,7 +158,7 @@ final class PagesTravaux
 
     private static function blocReleve(string $jeton, Compte $moi, ?string $dernierReleve, ?int $relevePrevu): string
     {
-        $texte = '<p>Dernier relevé du serveur : ' . ($dernierReleve === null ? 'aucun' : Html::e(Pages::heureLocale($dernierReleve))) . '.';
+        $texte = '<p>Liste des sites mise à jour le : ' . ($dernierReleve === null ? 'aucun' : Html::e(Pages::heureLocale($dernierReleve))) . '.';
         if ($relevePrevu !== null) {
             return $texte . ' Un nouveau relevé est prévu : <a href="/travaux/' . $relevePrevu . '">travail n° ' . $relevePrevu . '</a>.</p>';
         }
@@ -168,7 +168,7 @@ final class PagesTravaux
 
         return $texte . '</p><form method="post" action="/travaux">' . Pages::jeton($jeton)
             . '<input type="hidden" name="action" value="actualiser_releve">'
-            . '<button type="submit">Actualiser le relevé</button> <span class="discret">Lecture seule : rien n\'est modifié sur le serveur. Une à deux minutes.</span></form>';
+            . '<button type="submit">Mettre à jour la liste des sites</button> <span class="discret">Lecture seule : rien n\'est modifié sur le serveur. Une à deux minutes.</span></form>';
     }
 
     private static function badge(string $etat): string

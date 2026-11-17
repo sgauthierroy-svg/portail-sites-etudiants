@@ -30,8 +30,8 @@ final class PagesSites
             . '<p>Boutique par défaut de PrestaShop, en https, dans le dossier <code>/Presta</code> de chaque étudiant coché. '
             . 'Chaque étudiant reçoit ses accès par e-mail ; l\'administrateur reçoit à la fin un récapitulatif à coller dans la feuille des accès. '
             . 'Le travail se fait en arrière-plan, un étudiant après l\'autre (une à deux minutes chacun).</p>'
-            . '<p>Dernier relevé du serveur : ' . ($dernierReleve === null ? 'aucun' : Html::e(Pages::heureLocale($dernierReleve)))
-            . '. Un sous-domaine créé depuis n\'est pas connu : <a href="/travaux">actualisez le relevé</a> d\'abord.</p>'
+            . '<p>Liste des sites mise à jour le : ' . ($dernierReleve === null ? 'aucun' : Html::e(Pages::heureLocale($dernierReleve)))
+            . '. Un sous-domaine créé depuis n\'est pas connu : <a href="/travaux">mettez à jour la liste des sites</a> d\'abord.</p>'
             . '<form method="post" action="/sites/prestashop">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="afficher">'
             . '<label for="session">Session</label> <select id="session" name="session">' . $options . '</select> '
             . '<button type="submit">Afficher les étudiants</button></form>';
@@ -70,7 +70,7 @@ final class PagesSites
                 . '</form>';
         }
 
-        return Pages::page('Créer des boutiques PrestaShop', $contenu . '<p><a href="/sites">Voir tout</a> · <a href="/">Accueil</a></p>');
+        return Pages::page('Créer des boutiques PrestaShop', $contenu . '<p><a href="/sites">Liste des sites</a> · <a href="/">Accueil</a></p>');
     }
 
     /**
@@ -92,13 +92,13 @@ final class PagesSites
             . 'thème et extensions par défaut, en https. Si l\'étudiant n\'a pas encore de sous-domaine, il est créé avec son certificat. '
             . 'Chaque étudiant reçoit ses accès par e-mail (son identifiant WordPress et un mot de passe tiré au hasard) ; l\'administrateur reçoit à la fin '
             . 'un récapitulatif à coller dans la feuille des accès. Le travail se fait en arrière-plan, un étudiant après l\'autre.</p>'
-            . '<p>Dernier relevé du serveur : ' . ($dernierReleve === null ? 'aucun' : Html::e(Pages::heureLocale($dernierReleve)))
-            . '. Un site créé hors du portail depuis n\'est pas connu : <a href="/travaux">actualisez le relevé</a> d\'abord.</p>'
+            . '<p>Liste des sites mise à jour le : ' . ($dernierReleve === null ? 'aucun' : Html::e(Pages::heureLocale($dernierReleve)))
+            . '. Un site créé hors du portail depuis n\'est pas connu : <a href="/travaux">mettez à jour la liste des sites</a> d\'abord.</p>'
             . '<form method="post" action="/sites/wordpress">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="afficher">'
             . '<label for="session">Session</label> <select id="session" name="session">' . $options . '</select> '
             . '<button type="submit">Afficher les étudiants</button></form>';
         if ($session === null || $etudiants === null) {
-            return Pages::page('Créer des WordPress', $contenu . '<p><a href="/sites">Voir tout</a> · <a href="/">Accueil</a></p>');
+            return Pages::page('Créer des WordPress', $contenu . '<p><a href="/sites">Liste des sites</a> · <a href="/">Accueil</a></p>');
         }
         $lignes = '';
         $possibles = 0;
@@ -122,7 +122,7 @@ final class PagesSites
             . '<table class="triable"><thead><tr><th><input type="checkbox" data-tout-cocher aria-label="Tout cocher" title="Tout cocher"></th>'
             . '<th>Étudiant</th><th>Identifiant</th><th>Identifiant WordPress</th><th>E-mail</th><th>État</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
             . ($possibles > 0 ? '<button type="submit" class="btn-main">Créer les WordPress cochés</button>' : '<p>Aucun étudiant de cette session ne peut recevoir de WordPress.</p>')
-            . '</form><p><a href="/sites">Voir tout</a> · <a href="/">Accueil</a></p>');
+            . '</form><p><a href="/sites">Liste des sites</a> · <a href="/">Accueil</a></p>');
     }
 
     /**
@@ -183,6 +183,6 @@ final class PagesSites
             . '<table class="triable"><thead><tr><th><input type="checkbox" data-tout-cocher aria-label="Tout cocher" title="Tout cocher"></th>'
             . '<th>Sous-domaine</th><th>État</th><th>Expire le</th><th>Vérifié le</th><th>Relance</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
             . '<button type="submit" class="btn-main">Relancer le certificat des sous-domaines cochés</button></form>'
-            . '<p><a href="/sites">Voir tout</a> · <a href="/">Accueil</a></p>');
+            . '<p><a href="/sites">Liste des sites</a> · <a href="/">Accueil</a></p>');
     }
 }

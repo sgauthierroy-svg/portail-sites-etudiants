@@ -80,8 +80,8 @@ final class PagesDemandes
         }
         $options = '';
         foreach ($sites as $site) {
-            $options .= '<label class="choix"><input type="radio" name="choix" value="site:' . Html::e($site['dossier']) . '" required> le site '
-                . Html::e($site['dossier']) . ' (' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ($site['version'] === null ? '' : ' ' . $site['version']))
+            $options .= '<label class="choix"><input type="radio" name="choix" value="site:' . Html::e($site['dossier']) . '" required> '
+                . Pages::nomSite($site['dossier']) . ' (' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ($site['version'] === null ? '' : ' ' . $site['version']))
                 . ') et sa base</label><br>';
         }
         $options .= '<label class="choix"><input type="radio" name="choix" value="etudiant" required> <strong>l\'étudiant</strong> : sa fiche, tous ses sites, '
@@ -132,7 +132,7 @@ final class PagesDemandes
             $lignes .= '<tr><td>' . ($possible ? '<input type="checkbox" name="coches[]" value="' . Html::e($etudiant['identifiant']) . '" aria-label="'
                     . Html::e($etudiant['nom']) . '">' : '') . '</td>'
                 . '<td>' . Html::e($etudiant['nom']) . '</td><td><code>' . Html::e($etudiant['identifiant']) . '</code></td><td>' . Html::e($etudiant['regime']) . '</td>'
-                . '<td>' . ($etudiant['sites'] === [] ? '<span class="discret">aucun</span>' : Html::e(implode(' ', $etudiant['sites']))) . '</td>'
+                . '<td>' . ($etudiant['sites'] === [] ? '<span class="discret">aucun</span>' : implode(', ', array_map([Pages::class, 'nomSite'], $etudiant['sites']))) . '</td>'
                 . '<td>' . ($possible ? '' : '<span class="badge neutre">' . Html::e((string) $etudiant['empechement']) . '</span>') . '</td></tr>';
         }
         if ($etudiants === []) {
@@ -140,9 +140,9 @@ final class PagesDemandes
         }
         $choix = '<label class="choix"><input type="radio" name="choix" value="etudiant" required> <strong>tout</strong> : les étudiants cochés, '
             . 'tous leurs sites, toutes leurs bases et leurs sous-domaines</label><br>';
-        foreach (['/WP' => 'WordPress', '/WP2' => 'WordPress d\'examen', '/Presta' => 'boutique PrestaShop', '/Presta2' => 'boutique d\'examen'] as $dossier => $libelle) {
-            $choix .= '<label class="choix"><input type="radio" name="choix" value="site:' . $dossier . '" required> seulement le site <code>' . $dossier
-                . '</code> (' . $libelle . ') et sa base ; les étudiants restent</label><br>';
+        foreach (array_keys(Pages::NOMS_SITES) as $dossier) {
+            $choix .= '<label class="choix"><input type="radio" name="choix" value="site:' . $dossier . '" required> seulement : '
+                . Pages::nomSite($dossier) . ' et sa base ; les étudiants restent</label><br>';
         }
 
         return Pages::page('Supprimer en masse', $contenu . '<h2>Session ' . (int) $annee . '</h2>'
@@ -195,7 +195,7 @@ final class PagesDemandes
                 $lien = $demande['etudiant_id'] === null ? Html::e($nom) : '<a href="/etudiants/' . $demande['etudiant_id'] . '">' . Html::e($nom) . '</a>';
                 $lignes .= '<tr><td><input type="checkbox" name="coches[]" value="' . $demande['id'] . '" aria-label="Choisir"></td>'
                     . '<td>' . $lien . '</td><td>' . Html::e($demande['classe'] ?? '') . '</td>'
-                    . '<td>' . Html::e($demande['dossier'] ?? ($type === 'supprimer_etudiant' ? 'tout, sous-domaine compris' : '')) . '</td>'
+                    . '<td>' . ($demande['dossier'] !== null ? Pages::nomSite($demande['dossier']) : Html::e($type === 'supprimer_etudiant' ? 'tout, adresse comprise' : '')) . '</td>'
                     . '<td>' . Html::e($demande['motif']) . '</td>'
                     . '<td>' . Html::e($demande['demande_par_nom']) . '</td><td>' . Html::e(Pages::heureLocale($demande['demande_le'])) . '</td></tr>';
             }
@@ -220,13 +220,13 @@ final class PagesDemandes
     /** @param list<array{chemin: string, identifiant: string, dossier: string, motif: string, mis_le: string, expire_le: string, nom: string}> $restaurables */
     private static function restaurables(string $jeton, array $restaurables): string
     {
-        $html = '<h2>Suppressions restaurables (' . MiseALecart::JOURS . ' jours)</h2>';
+        $html = '<h2>Corbeille : suppressions restaurables (' . MiseALecart::JOURS . ' jours)</h2>';
         if ($restaurables === []) {
             return $html . '<p>Aucune suppression récente.</p>';
         }
         $lignes = '';
         foreach ($restaurables as $ecart) {
-            $quoi = $ecart['dossier'] === MiseALecart::SOUS_DOMAINE ? 'l\'étudiant (tout)' : 'le site ' . $ecart['dossier'];
+            $quoi = $ecart['dossier'] === MiseALecart::SOUS_DOMAINE ? 'l\'étudiant (tout)' : Pages::nomSiteTexte($ecart['dossier']);
             $lignes .= '<tr><td>' . Html::e($ecart['nom'] === '' ? $ecart['identifiant'] : $ecart['nom']) . ' <code>' . Html::e($ecart['identifiant']) . '</code></td>'
                 . '<td>' . Html::e($quoi) . '</td><td>' . Html::e($ecart['motif']) . '</td>'
                 . '<td>' . Html::e(Pages::heureLocale($ecart['mis_le'])) . '</td><td>' . Html::e(Pages::heureLocale($ecart['expire_le'])) . '</td>'

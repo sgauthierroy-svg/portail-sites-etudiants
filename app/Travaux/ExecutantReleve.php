@@ -24,6 +24,6 @@ final class ExecutantReleve implements Executant
         $this->alertes?->boutiquesHorsGel($horsGel);
 
         return ['etat' => 'reussi', 'message' => $bilan['sous_domaines'] . ' sous-domaines, ' . $bilan['sites'] . ' sites WordPress ou PrestaShop.'
-            . ($horsGel > 0 ? ' ' . $horsGel . ' boutique(s) hors de la version de leur session : voir « Voir tout ».' : '')];
+            . ($horsGel > 0 ? ' ' . $horsGel . ' boutique(s) hors de la version de leur session : voir « Liste des sites ».' : '')];
     }
 }

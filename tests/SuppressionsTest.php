@@ -239,7 +239,7 @@ final class SuppressionsTest extends TestCase
         self::assertSame(403, $this->en('cpetit', 'GET', '/sites/supprimer')->statut, 'Administrateur seul');
         $page = $this->en('mzanelli', 'POST', '/sites/supprimer', ['action' => 'afficher', 'session' => (string) $this->session])->corps;
         self::assertStringContainsString('Session 2027 (3 étudiants)', $page);
-        self::assertMatchesRegularExpression('#<td>(/[A-Za-z0-9]+ ?){3}</td>#', $page, 'Les trois sites de martinel');
+        self::assertStringContainsString('Boutique (cours) <span class="tech">/Presta</span>', $page, 'Sites en mots simples');
         self::assertStringContainsString('data-tout-cocher', $page);
 
         $tous = ['martinel', 'durandca', 'leroyhu'];

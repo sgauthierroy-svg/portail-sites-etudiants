@@ -49,7 +49,7 @@ final class PagesEtudiants
         }
         $actions[] = '<a href="/">Accueil</a>';
 
-        return Pages::page('Étudiants',
+        return Pages::page('Liste des étudiants',
             '<p>' . implode(' · ', $actions) . '</p>'
             . '<form method="post" action="/etudiants">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="filtrer">'
             . '<label for="regime">Régime</label> <select id="regime" name="regime">' . $optionsRegimes . '</select> '
@@ -205,13 +205,13 @@ final class PagesEtudiants
                 $site['dossier_admin'] !== null => $adresse . $site['dossier_admin'] . '/',
                 default => null,
             };
-            $lignesSites .= '<tr><td><a href="' . Html::e($adresse) . '" target="_blank" rel="noopener noreferrer">' . Html::e($site['dossier']) . '</a></td>'
+            $lignesSites .= '<tr><td><a href="' . Html::e($adresse) . '" target="_blank" rel="noopener noreferrer">' . Pages::nomSite($site['dossier']) . '</a></td>'
                 . '<td>' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ' ' . ($site['version'] ?? '')) . '</td>'
                 . '<td>' . ($voirAcces && $admin !== null ? '<a href="' . Html::e($admin) . '" target="_blank" rel="noopener noreferrer">administration</a>' : '—') . '</td>'
                 . '<td>' . ($site['cree_par_portail'] ? 'créé par le portail le ' : 'relevé le ') . Html::e(self::date($site['date'])) . '</td></tr>';
         }
         $contenu .= '<h2>Sites</h2>'
-            . ($lignesSites === '' ? '<p>Aucun site trouvé au dernier relevé.</p>'
+            . ($lignesSites === '' ? '<p>Aucun site trouvé (liste des sites du serveur).</p>'
                 : '<table><thead><tr><th>Site</th><th>Logiciel</th><th>Administration</th><th>Origine</th></tr></thead><tbody>' . $lignesSites . '</tbody></table>'
                     . ($voirAcces ? '<p class="discret">Les liens s\'ouvrent dans un nouvel onglet. Le lien d\'administration d\'une boutique est personnel à l\'étudiant : ne le diffusez pas. '
                         . 'Pour une boutique créée avant le portail, il n\'est pas connu.</p>' : ''));
@@ -271,7 +271,7 @@ final class PagesEtudiants
             . '<table><thead><tr><th>Session</th><th>État</th><th>Version WordPress gelée</th><th></th></tr></thead><tbody>' . $lignesSessions . '</tbody></table>'
             . '<form method="post" action="/regimes-sessions">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="creer_session">'
             . Pages::saisie('annee', 'Nouvelle session (année de l\'examen, ex. 2028)', '') . '<button type="submit" class="btn-main">Créer la session</button></form>'
-            . '<p><a href="/etudiants">Étudiants</a> · <a href="/">Accueil</a></p>');
+            . '<p><a href="/etudiants">Liste des étudiants</a> · <a href="/">Accueil</a></p>');
     }
 
     /**
@@ -339,10 +339,10 @@ final class PagesEtudiants
         foreach ($lignes as $ligne) {
             $compte[$ligne['statut']] = ($compte[$ligne['statut']] ?? 0) + 1;
             $etat = match ($ligne['statut']) {
-                'vert' => '<span class="badge ok">✓ À importer</span>',
+                'vert' => '<span class="badge ok">À importer</span>',
                 'orange' => '<label class="badge warn"><input type="checkbox" name="coches[]" value="' . $ligne['numero'] . '"> ⚠ À vérifier : cocher pour importer</label>',
                 'gris' => '<span class="badge neutre">— Déjà présent</span>',
-                default => '<span class="badge err">✗ Refusé</span>',
+                default => '<span class="badge err">Refusé</span>',
             };
             $nom = $ligne['existantId'] !== null && $fiches
                 ? '<a href="/etudiants/' . $ligne['existantId'] . '">' . Html::e($ligne['nom']) . '</a>' : Html::e($ligne['nom']);

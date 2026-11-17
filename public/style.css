@@ -207,3 +207,14 @@ label.choix { display: inline-flex; gap: .5rem; align-items: baseline; margin: .
 .compteur { display: inline-flex; align-items: center; justify-content: center; min-width: 1.4rem; padding: 0 .4rem; margin-left: .35rem;
   border-radius: 999px; background: var(--orange); color: var(--texte); font-size: 13px; font-weight: 700; }
 p.boutons { display: flex; flex-wrap: wrap; gap: .75rem; }
+
+/* 17/11/2026 : menu en rubriques, noms simples des sites, états avec un signe en plus de la couleur. */
+.nav { gap: 14px; }
+.rubrique { display: flex; flex-direction: column; gap: 2px; }
+.rubrique-titre { margin: 0 0 2px 14px; font-size: 12px; line-height: 1.4; letter-spacing: .08em; text-transform: uppercase; color: var(--discret); font-weight: 600; }
+.tech { font-size: 13px; font-weight: 500; color: var(--discret); white-space: nowrap; }
+th .tech { display: block; }
+.badge.ok::before { content: "\2713"; content: "\2713" / ""; }
+.badge.warn::before { content: "\26A0"; content: "\26A0" / ""; }
+.badge.err::before { content: "\2715"; content: "\2715" / ""; }
+.badge.encours::before { content: "\23F3"; content: "\23F3" / ""; }

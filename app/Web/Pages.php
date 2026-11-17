@@ -47,6 +47,7 @@ final class Pages
             . '<meta name="viewport" content="width=device-width, initial-scale=1">'
             . '<meta name="robots" content="noindex, nofollow">'
             . (self::$rafraichir > 0 ? '<meta http-equiv="refresh" content="' . self::$rafraichir . '">' : '')
+            . '<link rel="icon" type="image/png" href="/favicon.png">'
             . '<link rel="stylesheet" href="/style.css">'
             . '<script src="/tri.js" defer></script>'
             . '<title>' . Html::e($titre) . ' – Portail Sup\'Sallanches</title></head>';
@@ -99,73 +100,104 @@ final class Pages
         return '<svg class="' . Html::e($classe) . '" viewBox="0 0 24 24" aria-hidden="true">' . (self::ICONES[$nom] ?? '') . '</svg>';
     }
 
-    /** @return list<array{string, string, string, string}> adresse, icône, libellé, description — selon les droits */
+    /**
+     * Noms de tous les jours des sites d'un étudiant (décision du 17/11/2026), le dossier technique en petit à côté.
+     */
+    public const NOMS_SITES = ['/WP' => 'Site WordPress (cours)', '/WP2' => 'Site d\'examen', '/Presta' => 'Boutique (cours)', '/Presta2' => 'Boutique d\'examen'];
+
+    /** Nom d'un site en HTML : « Site d'examen » avec « /WP2 » en petit ; un autre dossier reste tel quel. */
+    public static function nomSite(string $dossier): string
+    {
+        $nom = self::NOMS_SITES[$dossier] ?? null;
+
+        return $nom === null ? '<code>' . Html::e($dossier) . '</code>' : Html::e($nom) . ' <span class="tech">' . Html::e($dossier) . '</span>';
+    }
+
+    /** Nom d'un site en texte simple (listes déroulantes, e-mails) : « Site d'examen (/WP2) ». */
+    public static function nomSiteTexte(string $dossier): string
+    {
+        $nom = self::NOMS_SITES[$dossier] ?? null;
+
+        return $nom === null ? $dossier : $nom . ' (' . $dossier . ')';
+    }
+
+    /**
+     * Pages accessibles, rangées en rubriques (décision du 17/11/2026) : chacun ne voit que ce qu'il peut faire.
+     *
+     * @return list<array{string, string, string, string, string}> adresse, icône, libellé, description, rubrique ('' : hors rubrique)
+     */
     public static function destinations(Compte $compte): array
     {
-        $liste = [['/', 'accueil', 'Accueil', '']];
-        if (Droits::peut($compte->role, Droits::CONSULTER)) {
-            $liste[] = ['/etudiants', 'etudiants', 'Étudiants', 'La liste des étudiants par régime et session.'];
+        $peut = static fn (string $droit): bool => Droits::peut($compte->role, $droit);
+        $liste = [['/', 'accueil', 'Accueil', '', '']];
+        if ($peut(Droits::CONSULTER)) {
+            $liste[] = ['/etudiants', 'etudiants', 'Liste des étudiants', 'Les étudiants par régime et session, avec leur fiche.', 'Étudiants'];
         }
-        if (Droits::peut($compte->role, Droits::CONSULTER)) {
-            $liste[] = ['/sites', 'sites', 'Voir tout', 'Une ligne par étudiant, une colonne par site, d’après le dernier relevé du serveur.'];
-            $liste[] = ['/travaux', 'travaux', 'Travaux en cours', 'Les travaux demandés au serveur et leur avancement, étudiant par étudiant.'];
+        if ($peut(Droits::IMPORTER)) {
+            $liste[] = ['/etudiants/import', 'import', 'Importer des étudiants', 'Ajoute une classe entière depuis la Google Sheets, avec un aperçu à vérifier.', 'Étudiants'];
         }
-        if (Droits::peut($compte->role, Droits::DEMANDER)) {
-            $liste[] = ['/demandes', 'demandes', 'Demandes', Droits::peut($compte->role, Droits::TRAITER_DEMANDES)
-                ? 'Valider ou refuser les demandes de suppression et de réinitialisation ; restaurer une suppression récente.'
-                : 'Suivre vos demandes de suppression ou de réinitialisation à l’administrateur.'];
+        if ($peut(Droits::CREER_ETUDIANT)) {
+            $liste[] = ['/etudiants/nouveau', 'ajout', 'Ajouter un étudiant', 'Un étudiant arrivé en cours d’année, avec son identifiant.', 'Étudiants'];
         }
-        if (Droits::peut($compte->role, Droits::SUPPRIMER)) {
-            $liste[] = ['/sites/supprimer', 'corbeille', 'Supprimer en masse', 'Supprimer les sites ou les étudiants d’une session (restaurable 8 jours).'];
+        if ($peut(Droits::CONSULTER)) {
+            $liste[] = ['/sites', 'sites', 'Liste des sites', 'Une ligne par étudiant : son site WordPress, son site d’examen, ses boutiques.', 'Sites'];
         }
-        if (Droits::peut($compte->role, Droits::CREER_SITE)) {
-            $liste[] = ['/sites/wordpress', 'wordpress', 'Créer des WordPress', 'Sous-domaine et WordPress /WP d’un nouvel étudiant, accès envoyés par e-mail.'];
-            $liste[] = ['/sites/prestashop', 'boutique', 'Créer des boutiques', 'PrestaShop d’entraînement pour une session, accès envoyés par e-mail.'];
+        if ($peut(Droits::CREER_SITE)) {
+            $liste[] = ['/sites/wordpress', 'wordpress', 'Créer des WordPress', 'L’adresse et le site WordPress (cours) d’un nouvel étudiant, accès envoyés par e-mail.', 'Sites'];
+            $liste[] = ['/sites/prestashop', 'boutique', 'Créer des boutiques', 'La boutique (cours) PrestaShop d’une session, accès envoyés par e-mail.', 'Sites'];
         }
-        if (Droits::peut($compte->role, Droits::SUJETS_EXAMEN)) {
-            $liste[] = ['/sites/sujet', 'sujet', 'Site modèle d’examen', 'Charger le sujet WordPress d’examen, le vérifier et geler sa version.'];
+        if ($peut(Droits::SUPPRIMER)) {
+            $liste[] = ['/sites/supprimer', 'corbeille', 'Supprimer en masse', 'Supprimer les sites ou les étudiants d’une session (corbeille de 8 jours).', 'Sites'];
         }
-        if (Droits::peut($compte->role, Droits::CERTIFICATS)) {
-            $liste[] = ['/sites/certificats', 'certificat', 'Certificats', 'Vérifier les certificats https des sites et relancer ceux qui manquent.'];
+        if ($peut(Droits::SUJETS_EXAMEN)) {
+            $liste[] = ['/sites/sujet', 'sujet', 'Site modèle d’examen', 'Charger le sujet d’examen, le déployer chez les étudiants, clôturer l’épreuve.', 'Examens'];
         }
-        if (Droits::peut($compte->role, Droits::DOCUMENTS)) {
-            $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', Droits::peut($compte->role, Droits::BIBLIOTHEQUE)
-                ? 'Versions PrestaShop, sujets d’examen et documents de l’équipe.' : 'Référentiel et documents de l’équipe, en PDF.'];
+        if ($peut(Droits::DEMANDER)) {
+            $liste[] = ['/demandes', 'demandes', 'Demandes', $peut(Droits::TRAITER_DEMANDES)
+                ? 'Valider ou refuser les demandes de suppression et de réinitialisation ; restaurer depuis la corbeille.'
+                : 'Suivre vos demandes de suppression ou de réinitialisation à l’administrateur.', 'Suivi'];
         }
-        if (Droits::peut($compte->role, Droits::IMPORTER)) {
-            $liste[] = ['/etudiants/import', 'import', 'Importer des étudiants', 'Ajoute une classe entière depuis la Google Sheets, avec un aperçu à vérifier.'];
+        if ($peut(Droits::CONSULTER)) {
+            $liste[] = ['/travaux', 'travaux', 'Travaux en cours', 'Ce que le serveur est en train de faire, et son avancement.', 'Suivi'];
         }
-        if (Droits::peut($compte->role, Droits::CREER_ETUDIANT)) {
-            $liste[] = ['/etudiants/nouveau', 'ajout', 'Ajouter un étudiant', 'Un étudiant arrivé en cours d’année, avec son identifiant.'];
+        if ($peut(Droits::REGIMES_SESSIONS)) {
+            $liste[] = ['/regimes-sessions', 'sessions', 'Régimes et sessions', 'Les classes (FI, ALT) et les promotions (sessions d’examen).', 'Administration'];
         }
-        if (Droits::peut($compte->role, Droits::REGIMES_SESSIONS)) {
-            $liste[] = ['/regimes-sessions', 'sessions', 'Régimes et sessions', 'Les classes (FI, ALT) et les promotions (sessions d’examen).'];
+        if ($peut(Droits::CERTIFICATS)) {
+            $liste[] = ['/sites/certificats', 'certificat', 'Certificats', 'Vérifier les certificats https des sites et relancer ceux qui manquent.', 'Administration'];
         }
-        if (Droits::peut($compte->role, Droits::GERER_COMPTES)) {
-            $liste[] = ['/comptes', 'comptes', 'Comptes du portail', 'Créer, réinitialiser ou désactiver un accès au portail.'];
+        if ($peut(Droits::GERER_COMPTES)) {
+            $liste[] = ['/comptes', 'comptes', 'Comptes du portail', 'Créer, réinitialiser, désactiver ou supprimer un accès au portail.', 'Administration'];
         }
-        if (Droits::peut($compte->role, Droits::JOURNAL)) {
-            $liste[] = ['/journal', 'journal', 'Journal', 'Qui a fait quoi, quand, et avec quel résultat.'];
+        if ($peut(Droits::JOURNAL)) {
+            $liste[] = ['/journal', 'journal', 'Journal', 'Qui a fait quoi, quand, et avec quel résultat.', 'Administration'];
         }
-        $liste[] = ['/mot-de-passe', 'motdepasse', 'Mon mot de passe', 'Changer le mot de passe de votre compte.'];
+        if ($peut(Droits::DOCUMENTS)) {
+            $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', $peut(Droits::BIBLIOTHEQUE)
+                ? 'Documents de l’équipe, sujets d’examen, versions PrestaShop.' : 'Référentiel et documents de l’équipe, en PDF.', 'Documents'];
+        }
+        $liste[] = ['/mot-de-passe', 'motdepasse', 'Mon mot de passe', 'Changer le mot de passe de votre compte.', 'Mon compte'];
 
         return $liste;
     }
 
     private static function menu(Compte $compte, string $chemin): string
     {
-        $liens = '';
-        foreach (self::destinations($compte) as [$adresse, $icone, $libelle]) {
+        $blocs = [];
+        foreach (self::destinations($compte) as [$adresse, $icone, $libelle, , $rubrique]) {
             $actif = $adresse === $chemin || ($adresse === '/etudiants' && preg_match('#^/etudiants/[0-9]+$#', $chemin) === 1)
                 || ($adresse === '/comptes' && str_starts_with($chemin, '/comptes/'))
                 || ($adresse === '/travaux' && str_starts_with($chemin, '/travaux/'));
-            $actif = $actif && !($adresse === '/sites' && in_array($chemin, ['/sites/prestashop', '/sites/sujet', '/sites/wordpress', '/sites/certificats'], true));
             $compteur = $adresse === '/demandes' && self::$demandesEnAttente > 0
                 ? ' <span class="compteur" aria-label="' . self::$demandesEnAttente . ' en attente">' . self::$demandesEnAttente . '</span>' : '';
-            $liens .= '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . $compteur . '</a>';
+            $blocs[$rubrique][] = '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . $compteur . '</a>';
+        }
+        $html = '';
+        foreach ($blocs as $rubrique => $liens) {
+            $html .= '<div class="rubrique">' . ($rubrique === '' ? '' : '<h2 class="rubrique-titre">' . Html::e($rubrique) . '</h2>') . implode('', $liens) . '</div>';
         }
 
-        return '<nav class="nav" aria-label="Menu principal">' . $liens . '</nav>';
+        return '<nav class="nav" aria-label="Menu principal">' . $html . '</nav>';
     }
 
     public static function message(string $titre, string $texte): string

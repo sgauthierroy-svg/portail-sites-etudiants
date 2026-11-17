@@ -30,7 +30,7 @@ final class PagesSujet
         $contenu .= '<h2>État</h2>';
         if (!$etat['connu']) {
             $contenu .= '<p role="alert">Le sous-domaine <code>' . SiteModele::IDENTIFIANT . '.bts-sup-sallanches.com</code> n\'est pas dans le dernier relevé. '
-                . 'Créez-le dans CPanel (avec son certificat), puis <a href="/travaux">actualisez le relevé</a>.</p>';
+                . 'Créez-le dans CPanel (avec son certificat), puis <a href="/travaux">mettez à jour la liste des sites</a>.</p>';
         } elseif (!$etat['installe']) {
             $contenu .= '<p>Aucun sujet installé par le portail pour l\'instant.</p>';
         } else {
@@ -95,7 +95,7 @@ final class PagesSujet
                 . '<table><thead><tr><th>Mis à l\'écart le</th><th>Motif</th><th>Effacé après le</th><th>Dossier</th></tr></thead><tbody>' . $lignes . '</tbody></table>';
         }
 
-        return Pages::page('Site modèle d\'examen', $contenu . '<p><a href="/sites">Voir tout</a> · <a href="/">Accueil</a></p>');
+        return Pages::page('Site modèle d\'examen', $contenu . '<p><a href="/sites">Liste des sites</a> · <a href="/">Accueil</a></p>');
     }
 
     /**

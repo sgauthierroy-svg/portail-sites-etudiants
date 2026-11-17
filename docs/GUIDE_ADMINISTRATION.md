@@ -112,8 +112,8 @@ Les pages du portail ne touchent jamais le serveur : elles inscrivent une demand
 - Une étape restée « en cours » après un arrêt brutal (serveur redémarré, programme tué) n'est **jamais relancée** : elle passe en « Échec – interrompue ». Vérifier le site concerné avant de relancer.
 - Un travail terminé avec au moins un échec déclenche une alerte par e-mail ; le détail est sur la page du travail.
 - Lancer le travailleur à la main pour voir ce qu'il fait : `php ~/portail/bin/travaux.php --bavard`.
-- Suivi dans le portail : menu « Travaux en cours » (avancement étudiant par étudiant, bouton « Arrêter » pour le demandeur et l'administrateur) et « Voir tout » (une ligne par étudiant, une colonne par site, d'après le dernier relevé).
-- « Actualiser le relevé » (administrateur, enseignant, administratif) inscrit un relevé dans la file : lecture seule, rien n'est modifié.
+- Suivi dans le portail : menu « Travaux en cours » (avancement étudiant par étudiant, bouton « Arrêter » pour le demandeur et l'administrateur) et « Liste des sites » (une ligne par étudiant, une colonne par site, d'après le dernier relevé).
+- « Mettre à jour la liste des sites » (administrateur, enseignant, administratif) inscrit un relevé dans la file : lecture seule, rien n'est modifié.
 
 ## Boutiques PrestaShop d'entraînement (V2)
 
@@ -127,7 +127,7 @@ Menu « Créer des boutiques » (administrateur, enseignants, administratif) : c
 - Le récapitulatif contient un tableau aux colonnes de la feuille des accès (`Prestashopadmin`, `Identifiantprestashop`, `Mot de passe Prestashop`), dans l'ordre alphabétique des étudiants, et un second tableau de repère (étudiant, identifiant) à ne pas copier.
 - L'e-mail à l'étudiant a pour objet « IMPORTANT – Sup'Sallanches (BTS NDRC) : vos accès… » et pour expéditeur « Sup'Sallanches – BTS NDRC ».
 - À venir (décisions du 11/11/2026) : colonnes WordPress `Site wordpress` (lien sans l'administration), `Identifiant WP`, `Mot de passe WP` ; pour un sujet `/WP2`, aucun e-mail à l'étudiant, tout va à l'administrateur et aux enseignants.
-- **Gel par surveillance** (décision du 08/11/2026) : le paquet 9.1.5 ne contient pas le module de mise à jour (« Assistant de mise à jour », `autoupgrade`). Chaque relevé (bouton ou tâche du lundi) lit la version réelle de chaque boutique (`app/AppKernel.php`) et repère ce module ; une boutique dont la version diffère de celle de sa session, ou qui a ce module, est signalée en rouge dans « Voir tout » et déclenche une alerte (sans nom d'étudiant).
+- **Gel par surveillance** (décision du 08/11/2026) : le paquet 9.1.5 ne contient pas le module de mise à jour (« Assistant de mise à jour », `autoupgrade`). Chaque relevé (bouton ou tâche du lundi) lit la version réelle de chaque boutique (`app/AppKernel.php`) et repère ce module ; une boutique dont la version diffère de celle de sa session, ou qui a ce module, est signalée en rouge dans « Liste des sites » et déclenche une alerte (sans nom d'étudiant).
 
 ## WordPress des étudiants : création (V2, lot 5, 14/11/2026)
 
@@ -159,7 +159,7 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
 
 - **Demander** : fiche de l'étudiant, rubrique « Demander à l'administrateur ». Choix : supprimer un de ses sites (/WP, /WP2, /Presta, /Presta2), supprimer l'étudiant (tous ses sites et son sous-domaine), ou, pour l'administratif, réinitialiser le WordPress ou la boutique. **Motif obligatoire** (3 à 300 caractères ; propositions : départ, abandon, fin de formation, redoublement…). Une demande identique déjà en attente est refusée.
 - **E-mails** : à l'adresse d'alerte pour chaque nouvelle demande ; au demandeur pour la décision. Ni nom d'étudiant, ni motif dans ces e-mails : le détail est dans le portail.
-- **Signalement** : compteur à côté de « Demandes » dans le menu et sur la tuile d'accueil de l'administrateur ; étiquette « Suppression demandée » ou « Réinitialisation demandée » sur la ligne de l'étudiant dans « Voir tout », et rubrique « Demandes en attente » sur sa fiche.
+- **Signalement** : compteur à côté de « Demandes » dans le menu et sur la tuile d'accueil de l'administrateur ; étiquette « Suppression demandée » ou « Réinitialisation demandée » sur la ligne de l'étudiant dans « Liste des sites », et rubrique « Demandes en attente » sur sa fiche.
 - **Traiter** (page « Demandes », administrateur) : demandes groupées par type, case « Tout cocher » et filtre. Cocher une demande (une par une) ou plusieurs (par lot), puis « Valider la sélection » ou « Refuser la sélection ».
   - Valider des suppressions : taper `SUPPRIMER` dans la case de confirmation. Les suppressions d'étudiants validées ensemble font **un seul travail** (exemple : toute une session en fin de 2e année), traité un étudiant à la fois.
   - Valider une réinitialisation : le travail habituel (« Réinitialiser un site ») est inscrit.
@@ -175,7 +175,7 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
 - **Rien n'est effacé tout de suite** (décision du 15/11/2026 : tout, restaurable 8 jours).
   - **Un site** : son dossier est mis à l'écart 8 jours dans `~/archives_suppression/portail/`, sa base et son utilisateur MySQL restent en place.
   - **Un étudiant** : le dossier entier du sous-domaine est mis à l'écart, la fiche quitte toutes les listes, et le portail note toutes ses bases et tous ses utilisateurs MySQL. Les bases notées sont celles du portail, celles de ses fichiers de réglages si elles sont à son nom, et toutes celles de CPanel au nom exact `jafl3067_identifiant` ou `jafl3067_identifiant_…`, comme `nettoyage_etudiants.sh`. La base partagée `jafl3067_peda` et les bases protégées ne sont jamais retenues.
-  - **Le sous-domaine** reste dans CPanel pendant les 8 jours ; son adresse ne montre plus de site. L'identifiant reste réservé : ni « Ajouter un étudiant », ni l'import ne peuvent le reprendre (l'import l'indique en rouge). Dans « Voir tout », il est listé à part, avec sa date d'effacement.
+  - **Le sous-domaine** reste dans CPanel pendant les 8 jours ; son adresse ne montre plus de site. L'identifiant reste réservé : ni « Ajouter un étudiant », ni l'import ne peuvent le reprendre (l'import l'indique en rouge). Dans « Liste des sites », il est listé à part, avec sa date d'effacement.
 - **Supprimer en masse** (menu « Supprimer en masse », administrateur seul, demande du 16/11/2026) : pour une session entière, par exemple la session 2027 en juillet 2027.
   - Choisir la session (actives et archivées, avec le nombre d'étudiants), puis « Afficher les étudiants ». Les sites connus de chacun s'affichent ; les filtres et « Tout cocher » sont disponibles.
   - Choisir ce qu'il faut supprimer : **tout** (les étudiants, leurs sites, leurs bases et leurs sous-domaines), ou **seulement un site** (/WP, /WP2, /Presta ou /Presta2) ; dans ce dernier cas, les étudiants restent.
@@ -189,9 +189,16 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
   - **Retrait du sous-domaine** : UAPI n'a pas de fonction pour le faire (documentation de CPanel, SubDomain::delsubdomain). Le portail utilise donc la fonction de l'API 2, au format `identifiant_bts-sup-sallanches.com`. Il passe d'abord par la commande `cpapi2` du serveur ; à défaut, comme `nettoyage_etudiants.sh`, par un jeton temporaire, détruit aussitôt après. Le résultat est vérifié en relisant la liste des sous-domaines.
   - **En cas d'échec** : l'effacement est réessayé le lendemain, et l'échec est inscrit au journal (« effacement d'une mise à l'écart »). Si le sous-domaine reste, le retirer à la main : CPanel, Domaines, Gérer, Supprimer.
 
+## Menu et mots du portail (17/11/2026)
+
+- **Menu en rubriques** : Étudiants, Sites, Examens, Suivi, Administration, Documents, Mon compte. Chacun ne voit que les pages permises par son rôle.
+- **Mots de tous les jours**, avec le dossier technique en petit : Site WordPress (cours) `/WP`, Site d'examen `/WP2`, Boutique (cours) `/Presta`, Boutique d'examen `/Presta2`. Autres changements : « Voir tout » devient « Liste des sites », « sous-domaine » devient « adresse du site », « relevé » devient « liste des sites mise à jour le… », et les suppressions restaurables forment la « corbeille ».
+- **États** : chaque pastille a un signe en plus de sa couleur (✓ prêt, ⚠ à vérifier, ✕ échec, ⏳ en cours).
+- **Icône d'onglet** : le logo (`public/favicon.png`).
+
 ## Filtre des listes (15/11/2026)
 
-Au-dessus de chaque liste de plus de 5 lignes (étudiants, « Voir tout », comptes, créations, déploiement, épreuve, certificats), une bande de filtre :
+Au-dessus de chaque liste de plus de 5 lignes (étudiants, « Liste des sites », comptes, créations, déploiement, épreuve, certificats), une bande de filtre :
 
 - un menu « Régime » et un menu « Session », dans les listes qui ont ces colonnes, avec « (tous) » par défaut (demande du 15/11/2026 : pas de menu pour l'année ni les autres colonnes) ;
 - une zone « Texte » : chaque mot tapé doit se trouver quelque part dans la ligne (sans tenir compte des majuscules ni des accents) ;

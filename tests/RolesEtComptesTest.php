@@ -237,6 +237,19 @@ final class RolesEtComptesTest extends TestCase
         }
     }
 
+    public function testLeMenuEstRangeEnRubriquesSelonLeRole(): void
+    {
+        $admin = $this->en('mzanelli', 'GET', '/')->corps;
+        foreach (['Étudiants', 'Sites', 'Examens', 'Suivi', 'Administration', 'Documents'] as $rubrique) {
+            self::assertStringContainsString('<h2 class="rubrique-titre">' . $rubrique . '</h2>', $admin);
+        }
+        self::assertStringContainsString('Liste des sites', $admin);
+        self::assertStringContainsString('<link rel="icon" type="image/png" href="/favicon.png">', $admin);
+        $enseignante = $this->en('cpetit', 'GET', '/')->corps;
+        self::assertStringNotContainsString('Supprimer en masse', $enseignante);
+        self::assertStringNotContainsString('Comptes du portail', $enseignante);
+    }
+
     public function testApresReactivationLaFicheRappelleDeReinitialiserLeCode(): void
     {
         $this->pdo->exec("UPDATE comptes SET double_auth_active = 1, secret_2fa_chiffre = 'v1:x' WHERE identifiant = 'cpetit'");

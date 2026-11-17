@@ -110,7 +110,7 @@ final class Alertes
         $this->ajouter([], $nombre . ' boutique(s) PrestaShop hors de la version de leur session',
             'Le dernier relevé a trouvé ' . $nombre . ' boutique(s) dont la version ne correspond plus à celle, gelée, de leur session '
             . "(ou dans laquelle le module « Assistant de mise à jour » a été installé).\n\n"
-            . 'Les boutiques concernées sont signalées en rouge dans « Voir tout » : ' . rtrim($this->urlPortail, '/') . '/sites');
+            . 'Les boutiques concernées sont signalées en rouge dans « Liste des sites » : ' . rtrim($this->urlPortail, '/') . '/sites');
     }
 
     /** Certificat d'un sous-domaine créé par le portail toujours pas posé après les relances (lot 5, 14/11/2026). */
