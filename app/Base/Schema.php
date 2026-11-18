@@ -24,7 +24,7 @@ final class Schema
     private const MAINTENANT = "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')";
 
     /** Versions qui refont une table : clés étrangères suspendues le temps de la copie. */
-    private const SANS_CLES = [10];
+    private const SANS_CLES = [10, 15];
 
     /** @return array<int, string> */
     public static function versions(): array
@@ -452,6 +452,41 @@ final class Schema
                 );
                 CREATE UNIQUE INDEX demandes_une_en_attente ON demandes (type, identifiant, coalesce(dossier, '')) WHERE etat = 'en_attente';
                 CREATE INDEX demandes_par_etat ON demandes (etat, demande_le);
+                SQL,
+            // Demande du 18/11/2026 : « Faire une demande au service informatique », liée à une classe ou à un étudiant, pour une
+            // suppression ou un problème (SAV). Type « probleme » : étudiant facultatif, classe (régime + session) facultative,
+            // site facultatif, description jusqu'à 1 000 caractères ; plusieurs problèmes peuvent attendre pour un même étudiant.
+            // Le filtre gardé d'une connexion à l'autre est abandonné (même jour : risque d'oubli) : les filtres enregistrés sont effacés.
+            15 => <<<SQL
+                CREATE TABLE demandes_v15 (
+                    id              INTEGER PRIMARY KEY,
+                    type            TEXT NOT NULL CHECK (type IN ('supprimer_site', 'supprimer_etudiant', 'reinitialiser_wordpress', 'reinitialiser_prestashop', 'probleme')),
+                    identifiant     TEXT NULL CHECK (identifiant IS NULL OR (length(identifiant) BETWEEN 2 AND 63 AND identifiant NOT GLOB '*[^a-z0-9]*')),
+                    regime_id       INTEGER NULL REFERENCES regimes (id) ON DELETE SET NULL,
+                    session_id      INTEGER NULL REFERENCES sessions (id) ON DELETE SET NULL,
+                    dossier         TEXT NULL CHECK (dossier IS NULL OR dossier IN ('/WP', '/WP2', '/Presta', '/Presta2')),
+                    motif           TEXT NOT NULL CHECK (length(motif) BETWEEN 3 AND 1000),
+                    demande_le      TEXT NOT NULL DEFAULT ({$maintenant}),
+                    demande_par     INTEGER NULL REFERENCES comptes (id) ON DELETE SET NULL,
+                    demande_par_nom TEXT NOT NULL CHECK (length(demande_par_nom) BETWEEN 1 AND 100),
+                    etat            TEXT NOT NULL DEFAULT 'en_attente' CHECK (etat IN ('en_attente', 'validee', 'refusee', 'annulee')),
+                    traitee_le      TEXT NULL,
+                    traitee_par_nom TEXT NULL CHECK (traitee_par_nom IS NULL OR length(traitee_par_nom) <= 100),
+                    commentaire     TEXT NULL CHECK (commentaire IS NULL OR length(commentaire) <= 300),
+                    travail_id      INTEGER NULL REFERENCES travaux (id) ON DELETE SET NULL,
+                    CHECK (type = 'probleme' OR identifiant IS NOT NULL),
+                    CHECK (type = 'probleme' OR (type = 'supprimer_site') = (dossier IS NOT NULL)),
+                    CHECK (type = 'probleme' OR (length(motif) <= 300 AND regime_id IS NULL AND session_id IS NULL))
+                );
+                INSERT INTO demandes_v15 (id, type, identifiant, dossier, motif, demande_le, demande_par, demande_par_nom, etat, traitee_le,
+                    traitee_par_nom, commentaire, travail_id)
+                    SELECT id, type, identifiant, dossier, motif, demande_le, demande_par, demande_par_nom, etat, traitee_le, traitee_par_nom,
+                    commentaire, travail_id FROM demandes;
+                DROP TABLE demandes;
+                ALTER TABLE demandes_v15 RENAME TO demandes;
+                CREATE UNIQUE INDEX demandes_une_en_attente ON demandes (type, identifiant, coalesce(dossier, '')) WHERE etat = 'en_attente' AND type <> 'probleme';
+                CREATE INDEX demandes_par_etat ON demandes (etat, demande_le);
+                UPDATE comptes SET dernier_filtre = NULL;
                 SQL,
         ];
     }

@@ -29,7 +29,7 @@ final class PagesDemandes
      */
     public static function page(string $jeton, Compte $moi, array $enAttente, array $miennes, array $restaurables, ?string $erreur, ?string $information): string
     {
-        $contenu = Pages::alerte($erreur, $information);
+        $contenu = self::etiquettesDemandes($moi, '/demandes') . Pages::alerte($erreur, $information);
         if (Droits::peut($moi->role, Droits::TRAITER_DEMANDES)) {
             $contenu .= self::aTraiter($jeton, $enAttente);
         }
@@ -41,6 +41,70 @@ final class PagesDemandes
         }
 
         return Pages::page('Demandes', $contenu);
+    }
+
+    /**
+     * Étiquettes de la page « Demandes » (demande du 18/11/2026) pour ceux qui demandent ; l'administrateur, qui traite, n'en a pas.
+     */
+    private static function etiquettesDemandes(Compte $moi, string $actif): string
+    {
+        if (!Droits::peut($moi->role, Droits::DEMANDER) || Droits::peut($moi->role, Droits::TRAITER_DEMANDES)) {
+            return '';
+        }
+
+        return Pages::etiquettes([
+            ['adresse' => '/demandes', 'titre' => 'Voir les demandes en cours', 'texte' => 'Vos demandes et la réponse du service informatique.'],
+            ['adresse' => '/demandes/nouvelle', 'titre' => 'Faire une demande au service informatique', 'texte' => 'Suppression ou problème (SAV), pour un étudiant ou une classe.'],
+        ], $actif, 'Demandes');
+    }
+
+    /**
+     * « Faire une demande au service informatique » (demande du 18/11/2026) : objet (suppression ou problème), étudiant ou
+     * classe concernés, site, motif ou description.
+     *
+     * @param list<array{id: int, nom: string, classe: string}> $etudiants
+     * @param list<array{valeur: string, libelle: string, nombre: int}> $classes
+     * @param array<string, string> $valeurs
+     */
+    public static function nouvelle(string $jeton, Compte $moi, array $etudiants, array $classes, array $valeurs, ?string $erreur): string
+    {
+        $valeur = static fn (string $cle, string $defaut = ''): string => $valeurs[$cle] ?? $defaut;
+        $radio = static fn (string $nom, string $val, string $libelle, string $choisi): string => '<label class="choix"><input type="radio" name="' . $nom
+            . '" value="' . $val . '"' . ($val === $choisi ? ' checked' : '') . ' required> ' . Html::e($libelle) . '</label> ';
+        $optionsEtudiants = '<option value="">— choisir l\'étudiant —</option>';
+        foreach ($etudiants as $etudiant) {
+            $optionsEtudiants .= '<option value="' . $etudiant['id'] . '"' . ((string) $etudiant['id'] === $valeur('etudiant') ? ' selected' : '') . '>'
+                . Html::e($etudiant['nom'] . ' (' . $etudiant['classe'] . ')') . '</option>';
+        }
+        $optionsClasses = '<option value="">— choisir la classe —</option>';
+        foreach ($classes as $classe) {
+            $optionsClasses .= '<option value="' . Html::e($classe['valeur']) . '"' . ($classe['valeur'] === $valeur('classe') ? ' selected' : '') . '>'
+                . Html::e($classe['libelle'] . ' (' . $classe['nombre'] . ' étudiant' . ($classe['nombre'] > 1 ? 's' : '') . ')') . '</option>';
+        }
+        $optionsSites = '<option value="">Tous ses sites (suppression : l\'étudiant entier) / aucun en particulier</option>';
+        foreach (Pages::NOMS_SITES as $dossier => $nom) {
+            $optionsSites .= '<option value="' . $dossier . '"' . ($dossier === $valeur('site') ? ' selected' : '') . '>' . Html::e($nom . ' ' . $dossier) . '</option>';
+        }
+
+        return Pages::page('Demandes', self::etiquettesDemandes($moi, '/demandes/nouvelle') . Pages::alerte($erreur, null)
+            . Pages::aide('Le service informatique reçoit votre demande, la traite ou la refuse avec un commentaire ; vous êtes prévenu par e-mail.')
+            . '<form method="post" action="/demandes/nouvelle" class="demande">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="demander">'
+            . '<fieldset><legend>1. Objet de la demande</legend>'
+            . $radio('objet', 'suppression', 'Supprimer (un site, un étudiant ou une classe)', $valeur('objet'))
+            . $radio('objet', 'probleme', 'Signaler un problème (SAV)', $valeur('objet')) . '</fieldset>'
+            . '<fieldset><legend>2. Qui est concerné ?</legend>'
+            . '<p>' . $radio('cible', 'etudiant', 'Un étudiant', $valeur('cible', 'etudiant'))
+            . '<label class="cache" for="etudiant">Étudiant</label><select id="etudiant" name="etudiant">' . $optionsEtudiants . '</select></p>'
+            . '<p>' . $radio('cible', 'classe', 'Une classe', $valeur('cible', 'etudiant'))
+            . '<label class="cache" for="classe">Classe</label><select id="classe" name="classe">' . $optionsClasses . '</select></p>'
+            . '<p>' . $radio('cible', 'aucune', 'Personne en particulier (problème général, problème seulement)', $valeur('cible', 'etudiant')) . '</p></fieldset>'
+            . '<fieldset><legend>3. Quel site ?</legend><label class="cache" for="site">Site</label><select id="site" name="site">' . $optionsSites . '</select></fieldset>'
+            . '<fieldset><legend>4. Motif ou description</legend>'
+            . '<p class="discret">Suppression : le motif (départ, abandon, fin de formation, redoublement…). Problème : ce qui se passe, sur quelle page, depuis quand.</p>'
+            . '<label class="cache" for="texte">Motif ou description</label><textarea id="texte" name="texte" rows="5" cols="80" required minlength="3" maxlength="'
+            . Demandes::DESCRIPTION_MAX . '">' . Html::e($valeur('texte')) . '</textarea></fieldset>'
+            . '<p class="discret">Une suppression pour une classe devient une demande par étudiant, que le service informatique valide en une fois.</p>'
+            . '<button type="submit" class="btn-main">Envoyer au service informatique</button></form>');
     }
 
     /**
@@ -58,7 +122,7 @@ final class PagesDemandes
             $options .= '<option value="' . Html::e($valeur) . '">' . Html::e($libelle) . '</option>';
         }
 
-        return '<h2>Demander à l\'administrateur</h2>'
+        return '<h2>Demander au service informatique</h2>'
             . '<p>Suppression ou réinitialisation : l\'administrateur reçoit votre demande, la valide ou la refuse avec un commentaire. '
             . 'Vous êtes prévenu par e-mail, et vous la suivez dans « Demandes ».</p>'
             . '<form method="post" action="' . Html::e($action) . '">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="demander">'
@@ -230,7 +294,8 @@ final class PagesDemandes
         foreach ($groupes as $type => $liste) {
             $lignes = '';
             foreach ($liste as $demande) {
-                $nom = $demande['nom'] ?? $demande['identifiant'] . ' (plus dans le portail)';
+                $nom = $demande['nom'] ?? ($demande['identifiant'] === '' ? ($demande['classe'] === null ? '—' : 'Toute la classe')
+                    : $demande['identifiant'] . ' (plus dans le portail)');
                 $lien = $demande['etudiant_id'] === null ? Html::e($nom) : '<a href="/etudiants/' . $demande['etudiant_id'] . '">' . Html::e($nom) . '</a>';
                 $lignes .= '<tr><td><input type="checkbox" name="coches[]" value="' . $demande['id'] . '" aria-label="Choisir"></td>'
                     . '<td>' . $lien . '</td><td>' . Html::e($demande['classe'] ?? '') . '</td>'
@@ -240,7 +305,7 @@ final class PagesDemandes
             }
             $tableaux .= '<h3>' . Html::e(Demandes::LIBELLES[$type] ?? $type) . ' (' . count($liste) . ')</h3>'
                 . '<table class="triable"><thead><tr><th><input type="checkbox" data-tout-cocher aria-label="Tout cocher" title="Tout cocher"></th>'
-                . '<th>Étudiant</th><th>Classe</th><th>Site</th><th>Motif</th><th>Demandé par</th><th>Le</th></tr></thead><tbody>' . $lignes . '</tbody></table>';
+                . '<th>Étudiant</th><th>Classe</th><th>Site</th><th>' . ($type === 'probleme' ? 'Description' : 'Motif') . '</th><th>Demandé par</th><th>Le</th></tr></thead><tbody>' . $lignes . '</tbody></table>';
         }
 
         return $html
@@ -250,9 +315,9 @@ final class PagesDemandes
             . $tableaux
             . '<p><label for="confirmation">Suppressions cochées : tapez <code>' . Demandes::MOT_CONFIRMATION . '</code> pour confirmer</label><br>'
             . '<input id="confirmation" name="confirmation" type="text" autocomplete="off" maxlength="20"></p>'
-            . '<p><label for="commentaire">Commentaire (obligatoire pour un refus, transmis au demandeur)</label><br>'
+            . '<p><label for="commentaire">Commentaire transmis au demandeur (obligatoire pour un refus ; pour un problème traité, votre réponse)</label><br>'
             . '<input id="commentaire" name="commentaire" type="text" maxlength="300"></p>'
-            . '<p class="boutons"><button type="submit" name="action" value="valider" class="btn-main">Valider la sélection</button> '
+            . '<p class="boutons"><button type="submit" name="action" value="valider" class="btn-main">Valider la sélection (problèmes : traités)</button> '
             . '<button type="submit" name="action" value="refuser">Refuser la sélection</button></p></form>';
     }
 
@@ -288,12 +353,12 @@ final class PagesDemandes
         }
         $html = '<h2>Mes demandes</h2>';
         if ($miennes === []) {
-            return $html . '<p>Aucune demande. Pour en faire une : fiche de l\'étudiant, rubrique « Demander à l\'administrateur ».</p>';
+            return $html . '<p>Aucune demande. Pour en faire une : <a href="/demandes/nouvelle">Faire une demande au service informatique</a>.</p>';
         }
         $lignes = '';
         foreach ($miennes as $demande) {
             $etat = '<span class="badge ' . match ($demande['etat']) { 'validee' => 'ok', 'refusee' => 'err', 'en_attente' => 'warn', default => 'neutre' } . '">'
-                . Html::e(Demandes::ETATS[$demande['etat']] ?? $demande['etat']) . '</span>';
+                . Html::e($demande['type'] === 'probleme' && $demande['etat'] === 'validee' ? 'Traité' : (Demandes::ETATS[$demande['etat']] ?? $demande['etat'])) . '</span>';
             $suite = match (true) {
                 $demande['etat'] === 'en_attente' => '<form method="post" action="/demandes">' . Pages::jeton($jeton)
                     . '<input type="hidden" name="action" value="annuler"><input type="hidden" name="id" value="' . $demande['id'] . '">'
@@ -301,7 +366,7 @@ final class PagesDemandes
                 $demande['travail_id'] !== null => '<a href="/travaux/' . $demande['travail_id'] . '">travail n° ' . $demande['travail_id'] . '</a>',
                 default => Html::e($demande['commentaire'] ?? ''),
             };
-            $lignes .= '<tr><td>' . Html::e($demande['nom'] ?? $demande['identifiant']) . '</td>'
+            $lignes .= '<tr><td>' . Html::e($demande['nom'] ?? ($demande['identifiant'] !== '' ? $demande['identifiant'] : ($demande['classe'] ?? '—'))) . '</td>'
                 . '<td>' . Html::e((Demandes::LIBELLES[$demande['type']] ?? $demande['type']) . ($demande['dossier'] === null ? '' : ' ' . $demande['dossier'])) . '</td>'
                 . '<td>' . Html::e($demande['motif']) . '</td><td>' . Html::e(Pages::heureLocale($demande['demande_le'])) . '</td>'
                 . '<td>' . $etat . ($demande['traitee_par_nom'] === null ? '' : ' <span class="discret">' . Html::e($demande['traitee_par_nom']) . '</span>') . '</td>'

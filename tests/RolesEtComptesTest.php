@@ -251,8 +251,8 @@ final class RolesEtComptesTest extends TestCase
         $enseignante = $this->en('cpetit', 'GET', '/')->corps;
         self::assertStringNotContainsString('/sites/supprimer', $enseignante);
         $ajout = $this->en('cpetit', 'GET', '/etudiants/import')->corps;
-        self::assertStringContainsString('Par liste', $ajout);
-        self::assertStringContainsString('Un seul étudiant', $ajout);
+        self::assertStringContainsString('Import liste Google Sheets', $ajout);
+        self::assertStringContainsString('Création d&apos;un étudiant', $ajout);
         self::assertStringNotContainsString('Comptes du portail', $enseignante);
     }
 

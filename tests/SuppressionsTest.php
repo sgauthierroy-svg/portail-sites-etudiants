@@ -113,7 +113,7 @@ final class SuppressionsTest extends TestCase
     {
         $fiche = '/etudiants/' . $this->idEtudiant('martinel');
         self::assertStringNotContainsString('Supprimer (administrateur)', $this->en('cpetit', 'GET', $fiche)->corps);
-        self::assertStringContainsString('Demander à l\'administrateur', $this->en('cpetit', 'GET', $fiche)->corps);
+        self::assertStringContainsString('Demander au service informatique', $this->en('cpetit', 'GET', $fiche)->corps);
         self::assertSame(403, $this->en('cpetit', 'POST', $fiche, ['action' => 'supprimer', 'choix' => 'etudiant', 'confirmation' => 'martinel'])->statut);
 
         $page = $this->en('mzanelli', 'GET', $fiche)->corps;
@@ -239,7 +239,7 @@ final class SuppressionsTest extends TestCase
         self::assertSame(403, $this->en('cpetit', 'GET', '/sites/supprimer')->statut, 'Administrateur seul');
         $page = $this->en('mzanelli', 'POST', '/sites/supprimer', ['action' => 'afficher', 'session' => (string) $this->session])->corps;
         self::assertStringContainsString('Session 2027 (3 étudiants)', $page);
-        self::assertStringContainsString('Boutique (cours) <span class="tech">/Presta</span>', $page, 'Sites en mots simples');
+        self::assertStringContainsString('Boutique <span class="tech">/Presta</span>', $page, 'Sites en mots simples');
         self::assertStringContainsString('data-tout-cocher', $page);
 
         $tous = ['martinel', 'durandca', 'leroyhu'];
@@ -310,6 +310,79 @@ final class SuppressionsTest extends TestCase
         self::assertStringNotContainsString('class="compteur"', $this->en('jroux', 'GET', '/')->corps);
         self::assertStringContainsString('Suppression demandée', $this->en('cpetit', 'GET', '/sites')->corps);
         self::assertStringContainsString('Mes demandes', $this->en('jroux', 'GET', '/demandes')->corps);
+    }
+
+    public function testDemandeAuServiceInformatiqueEnDeuxEtiquettes(): void
+    {
+        // Demande du 18/11/2026 : « Voir les demandes en cours » et « Faire une demande au service informatique ».
+        $page = $this->en('cpetit', 'GET', '/demandes')->corps;
+        self::assertStringContainsString('Voir les demandes en cours', $page);
+        self::assertStringContainsString('href="/demandes/nouvelle"', $page);
+        self::assertStringNotContainsString('Faire une demande au service informatique</strong>', $this->en('mzanelli', 'GET', '/demandes')->corps,
+            'L\'administrateur traite, il ne demande pas');
+        $formulaire = $this->en('jroux', 'GET', '/demandes/nouvelle')->corps;
+        self::assertStringContainsString('Signaler un problème (SAV)', $formulaire);
+        self::assertStringContainsString('NDRC FI – session 2027 (3 étudiants)', $formulaire);
+        self::assertStringContainsString('MARTIN Élodie (NDRC FI – session 2027)', $formulaire);
+    }
+
+    public function testProblemeSignalePourUnEtudiantPuisTraiteAvecUneReponse(): void
+    {
+        $court = $this->en('cpetit', 'POST', '/demandes/nouvelle', ['action' => 'demander', 'objet' => 'probleme', 'cible' => 'etudiant',
+            'etudiant' => (string) $this->idEtudiant('martinel'), 'classe' => '', 'site' => '/WP', 'texte' => 'cassé']);
+        self::assertStringContainsString('Décrivez le problème', $court->corps);
+        self::assertSame(0, $this->nombre('SELECT count(*) FROM demandes'));
+
+        $envoi = $this->en('cpetit', 'POST', '/demandes/nouvelle', ['action' => 'demander', 'objet' => 'probleme', 'cible' => 'etudiant',
+            'etudiant' => (string) $this->idEtudiant('martinel'), 'classe' => '', 'site' => '/WP',
+            'texte' => "Le menu du site ne s'affiche plus\ndepuis ce matin."]);
+        self::assertStringContainsString('Problème signalé au service informatique', $envoi->corps);
+        self::assertStringContainsString('Voir les demandes en cours', $envoi->corps);
+        // Deux problèmes peuvent attendre pour le même étudiant.
+        $this->en('jroux', 'POST', '/demandes/nouvelle', ['action' => 'demander', 'objet' => 'probleme', 'cible' => 'aucune',
+            'etudiant' => '', 'classe' => '', 'site' => '', 'texte' => 'Le portail est lent depuis lundi.']);
+        self::assertSame(2, $this->nombre("SELECT count(*) FROM demandes WHERE type = 'probleme' AND etat = 'en_attente'"));
+        self::assertStringContainsString('Problème signalé', $this->en('mzanelli', 'GET', '/sites')->corps, 'Étiquette sur la ligne de l\'étudiant');
+        $aTraiter = $this->en('mzanelli', 'GET', '/demandes')->corps;
+        self::assertStringContainsString('Problème signalé (SAV) (2)', $aTraiter);
+        self::assertStringContainsString('Le menu du site ne s&apos;affiche plus', $aTraiter);
+
+        $alertes = new Alertes($this->pdo, $this->boite, self::URL);
+        $demandes = new Demandes($this->pdo, $alertes);
+        $id = (int) $this->nombre("SELECT min(id) FROM demandes WHERE type = 'probleme'");
+        $resultat = $demandes->valider([$id], '', $this->compte('mzanelli'), null, $this->horloge->maintenant(), 'Extension réparée, à vérifier.');
+        self::assertSame(1, $resultat['validees']);
+        self::assertSame([], $resultat['travaux'], 'Un problème ne lance aucun travail');
+        $alertes->expedier();
+        self::assertCount(1, $this->boite->envoyes);
+        self::assertStringContainsString('1 problème(s) signalé(s) traité(s), réponse du service informatique : « Extension réparée, à vérifier. »', $this->boite->envoyes[0]['texte']);
+        self::assertStringNotContainsString('martinel', $this->boite->envoyes[0]['texte']);
+        $miennes = $this->en('cpetit', 'GET', '/demandes')->corps;
+        self::assertStringContainsString('Traité', $miennes);
+        self::assertStringContainsString('Extension réparée, à vérifier.', $miennes);
+    }
+
+    public function testSuppressionDemandeePourUneClasseUneDemandeParEtudiant(): void
+    {
+        $classe = $this->regime . '-' . $this->session;
+        $sans = $this->en('jroux', 'POST', '/demandes/nouvelle', ['action' => 'demander', 'objet' => 'suppression', 'cible' => 'aucune',
+            'etudiant' => '', 'classe' => '', 'site' => '', 'texte' => 'Fin de formation']);
+        self::assertStringContainsString('concerne un étudiant ou une classe', $sans->corps);
+
+        // Seulement le /WP : leroyhu n'en a pas, il est passé.
+        $page = $this->en('jroux', 'POST', '/demandes/nouvelle', ['action' => 'demander', 'objet' => 'suppression', 'cible' => 'classe',
+            'etudiant' => '', 'classe' => $classe, 'site' => '/WP', 'texte' => 'Fin de formation']);
+        self::assertStringContainsString('2 demande(s) envoyée(s) pour la classe', $page->corps);
+        self::assertStringContainsString('1 × Ce site n&apos;existe pas chez cet étudiant.', $page->corps);
+        self::assertSame(2, $this->nombre("SELECT count(*) FROM demandes WHERE type = 'supprimer_site' AND dossier = '/WP'"));
+
+        $tout = $this->en('jroux', 'POST', '/demandes/nouvelle', ['action' => 'demander', 'objet' => 'suppression', 'cible' => 'classe',
+            'etudiant' => '', 'classe' => $classe, 'site' => '', 'texte' => 'Fin de formation']);
+        self::assertStringContainsString('3 demande(s) envoyée(s) pour la classe', $tout->corps);
+        $ids = array_map('intval', (array) $this->pdo->query("SELECT id FROM demandes WHERE type = 'supprimer_etudiant'")->fetchAll(PDO::FETCH_COLUMN));
+        $resultat = (new Demandes($this->pdo))->valider($ids, 'SUPPRIMER', $this->compte('mzanelli'), null, $this->horloge->maintenant());
+        self::assertSame(3, $resultat['validees']);
+        self::assertCount(1, $resultat['travaux'], 'Toute la classe en un seul travail');
     }
 
     public function testLAdministrateurValideParLotEnTapantSupprimerUnSeulTravail(): void

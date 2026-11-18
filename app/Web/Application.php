@@ -89,6 +89,8 @@ final class Application
             '/' => $this->accueil($requete),
             '/comptes', '/comptes/nouveau' => $this->pageConnectee($requete, Droits::GERER_COMPTES, fn (Compte $moi) => $this->comptes($requete, $moi)),
             '/etudiants' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->etudiants($requete, $moi)),
+            '/recherche' => $this->pageConnectee($requete, Droits::CONSULTER,
+                fn (Compte $moi) => new Reponse(200, Recherche::page($moi, $requete->champ('texte'), Pages::$rechercheEtudiants))),
             '/etudiants/import' => $this->pageConnectee($requete, Droits::IMPORTER, fn (Compte $moi) => $this->importEtudiants($requete, $moi)),
             '/etudiants/nouveau' => $this->pageConnectee($requete, Droits::CREER_ETUDIANT, fn (Compte $moi) => $this->nouvelEtudiant($requete, $moi)),
             '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
@@ -103,7 +105,7 @@ final class Application
             '/documents' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => Reponse::redirection('/bibliotheque')),
             '/travaux' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travaux($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
-            '/demandes' => $this->pageConnectee($requete, Droits::DEMANDER, fn (Compte $moi) => $this->demandes($requete, $moi)),
+            '/demandes', '/demandes/nouvelle' => $this->pageConnectee($requete, Droits::DEMANDER, fn (Compte $moi) => $this->demandes($requete, $moi)),
             '/sites/supprimer' => $this->pageConnectee($requete, Droits::SUPPRIMER, fn (Compte $moi) => $this->supprimerEnMasse($requete, $moi)),
             '/sites/supprimer/etudiant' => $this->pageConnectee($requete, Droits::SUPPRIMER, fn (Compte $moi) => $this->supprimerUnEtudiant($requete, $moi)),
             default => $this->pageNumerotee($requete),
@@ -413,27 +415,14 @@ final class Application
 
     private function voirTout(Requete $requete, Compte $moi): Reponse
     {
-        if ($requete->methode === 'POST') {
-            if ($requete->champ('action') !== 'filtrer') {
-                return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
-            }
-            $regime = self::idFacultatif($requete->champ('regime'));
-            $session = self::idFacultatif($requete->champ('session'));
-            $this->comptes->enregistrerFiltre($moi->id, $regime === null && $session === null ? null
-                : 'regime=' . ($regime ?? '') . ';session=' . ($session ?? ''));
-
-            return Reponse::redirection('/sites');
-        }
         if (($refus = $this->seulementGet($requete)) !== null) {
             return $refus;
         }
-        [$regime, $session] = self::lireFiltre($this->comptes->dernierFiltre($moi->id));
-        $referentiel = new RegimesSessions($this->pdo);
         $file = new FileTravaux($this->pdo);
 
-        return new Reponse(200, PagesTravaux::voirTout($this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste($regime, $session),
+        return new Reponse(200, PagesTravaux::voirTout($this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste(null, null),
             Releve::parIdentifiant($this->pdo), Releve::identifiants($this->pdo), Releve::dernier($this->pdo), $file->dejaPrevu('releve'),
-            $referentiel->regimes(), $referentiel->sessions(), $regime, $session, null, Releve::horsGel($this->pdo),
+            null, Releve::horsGel($this->pdo),
             (new Demandes($this->pdo))->etiquettes(), Suppressions::etudiantsSupprimes($this->pdo)));
     }
 
@@ -500,23 +489,8 @@ final class Application
 
     private function etudiants(Requete $requete, Compte $moi): Reponse
     {
-        if ($requete->methode === 'POST') {
-            if ($requete->champ('action') !== 'filtrer') {
-                return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
-            }
-            $regime = self::idFacultatif($requete->champ('regime'));
-            $session = self::idFacultatif($requete->champ('session'));
-            $this->comptes->enregistrerFiltre($moi->id, $regime === null && $session === null ? null
-                : 'regime=' . ($regime ?? '') . ';session=' . ($session ?? ''));
-
-            return Reponse::redirection('/etudiants');
-        }
-        [$regime, $session] = self::lireFiltre($this->comptes->dernierFiltre($moi->id));
-        $referentiel = new RegimesSessions($this->pdo);
-
         return $this->seulementGet($requete) ?? new Reponse(200, PagesEtudiants::liste(
-            $this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste($regime, $session),
-            $referentiel->regimes(), $referentiel->sessions(), $regime, $session, $this->horloge->maintenant()
+            $moi, (new GestionEtudiants($this->pdo))->liste(null, null), $this->horloge->maintenant()
         ));
     }
 
@@ -787,6 +761,32 @@ final class Application
         $demandes = new Demandes($this->pdo, $this->alertes);
         $erreur = null;
         $information = null;
+        if ($requete->chemin === '/demandes/nouvelle') {
+            // « Faire une demande au service informatique » (demande du 18/11/2026).
+            $valeurs = [];
+            if ($requete->methode === 'POST') {
+                if ($requete->champ('action') !== 'demander') {
+                    return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+                }
+                $valeurs = ['objet' => $requete->champ('objet'), 'cible' => $requete->champ('cible'), 'etudiant' => $requete->champ('etudiant'),
+                    'classe' => $requete->champ('classe'), 'site' => $requete->champ('site'), 'texte' => mb_substr($requete->champ('texte'), 0, 2000, 'UTF-8')];
+                try {
+                    $information = $demandes->demander(['objet' => $valeurs['objet'], 'cible' => $valeurs['cible'],
+                        'etudiant' => self::idFacultatif($valeurs['etudiant']), 'classe' => $valeurs['classe'], 'site' => $valeurs['site'],
+                        'texte' => $valeurs['texte']], $moi, $requete->adresseIp);
+
+                    return $this->pageDemandes($demandes, $moi, null, $information);
+                } catch (ErreurSaisie $e) {
+                    $erreur = $e->getMessage();
+                }
+            } elseif (($refus = $this->seulementGet($requete)) !== null) {
+                return $refus;
+            }
+            $etudiants = array_map(static fn (\Portail\Etudiants\Etudiant $e): array => ['id' => $e->id, 'nom' => $e->nomComplet, 'classe' => $e->classe()],
+                (new GestionEtudiants($this->pdo))->liste(null, null));
+
+            return new Reponse(200, PagesDemandes::nouvelle($this->session->jeton(), $moi, $etudiants, $demandes->classes(), $valeurs, $erreur));
+        }
         if ($requete->methode === 'POST') {
             try {
                 $coches = array_map('intval', $requete->liste('coches'));
@@ -795,7 +795,8 @@ final class Application
                         if (!Droits::peut($moi->role, Droits::TRAITER_DEMANDES)) {
                             return $this->refuser($requete, $moi);
                         }
-                        $resultat = $demandes->valider($coches, $requete->champ('confirmation'), $moi, $requete->adresseIp, $this->horloge->maintenant());
+                        $resultat = $demandes->valider($coches, $requete->champ('confirmation'), $moi, $requete->adresseIp, $this->horloge->maintenant(),
+                            $requete->champ('commentaire'));
                         $information = $resultat['validees'] . ' demande(s) validée(s)' . ($resultat['travaux'] === [] ? '.' : ' : travail n° '
                             . implode(', n° ', $resultat['travaux']) . ' (« Travaux en cours »).');
                         $erreur = $resultat['erreurs'] === [] ? null : 'Restées en attente : ' . implode(' ; ', $resultat['erreurs']);
@@ -825,6 +826,12 @@ final class Application
         } elseif (($refus = $this->seulementGet($requete)) !== null) {
             return $refus;
         }
+
+        return $this->pageDemandes($demandes, $moi, $erreur, $information);
+    }
+
+    private function pageDemandes(Demandes $demandes, Compte $moi, ?string $erreur, ?string $information): Reponse
+    {
         Pages::$demandesEnAttente = Droits::peut($moi->role, Droits::TRAITER_DEMANDES) ? $demandes->nombreEnAttente() : 0;
 
         return new Reponse(200, PagesDemandes::page($this->session->jeton(), $moi,
@@ -910,16 +917,6 @@ final class Application
         return preg_match('/^[1-9][0-9]{0,9}$/D', $valeur) === 1 ? (int) $valeur : null;
     }
 
-    /** @return array{?int, ?int} Régime et session du filtre enregistré */
-    private static function lireFiltre(?string $filtre): array
-    {
-        if ($filtre === null || preg_match('/^regime=([0-9]*);session=([0-9]*)$/', $filtre, $parties) !== 1) {
-            return [null, null];
-        }
-
-        return [self::idFacultatif($parties[1]), self::idFacultatif($parties[2])];
-    }
-
     /**
      * Page réservée aux comptes connectés qui ont le droit demandé.
      *
@@ -935,6 +932,7 @@ final class Application
             return Reponse::redirection('/mot-de-passe');
         }
         Pages::cadre($moi, $this->session->jeton(), $requete->chemin);
+        $this->preparerRecherche($moi);
         Pages::$demandesEnAttente = Droits::peut($moi->role, Droits::TRAITER_DEMANDES) ? (new Demandes($this->pdo))->nombreEnAttente() : 0;
         if (!Droits::peut($moi->role, $droit)) {
             (new Journal($this->pdo))->ecrire('administration', 'accès refusé', 'refus', $moi->id, $moi->nomAffiche, $requete->adresseIp, $requete->chemin);
@@ -944,6 +942,13 @@ final class Application
         $this->session->noterActivite();
 
         return $page($moi);
+    }
+
+    /** Étudiants de la recherche rapide du bandeau (rôles qui ouvrent les fiches). */
+    private function preparerRecherche(Compte $compte): void
+    {
+        Pages::$rechercheEtudiants = Droits::peut($compte->role, Droits::VOIR_FICHE)
+            ? Recherche::etudiants($compte, (new GestionEtudiants($this->pdo))->liste(null, null)) : [];
     }
 
     private function comptes(Requete $requete, Compte $moi): Reponse
@@ -1114,6 +1119,7 @@ final class Application
         $this->session->noterActivite();
         if (!$compte->doitChangerMotDePasse) {
             Pages::cadre($compte, $this->session->jeton(), $requete->chemin);
+            $this->preparerRecherche($compte);
         }
         if ($requete->methode !== 'POST') {
             return $this->seulementGet($requete)
@@ -1158,6 +1164,7 @@ final class Application
         $this->session->noterActivite();
 
         Pages::cadre($compte, $this->session->jeton(), $requete->chemin);
+        $this->preparerRecherche($compte);
         Pages::$demandesEnAttente = Droits::peut($compte->role, Droits::TRAITER_DEMANDES) ? (new Demandes($this->pdo))->nombreEnAttente() : 0;
         if ($requete->methode === 'POST') {
             if ($requete->champ('action') !== 'secours_verifies' || $compte->role !== 'administrateur') {

@@ -18,7 +18,7 @@ En SSH : `php ~/portail/bin/releve.php`. La commande demande à CPanel la liste 
 
 ### Importer les étudiants
 
-Menu **Ajouter des étudiants**, étiquette **Par liste** (administrateur, enseignant, administratif). Dans la Google Sheets, onglet « Export portail » : tout sélectionner, copier, coller dans le portail, ligne des titres comprise. Le texte collé n'est jamais enregistré sur le serveur. L'aperçu classe chaque ligne :
+Menu **Ajouter des étudiants**, étiquette **Import liste Google Sheets** (administrateur, enseignant, administratif). Dans la Google Sheets, onglet « Export portail » : copier les en-têtes de colonnes et les données choisies, puis les coller dans le cadre du portail. Le texte collé n'est jamais enregistré sur le serveur. L'aperçu classe chaque ligne :
 
 - **À importer** : nouvel étudiant conforme ;
 - **À vérifier** (case à cocher, décochée par défaut) : importé seulement si la case est cochée après vérification ;
@@ -27,9 +27,9 @@ Menu **Ajouter des étudiants**, étiquette **Par liste** (administrateur, ensei
 
 Un identifiant hors de la règle de la feuille (étudiants de la session 2027, ancien format) n'est accepté que si son sous-domaine figure dans le dernier relevé. Avant toute réinitialisation ou suppression d'un site de ces étudiants (V2), le portail vérifiera en plus que le site leur appartient. Un texte qui contient une colonne de mot de passe, de date de naissance ou de code chiffré est refusé en entier.
 
-**E-mails manquants.** Une ligne sans e-mail est refusée. On peut donc coller l'onglet entier : seuls les étudiants complets entrent. Une fois les e-mails récupérés et reportés dans la feuille, on recolle l'onglet entier : les étudiants déjà importés sont ignorés, les nouveaux complets sont importés. Tant que des étudiants sont en attente, faire entrer les nouveaux étudiants par l'import plutôt que par le formulaire « Un seul étudiant », pour que leur identifiant reste celui de la feuille.
+**E-mails manquants.** Une ligne sans e-mail est refusée. On peut donc coller l'onglet entier : seuls les étudiants complets entrent. Une fois les e-mails récupérés et reportés dans la feuille, on recolle l'onglet entier : les étudiants déjà importés sont ignorés, les nouveaux complets sont importés. Tant que des étudiants sont en attente, faire entrer les nouveaux étudiants par l'import plutôt que par le formulaire « Création d'un étudiant », pour que leur identifiant reste celui de la feuille.
 
-**Étudiants dont les sites existent déjà** (session 2028, créés hors du portail). Ils entrent par l'import, après un relevé : leur ligne indique « Sous-domaine déjà présent sur le serveur ✓ ». Le formulaire « Un seul étudiant » refuse leur identifiant, puisqu'il est déjà utilisé sur le serveur.
+**Étudiants dont les sites existent déjà** (session 2028, créés hors du portail). Ils entrent par l'import, après un relevé : leur ligne indique « Sous-domaine déjà présent sur le serveur ✓ ». Le formulaire « Création d'un étudiant » refuse leur identifiant, puisqu'il est déjà utilisé sur le serveur.
 
 ### Archiver les sessions terminées
 
@@ -45,7 +45,7 @@ Ils se modifient sur la fiche de l'étudiant (session et/ou régime, en une seul
 
 ### Ajouter un étudiant arrivé en cours d'année
 
-Menu **Ajouter des étudiants**, étiquette **Un seul étudiant** : saisir le nom de famille et le prénom séparément, l'e-mail, le régime et la session. Le portail calcule l'identifiant avec la même règle que la Google Sheets et l'affiche à côté du nom complet : le vérifier, le corriger si besoin, puis enregistrer. Un homonyme reçoit automatiquement un chiffre (`henrije2`). Un identifiant déjà pris par un étudiant, par un site présent sur le serveur ou par un site protégé est refusé.
+Menu **Ajouter des étudiants**, étiquette **Création d'un étudiant** : saisir le nom de famille et le prénom séparément, l'e-mail, le régime et la session. Le portail calcule l'identifiant avec la même règle que la Google Sheets et l'affiche à côté du nom complet : le vérifier, le corriger si besoin, puis enregistrer. Un homonyme reçoit automatiquement un chiffre (`henrije2`). Un identifiant déjà pris par un étudiant, par un site présent sur le serveur ou par un site protégé est refusé.
 
 Comme la feuille, le portail prend le **dernier mot** du prénom (« Jean Pierre » donne `pi`) : corriger à la main si besoin, et reporter le même identifiant dans la Google Sheets.
 
@@ -131,7 +131,7 @@ Menu « Créer des boutiques » (administrateur, enseignants, administratif) : c
 
 ## WordPress des étudiants : création (V2, lot 5, 14/11/2026)
 
-Menu « Créer des WordPress » (administrateur, enseignants, administratif) : choisir la session, cocher les étudiants (aucun coché d'avance ; case « Tout cocher »), lancer. L'étudiant doit d'abord être dans le portail (« Par liste » ou « Un seul étudiant ») : son identifiant et son identifiant WordPress (`AzzouziK`) sont ceux de sa fiche. Un étudiant dont le `/WP` existe déjà (dernier relevé ou portail) ne peut pas être coché.
+Menu « Créer des WordPress » (administrateur, enseignants, administratif) : choisir la session, cocher les étudiants (aucun coché d'avance ; case « Tout cocher »), lancer. L'étudiant doit d'abord être dans le portail (« Import liste Google Sheets » ou « Création d'un étudiant ») : son identifiant et son identifiant WordPress (`AzzouziK`) sont ceux de sa fiche. Un étudiant dont le `/WP` existe déjà (dernier relevé ou portail) ne peut pas être coché.
 
 - **État produit** : celui des 1re année créés par `creation_wp.sh` (relevé du 14/11/2026 sur un site de la session 2028) — WordPress en français, titre « Sup », thème et extensions par défaut, permaliens simples, fuseau de Paris, un seul compte administrateur (identifiant WordPress de l'étudiant, avec son e-mail), adresse d'administration du site = adresse d'alerte, `.htaccess` avec la seule redirection vers https (`HTTPS-PORTAIL`).
 - **Sous-domaine** : s'il manque, le travailleur le crée (`uapi SubDomain addsubdomain`, dossier `~/identifiant.bts-sup-sallanches.com`). Son **certificat** est demandé à la fin de l'étape, avec acme.sh (mêmes commandes que `certificats.sh` ; CPanel l'active en 30 minutes au plus). Un sous-domaine existant n'est pas touché.
@@ -157,7 +157,10 @@ Sur la fiche de l'étudiant, rubrique « Réinitialiser un site » (**enseignant
 
 Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administrateur seul décide.
 
-- **Demander** : fiche de l'étudiant, rubrique « Demander à l'administrateur ». Choix : supprimer un de ses sites (/WP, /WP2, /Presta, /Presta2), supprimer l'étudiant (tous ses sites et son sous-domaine), ou, pour l'administratif, réinitialiser le WordPress ou la boutique. **Motif obligatoire** (3 à 300 caractères ; propositions : départ, abandon, fin de formation, redoublement…). Une demande identique déjà en attente est refusée.
+- **Demander** : page « Demandes », étiquette **Faire une demande au service informatique** (demande du 18/11/2026), ou fiche de l'étudiant, rubrique « Demander au service informatique ». Choix de la fiche : supprimer un de ses sites (/WP, /WP2, /Presta, /Presta2), supprimer l'étudiant (tous ses sites et son sous-domaine), ou, pour l'administratif, réinitialiser le WordPress ou la boutique. **Motif obligatoire** (3 à 300 caractères ; propositions : départ, abandon, fin de formation, redoublement…). Une demande identique déjà en attente est refusée.
+- **Formulaire « Faire une demande au service informatique »** (enseignant, administratif ; 18/11/2026) : 1. objet, **supprimer** ou **signaler un problème (SAV)** ; 2. qui est concerné, un étudiant, une classe (régime + session) ou, pour un problème, personne en particulier ; 3. le site (facultatif ; pour une suppression, aucun site = l'étudiant entier) ; 4. le motif (suppression, 3 à 300 caractères) ou la description (problème, 10 à 1 000 caractères).
+  - **Suppression pour une classe** : une demande par étudiant de la classe, que l'administrateur valide en une fois (un seul travail). Un étudiant qui n'a pas le site choisi, ou qui a déjà la même demande en attente, est passé ; le compte rendu le dit.
+  - **Problème (SAV)** : plusieurs problèmes peuvent attendre pour un même étudiant. L'administrateur le coche puis « Valider la sélection » : il est marqué **traité** (aucun travail lancé), avec sa réponse facultative dans le champ « Commentaire », transmise au demandeur par e-mail et dans « Mes demandes » ; il peut aussi le refuser avec un commentaire. Étiquette « Problème signalé » sur la ligne de l'étudiant dans « Liste des sites ».
 - **E-mails** : à l'adresse d'alerte pour chaque nouvelle demande ; au demandeur pour la décision. Ni nom d'étudiant, ni motif dans ces e-mails : le détail est dans le portail.
 - **Signalement** : compteur à côté de « Demandes » dans le menu et sur la tuile d'accueil de l'administrateur ; étiquette « Suppression demandée » ou « Réinitialisation demandée » sur la ligne de l'étudiant dans « Liste des sites », et rubrique « Demandes en attente » sur sa fiche.
 - **Traiter** (page « Demandes », administrateur) : demandes groupées par type, case « Tout cocher » et filtre. Cocher une demande (une par une) ou plusieurs (par lot), puis « Valider la sélection » ou « Refuser la sélection ».
@@ -165,7 +168,7 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
   - Valider une réinitialisation : le travail habituel (« Réinitialiser un site ») est inscrit.
   - Une demande qui ne peut pas être lancée (travail déjà prévu, site disparu…) reste en attente, avec la raison affichée.
   - Refuser : commentaire obligatoire, transmis au demandeur.
-- **Mes demandes** : chaque demandeur suit ses demandes (en attente, validée avec le numéro du travail, refusée avec le commentaire, annulée) et peut annuler les siennes tant qu'elles sont en attente.
+- **Mes demandes** (étiquette **Voir les demandes en cours**) : chaque demandeur suit ses demandes (en attente, validée avec le numéro du travail, refusée avec le commentaire, annulée) et peut annuler les siennes tant qu'elles sont en attente.
 
 ## Supprimer un site ou un étudiant, restaurer (lot 5, paquet B, 15/11/2026)
 
@@ -175,7 +178,7 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
 - **Rien n'est effacé tout de suite** (décision du 15/11/2026 : tout, restaurable 8 jours).
   - **Un site** : son dossier est mis à l'écart 8 jours dans `~/archives_suppression/portail/`, sa base et son utilisateur MySQL restent en place.
   - **Un étudiant** : le dossier entier du sous-domaine est mis à l'écart, la fiche quitte toutes les listes, et le portail note toutes ses bases et tous ses utilisateurs MySQL. Les bases notées sont celles du portail, celles de ses fichiers de réglages si elles sont à son nom, et toutes celles de CPanel au nom exact `jafl3067_identifiant` ou `jafl3067_identifiant_…`, comme `nettoyage_etudiants.sh`. La base partagée `jafl3067_peda` et les bases protégées ne sont jamais retenues.
-  - **Le sous-domaine** reste dans CPanel pendant les 8 jours ; son adresse ne montre plus de site. L'identifiant reste réservé : ni « Un seul étudiant », ni l'import ne peuvent le reprendre (l'import l'indique en rouge). Dans « Liste des sites », il est listé à part, avec sa date d'effacement.
+  - **Le sous-domaine** reste dans CPanel pendant les 8 jours ; son adresse ne montre plus de site. L'identifiant reste réservé : ni « Création d'un étudiant », ni l'import ne peuvent le reprendre (l'import l'indique en rouge). Dans « Liste des sites », il est listé à part, avec sa date d'effacement.
 - **Supprimer une liste** (menu Sites, Supprimer, étiquette « Supprimer une liste » ; administrateur seul, demande du 16/11/2026) : pour une session entière, par exemple la session 2027 en juillet 2027.
   - Choisir la session (actives et archivées, avec le nombre d'étudiants), puis « Afficher les étudiants ». Les sites connus de chacun s'affichent ; les filtres et « Tout cocher » sont disponibles.
   - Choisir ce qu'il faut supprimer : **tout** (les étudiants, leurs sites, leurs bases et leurs sous-domaines), ou **seulement un site** (/WP, /WP2, /Presta ou /Presta2) ; dans ce dernier cas, les étudiants restent.
@@ -193,15 +196,25 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
 
 - **Menu en rubriques** : Étudiants, Sites, Examens, Documents, Suivi, Administration, Mon compte (Documents placé entre Examens et Suivi le 18/11/2026). Chacun ne voit que les pages permises par son rôle.
 - **Étiquettes** (18/11/2026) : les pages qui regroupent plusieurs façons de faire s'ouvrent sur des étiquettes cliquables.
-  - **Ajouter des étudiants** : « Par liste » (import de l'onglet de la Google Sheets) et « Un seul étudiant » (formulaire). Une seule entrée au menu.
+  - **Ajouter des étudiants** : « Import liste Google Sheets » et « Création d'un étudiant » (formulaire) ; noms changés le 18/11/2026. Une seule entrée au menu.
+  - **Demandes** (enseignant, administratif ; 18/11/2026) : « Voir les demandes en cours » et « Faire une demande au service informatique ».
   - **Supprimer** (administrateur) : « Supprimer une liste » et « Supprimer un étudiant ».
   - **Site modèle d'examen** : quatre étapes numérotées, 1 Charger le sujet, 2 Déployer dans les sites d'examen, 3 Clôturer l'épreuve, 4 Geler ou rouvrir ; l'étiquette PrestaShop est marquée « bientôt » (lot 6).
   - **Bibliothèque** : trois rayons, Documents, Sujets d'examen et Versions PrestaShop ; l'administratif et la direction ne voient que Documents.
 - **Fiche de l'étudiant en cartes** (18/11/2026) : ses informations, puis une carte par site avec « Ouvrir le site » (ou « Ouvrir la boutique ») et « Administration » ; les actions (réinitialiser, demander, supprimer) sont repliées sous « Actions sur cet étudiant », ouvertes d'office quand un message ou une demande en attente les concerne ; viennent ensuite « Parcours et historique » et « Détails techniques ».
 - **Phrases d'aide** : sous le titre de chaque page, une phrase dit à quoi elle sert ; le « ? » déplie le détail.
-- **Mots de tous les jours**, avec le dossier technique en petit : Site WordPress (cours) `/WP`, Site d'examen `/WP2`, Boutique (cours) `/Presta`, Boutique d'examen `/Presta2`. Autres changements : « Voir tout » devient « Liste des sites », « sous-domaine » devient « adresse du site », « relevé » devient « liste des sites mise à jour le… », et les suppressions restaurables forment la « corbeille ».
+- **Mots de tous les jours**, avec le dossier technique en petit : Site WordPress `/WP`, Site d'examen `/WP2`, Boutique `/Presta`, Boutique d'examen `/Presta2`. Autres changements : « Voir tout » devient « Liste des sites », « sous-domaine » devient « adresse du site », « relevé » devient « liste des sites mise à jour le… », et les suppressions restaurables forment la « corbeille ».
 - **États** : chaque pastille a un signe en plus de sa couleur (✓ prêt, ⚠ à vérifier, ✕ échec, ⏳ en cours).
 - **Icône d'onglet** : le logo (`public/favicon.png`).
+
+## Recherche rapide (18/11/2026)
+
+Une seule barre de recherche, en haut de chaque page, pour tous les rôles (décisions des 17 et 18/11/2026).
+
+- En cliquant dans la barre, la liste propose les situations courantes, selon le rôle : un étudiant arrive, un étudiant part ou redouble, préparer un BTS blanc, problème de site ou de boutique, trouver un document, faire une demande au service informatique.
+- En tapant, elle propose les étudiants trouvés (nom ou classe ; seulement pour les rôles qui ouvrent les fiches : pas la direction), puis les actions et les pages du menu (« certificats », « journal »…). Majuscules et accents ne comptent pas.
+- Flèches pour choisir, Entrée pour ouvrir, Échap pour fermer. Entrée sans choix ouvre la page « Recherche » avec tous les résultats (elle marche aussi sans JavaScript).
+- L'identifiant des étudiants n'est pas dans la recherche : il reste sur la fiche.
 
 ## Filtre des listes (15/11/2026)
 
@@ -213,6 +226,8 @@ Au-dessus de chaque liste de plus de 5 lignes (étudiants, « Liste des sites »
 - « n ligne(s) sur N » s'affiche, et « Effacer » remet la liste entière.
 
 Le tri par clic sur l'en-tête reste possible. Avec un filtre, « Tout cocher » ne coche que les lignes affichées.
+
+Depuis le 18/11/2026, c'est le seul filtre de « Liste des étudiants » et de « Liste des sites » : l'ancien choix « Régime / Session / Afficher » au-dessus de la liste, gardé d'une connexion à l'autre, est retiré (risque d'oubli). Chaque page s'ouvre sur tous les étudiants. La version 15 de la base efface les filtres gardés.
 
 ## Certificats https : suivi et relance (administrateur, 14/11/2026)
 

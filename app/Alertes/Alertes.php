@@ -163,9 +163,12 @@ final class Alertes
     }
 
     /** Décision sur ses demandes, au seul demandeur. Aucun nom d'étudiant : il retrouve le détail dans « Mes demandes ». */
-    public function decisionDemandes(string $email, int $validees, int $refusees, ?string $commentaire): void
+    public function decisionDemandes(string $email, int $validees, int $refusees, ?string $commentaire, int $traites = 0, ?string $reponse = null): void
     {
         $lignes = [];
+        if ($traites > 0) {
+            $lignes[] = '- ' . $traites . ' problème(s) signalé(s) traité(s)' . ($reponse === null ? '' : ', réponse du service informatique : « ' . $reponse . ' »') . ' ;';
+        }
         if ($validees > 0) {
             $lignes[] = '- ' . $validees . ' demande(s) validée(s) : le travail est inscrit dans « Travaux en cours » ;';
         }

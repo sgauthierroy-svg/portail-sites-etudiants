@@ -214,17 +214,20 @@ final class EtudiantsTest extends TestCase
 
     // ===== Liste =====
 
-    public function testLeFiltreEstGardePourLaConnexionSuivante(): void
+    public function testLaListeMontreTousLesEtudiantsSansFiltreGarde(): void
     {
+        // Décision du 18/11/2026 : plus de filtre gardé d'une connexion à l'autre, un seul filtre (celui du tableau).
         $this->ajouter('MARTIN', 'Élodie', 'martinel');
         $this->ajouter('LE', 'Minh', 'lemi', $this->s2027);
-        $this->en('cpetit', 'POST', '/etudiants', ['action' => 'filtrer', 'regime' => '', 'session' => (string) $this->s2027]);
+        self::assertSame(405, $this->en('cpetit', 'POST', '/etudiants', ['action' => 'filtrer', 'regime' => '', 'session' => (string) $this->s2027])->statut);
         $liste = $this->en('cpetit', 'GET', '/etudiants')->corps;
         self::assertStringContainsString('LE Minh', $liste);
-        self::assertStringNotContainsString('MARTIN Élodie', $liste);
+        self::assertStringContainsString('MARTIN Élodie', $liste);
         self::assertStringContainsString('2e année', $liste);
         self::assertStringNotContainsString('lemi', $liste, 'L\'identifiant n\'apparaît que dans la fiche');
-        self::assertStringContainsString('MARTIN Élodie', $this->en('jroux', 'GET', '/etudiants')->corps, 'Filtre propre à chaque compte');
+        self::assertStringNotContainsString('prochaine connexion', $liste);
+        self::assertStringNotContainsString('name="regime"', $liste, 'Plus de second filtre au-dessus du tableau');
+        self::assertStringContainsString('Sélectionnez votre liste ou cliquez sur le titre d', $liste);
     }
 
     public function testUnNomPiegeEstAfficheSansEtreExecute(): void

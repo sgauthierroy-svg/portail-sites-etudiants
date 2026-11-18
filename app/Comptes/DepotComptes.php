@@ -157,20 +157,6 @@ final class DepotComptes
         $requete->execute([':id' => $id]);
     }
 
-    /** Dernier filtre de la liste des étudiants (« regime=3;session=2 »), retrouvé à la connexion suivante. */
-    public function dernierFiltre(int $id): ?string
-    {
-        $requete = $this->pdo->prepare('SELECT dernier_filtre FROM comptes WHERE id = :id');
-        $requete->execute([':id' => $id]);
-        return Lecture::texte($requete->fetchColumn());
-    }
-
-    public function enregistrerFiltre(int $id, ?string $filtre): void
-    {
-        $requete = $this->pdo->prepare('UPDATE comptes SET dernier_filtre = :filtre WHERE id = :id');
-        $requete->execute([':filtre' => $filtre, ':id' => $id]);
-    }
-
     /**
      * Comptes actifs non confirmés depuis la limite (création ou dernière revue).
      *

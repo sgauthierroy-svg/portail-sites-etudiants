@@ -14,22 +14,14 @@ use Portail\Etudiants\RegimesSessions;
  */
 final class PagesEtudiants
 {
-    /**
+        /**
+     * Tous les étudiants ; le filtre de la page (régime, session, texte) se fait dans le navigateur. Plus de filtre gardé
+     * d'une connexion à l'autre (décision du 18/11/2026 : risque d'oubli).
+     *
      * @param list<Etudiant> $etudiants
-     * @param list<array{id: int, nom: string, actif: bool}> $regimes
-     * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
      */
-    public static function liste(string $jeton, Compte $moi, array $etudiants, array $regimes, array $sessions,
-        ?int $regimeChoisi, ?int $sessionChoisie, int $maintenant): string
+    public static function liste(Compte $moi, array $etudiants, int $maintenant): string
     {
-        $optionsRegimes = '<option value="">Tous les régimes</option>';
-        foreach ($regimes as $regime) {
-            $optionsRegimes .= self::option((string) $regime['id'], $regime['nom'] . ($regime['actif'] ? '' : ' (désactivé)'), $regime['id'] === $regimeChoisi);
-        }
-        $optionsSessions = '<option value="">Toutes les sessions</option>';
-        foreach ($sessions as $session) {
-            $optionsSessions .= self::option((string) $session['id'], 'Session ' . $session['annee'] . ($session['active'] ? '' : ' (archivée)'), $session['id'] === $sessionChoisie);
-        }
         $lignes = '';
         $fiches = Droits::peut($moi->role, Droits::VOIR_FICHE);
         foreach ($etudiants as $etudiant) {
@@ -37,26 +29,9 @@ final class PagesEtudiants
                 . '<td>' . Html::e($etudiant->regime) . '</td><td>' . $etudiant->session . '</td>'
                 . '<td>' . Html::e(RegimesSessions::anneeDeFormation($etudiant->session, $maintenant)) . '</td></tr>';
         }
-        $actions = [];
-        if (Droits::peut($moi->role, Droits::CREER_ETUDIANT)) {
-            $actions[] = '<a href="/etudiants/nouveau">Ajouter un étudiant</a>';
-        }
-        if (Droits::peut($moi->role, Droits::IMPORTER)) {
-            $actions[] = '<a href="/etudiants/import">Importer des étudiants</a>';
-        }
-        if (Droits::peut($moi->role, Droits::REGIMES_SESSIONS)) {
-            $actions[] = '<a href="/regimes-sessions">Régimes et sessions</a>';
-        }
-        $actions[] = '<a href="/">Accueil</a>';
-
         return Pages::page('Liste des étudiants',
-            '<p>' . implode(' · ', $actions) . '</p>'
-            . '<form method="post" action="/etudiants">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="filtrer">'
-            . '<label for="regime">Régime</label> <select id="regime" name="regime">' . $optionsRegimes . '</select> '
-            . '<label for="session">Session</label> <select id="session" name="session">' . $optionsSessions . '</select> '
-            . '<button type="submit">Afficher</button></form>'
-            . '<p>' . count($etudiants) . ' étudiant' . (count($etudiants) > 1 ? 's' : '') . '. Ce filtre est gardé pour votre prochaine connexion.</p>'
-            . '<p class="discret">Cliquez sur le titre d\'une colonne pour trier.</p>'
+            '<p>' . count($etudiants) . ' étudiant' . (count($etudiants) > 1 ? 's' : '') . '.</p>'
+            . '<p class="discret">Sélectionnez votre liste ou cliquez sur le titre d\'une colonne pour trier.</p>'
             . '<table class="triable"><thead><tr><th>Étudiant</th><th>Régime</th><th>Session</th><th>Année</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
             );
     }
@@ -86,12 +61,12 @@ final class PagesEtudiants
         return $html;
     }
 
-    /** « Ajouter des étudiants » (décision du 17/11/2026) : « Par liste » ou « Un seul étudiant ». */
+    /** « Ajouter des étudiants » (décisions des 17 et 18/11/2026) : « Import liste Google Sheets » ou « Création d'un étudiant ». */
     private static function etiquettesAjout(string $actif): string
     {
         return Pages::etiquettes([
-            ['adresse' => '/etudiants/import', 'titre' => 'Par liste', 'texte' => 'Toute une classe d\'un coup, depuis la Google Sheets.'],
-            ['adresse' => '/etudiants/nouveau', 'titre' => 'Un seul étudiant', 'texte' => 'Un étudiant arrivé en cours d\'année.'],
+            ['adresse' => '/etudiants/import', 'titre' => 'Import liste Google Sheets', 'texte' => 'Toute une classe ou une liste d\'un coup.'],
+            ['adresse' => '/etudiants/nouveau', 'titre' => 'Création d\'un étudiant', 'texte' => 'Un étudiant arrivé en cours d\'année.'],
         ], $actif, 'Ajouter des étudiants');
     }
 
@@ -347,13 +322,13 @@ final class PagesEtudiants
             : '<p>Liste des sites du serveur mise à jour le : ' . Html::e(self::date($releveLe)) . '.</p>';
         $formulaire = '<form method="post" action="/etudiants/import">' . Pages::jeton($jeton)
             . '<input type="hidden" name="action" value="apercu">'
-            . '<p><label for="texte">Dans la Google Sheets, ouvrez l\'onglet « Export portail », sélectionnez tout (Ctrl + A), copiez (Ctrl + C), '
-            . 'puis collez ici (Ctrl + V), ligne des titres comprise.</label></p>'
+            . '<p><label for="texte">Dans la Google Sheets, ouvrez l\'onglet « Export portail », copiez les en-têtes de colonnes et les données choisies, '
+            . 'puis collez-les dans le cadre ci-dessous.</label></p>'
             . '<p><textarea id="texte" name="texte" rows="12" cols="100" required>' . Html::e($texte) . '</textarea></p>'
             . '<button type="submit" class="btn-main">Voir l\'aperçu (rien n\'est enregistré)</button></form>';
         if ($lignes === null) {
             return Pages::page('Ajouter des étudiants', self::etiquettesAjout('/etudiants/import')
-                . Pages::aide('Toute une liste d\'un coup, depuis la Google Sheets : collez, vérifiez l\'aperçu, puis importez.') . $contenu . $releve
+                . $contenu . $releve
                 . '<p>Le texte collé est lu en mémoire, jamais enregistré sur le serveur. Colonnes attendues : NomPrénom, Classe, Session, '
                 . 'Identifiant, Identifiant WordPress, E-mail. Un texte qui contient une colonne de mot de passe, de date de naissance '
                 . 'ou de code chiffré est refusé en entier.</p>' . $formulaire

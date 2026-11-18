@@ -31,7 +31,7 @@ final class SchemaTest extends TestCase
             'certificats_a_poser', 'comptes', 'demandes', 'documents', 'etat_certificats', 'etudiants', 'historique_etudiants', 'journal', 'mises_a_l_ecart', 'paquets', 'parametres',
             'regimes', 'releve_sites', 'secours_verifies', 'sessions', 'sites', 'sous_domaines', 'tentatives_connexion',
             'travaux', 'travaux_etapes', 'verification_certificats',
-        ], $tables, 'v14 (15/11/2026) : demandes à l\'administrateur');
+        ], $tables, 'v15 (18/11/2026) : demandes au service informatique');
     }
 
     public function testLaMiseAJourPeutEtreRelanceeSansEffet(): void

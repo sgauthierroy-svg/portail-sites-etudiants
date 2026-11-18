@@ -31,11 +31,11 @@ final class Pages
      * Une page qui a sa propre phrase d'aide (Pages::aide) garde la sienne.
      */
     private const AIDES = [
-        'Liste des étudiants' => 'Tous les étudiants, par régime et session. Cliquez un nom pour ouvrir sa fiche : ses sites et ce qu\'on peut faire pour lui.',
+        'Liste des étudiants' => 'Tous les étudiants. Cliquez un nom pour ouvrir sa fiche : ses sites et ce qu\'on peut faire pour lui.',
         'Liste des sites' => 'Une ligne par étudiant, une colonne par site. La liste se met à jour seule chaque lundi ; le bouton la met à jour tout de suite.',
-        'Créer des WordPress' => 'Pour un nouvel étudiant : son adresse et son site WordPress (cours). Il reçoit ses accès par e-mail.',
-        'Créer des boutiques PrestaShop' => 'La boutique (cours) des étudiants d\'une session, en 2e année. Chacun reçoit ses accès par e-mail.',
-        'Demandes' => 'Les demandes de suppression ou de réinitialisation adressées à l\'administrateur, et leur réponse.',
+        'Créer des WordPress' => 'Pour un nouvel étudiant : son adresse et son site WordPress. Il reçoit ses accès par e-mail.',
+        'Créer des boutiques PrestaShop' => 'La boutique des étudiants d\'une session, en 2e année. Chacun reçoit ses accès par e-mail.',
+        'Demandes' => 'Les demandes au service informatique (suppressions, réinitialisations, problèmes) et leur réponse.',
         'Travaux en cours' => 'Ce que le serveur est en train de faire, étudiant par étudiant. Vous pouvez fermer la page : le travail continue.',
         'Régimes et sessions' => 'Les classes (FI, ALT) et les promotions. À chaque rentrée, créez la session de la nouvelle promotion avant d\'ajouter ses étudiants.',
         'Certificats' => 'Le cadenas https de chaque site. Un certificat non reconnu fait afficher « site non sécurisé » : relancez-le ici.',
@@ -46,6 +46,9 @@ final class Pages
     /** Demandes en attente, affichées à côté de « Demandes » dans le menu de l'administrateur (lot 5, paquet B). */
     public static int $demandesEnAttente = 0;
 
+    /** @var list<array{titre: string, adresse: string, texte: string}> Étudiants proposés par la recherche rapide (rôles qui ouvrent les fiches). */
+    public static array $rechercheEtudiants = [];
+
     /** Rechargement automatique de la page, en secondes (0 : jamais). Sert au suivi des travaux. */
     public static int $rafraichir = 0;
 
@@ -54,6 +57,7 @@ final class Pages
         self::$cadre = null;
         self::$rafraichir = 0;
         self::$demandesEnAttente = 0;
+        self::$rechercheEtudiants = [];
     }
 
     public static function page(string $titre, string $contenu): string
@@ -67,6 +71,7 @@ final class Pages
             . '<link rel="icon" type="image/png" href="/favicon.png">'
             . '<link rel="stylesheet" href="/style.css">'
             . '<script src="/tri.js" defer></script>'
+            . (self::$cadre === null ? '' : '<script src="/recherche.js" defer></script>')
             . '<title>' . Html::e($titre) . ' – Portail Sup\'Sallanches</title></head>';
         $marque = '<a class="marque" href="/"><img src="/logo.png" alt="Enseignement Catholique de Sallanches – Sup’Sallanches" width="240" height="160">'
             . '<span class="marque-sous">Portail des sites étudiants</span></a>';
@@ -85,12 +90,24 @@ final class Pages
 
         return $tete . '<body><div class="cadre"><aside class="menu">' . $marque . self::menu($compte, self::$cadre['chemin']) . '</aside>'
             . '<div class="principal"><header class="bandeau"><span class="date">' . Html::e($aujourdhui) . '</span>'
+            . self::recherche($compte, self::$cadre['jeton'])
             . '<div class="qui"><span class="avatar" aria-hidden="true">' . Html::e($initiales) . '</span>'
             . '<span class="qui-texte"><strong>' . Html::e($compte->nomAffiche) . '</strong><span>' . Html::e($compte->libelleRole()) . '</span></span>'
             . self::boutonDeconnexion(self::$cadre['jeton']) . '</div></header>'
             . '<main class="contenu"><h1>' . Html::e($titre) . '</h1>'
             . (isset(self::AIDES[$titre]) && !str_contains($contenu, 'class="aide"') ? self::aide(self::AIDES[$titre]) : '')
             . $contenu . '</main></div></div></body></html>';
+    }
+
+    /** Barre de recherche rapide du bandeau (une seule, en haut de chaque page : décision du 17/11/2026). */
+    private static function recherche(Compte $compte, string $jeton): string
+    {
+        return '<form class="recherche" method="post" action="/recherche" role="search">' . self::jeton($jeton)
+            . '<label class="cache" for="recherche">Rechercher un étudiant ou une action</label>'
+            . '<input id="recherche" type="search" name="texte" maxlength="100" autocomplete="off" spellcheck="false"'
+            . ' placeholder="Rechercher un étudiant ou une action…" aria-autocomplete="list" aria-controls="recherche-liste" aria-expanded="false">'
+            . '<div id="recherche-liste" class="recherche-liste" role="listbox" aria-label="Propositions" hidden></div></form>'
+            . '<script type="application/json" id="recherche-donnees">' . Recherche::donnees($compte, self::$rechercheEtudiants) . '</script>';
     }
 
     private const ICONES = [
@@ -122,7 +139,7 @@ final class Pages
     /**
      * Noms de tous les jours des sites d'un étudiant (décision du 17/11/2026), le dossier technique en petit à côté.
      */
-    public const NOMS_SITES = ['/WP' => 'Site WordPress (cours)', '/WP2' => 'Site d\'examen', '/Presta' => 'Boutique (cours)', '/Presta2' => 'Boutique d\'examen'];
+    public const NOMS_SITES = ['/WP' => 'Site WordPress', '/WP2' => 'Site d\'examen', '/Presta' => 'Boutique', '/Presta2' => 'Boutique d\'examen'];
 
     /** Nom d'un site en HTML : « Site d'examen » avec « /WP2 » en petit ; un autre dossier reste tel quel. */
     public static function nomSite(string $dossier): string
@@ -152,17 +169,17 @@ final class Pages
         if ($peut(Droits::CONSULTER)) {
             $liste[] = ['/etudiants', 'etudiants', 'Liste des étudiants', 'Les étudiants par régime et session, avec leur fiche.', 'Étudiants'];
         }
-        // « Ajouter des étudiants » (décision du 17/11/2026) : une entrée, deux étiquettes « Par liste » et « Un seul étudiant ».
+        // « Ajouter des étudiants » (décision du 17/11/2026) : une entrée, deux étiquettes « Import liste Google Sheets » et « Création d'un étudiant » (18/11).
         if ($peut(Droits::IMPORTER) || $peut(Droits::CREER_ETUDIANT)) {
             $liste[] = [$peut(Droits::IMPORTER) ? '/etudiants/import' : '/etudiants/nouveau', 'ajout', 'Ajouter des étudiants',
-                'Par liste (Google Sheets) ou un seul étudiant arrivé en cours d’année.', 'Étudiants'];
+                'Import d’une liste Google Sheets ou création d’un étudiant arrivé en cours d’année.', 'Étudiants'];
         }
         if ($peut(Droits::CONSULTER)) {
             $liste[] = ['/sites', 'sites', 'Liste des sites', 'Une ligne par étudiant : son site WordPress, son site d’examen, ses boutiques.', 'Sites'];
         }
         if ($peut(Droits::CREER_SITE)) {
-            $liste[] = ['/sites/wordpress', 'wordpress', 'Créer des WordPress', 'L’adresse et le site WordPress (cours) d’un nouvel étudiant, accès envoyés par e-mail.', 'Sites'];
-            $liste[] = ['/sites/prestashop', 'boutique', 'Créer des boutiques', 'La boutique (cours) PrestaShop d’une session, accès envoyés par e-mail.', 'Sites'];
+            $liste[] = ['/sites/wordpress', 'wordpress', 'Créer des WordPress', 'L’adresse et le site WordPress d’un nouvel étudiant, accès envoyés par e-mail.', 'Sites'];
+            $liste[] = ['/sites/prestashop', 'boutique', 'Créer des boutiques', 'La boutique PrestaShop d’une session, accès envoyés par e-mail.', 'Sites'];
         }
         if ($peut(Droits::SUPPRIMER)) {
             $liste[] = ['/sites/supprimer', 'corbeille', 'Supprimer', 'Une liste (par session) ou un étudiant : sites ou tout, corbeille de 8 jours.', 'Sites'];
@@ -176,8 +193,8 @@ final class Pages
         }
         if ($peut(Droits::DEMANDER)) {
             $liste[] = ['/demandes', 'demandes', 'Demandes', $peut(Droits::TRAITER_DEMANDES)
-                ? 'Valider ou refuser les demandes de suppression et de réinitialisation ; restaurer depuis la corbeille.'
-                : 'Suivre vos demandes de suppression ou de réinitialisation à l’administrateur.', 'Suivi'];
+                ? 'Valider ou refuser les demandes (suppressions, réinitialisations, problèmes) ; restaurer depuis la corbeille.'
+                : 'Faire une demande au service informatique (suppression, problème) et suivre sa réponse.', 'Suivi'];
         }
         if ($peut(Droits::CONSULTER)) {
             $liste[] = ['/travaux', 'travaux', 'Travaux en cours', 'Ce que le serveur est en train de faire, et son avancement.', 'Suivi'];

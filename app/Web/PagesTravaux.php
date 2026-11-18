@@ -26,14 +26,12 @@ final class PagesTravaux
      * @param list<Etudiant> $etudiants
      * @param array<string, array<string, array{logiciel: ?string, version: ?string}>> $sites
      * @param list<string> $sousDomaines
-     * @param list<array{id: int, nom: string, actif: bool}> $regimes
-     * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
      * @param array<string, string> $horsGel identifiant => raison
      * @param array<string, list<string>> $etiquettes identifiant => demandes en attente
      * @param array<string, string> $supprimes identifiant => date d'effacement (étudiants supprimés, restaurables)
      */
     public static function voirTout(string $jeton, Compte $moi, array $etudiants, array $sites, array $sousDomaines, ?string $dernierReleve,
-        ?int $relevePrevu, array $regimes, array $sessions, ?int $regimeChoisi, ?int $sessionChoisie, ?string $information, array $horsGel = [],
+        ?int $relevePrevu, ?string $information, array $horsGel = [],
         array $etiquettes = [], array $supprimes = []): string
     {
         $colonnes = self::COLONNES;
@@ -76,7 +74,7 @@ final class PagesTravaux
             $connus[$etudiant->identifiant] = true;
         }
         $orphelins = '';
-        if ($fiches && $regimeChoisi === null && $sessionChoisie === null) {
+        if ($fiches) {
             // Le site modèle d'examen a sa propre page : il n'est pas un « sous-domaine sans étudiant ».
             $sans = array_values(array_filter($sousDomaines, static fn (string $i): bool => !isset($connus[$i]) && !isset($supprimes[$i])
                 && $i !== \Portail\Sites\SiteModele::IDENTIFIANT));
@@ -99,11 +97,8 @@ final class PagesTravaux
         return Pages::page('Liste des sites',
             Pages::alerte(null, $information)
             . self::blocReleve($jeton, $moi, $dernierReleve, $relevePrevu)
-            . '<form method="post" action="/sites">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="filtrer">'
-            . '<label for="regime">Régime</label> <select id="regime" name="regime">' . self::options(array_column($regimes, 'nom', 'id'), $regimeChoisi, 'Tous les régimes') . '</select> '
-            . '<label for="session">Session</label> <select id="session" name="session">' . self::options(array_map(static fn (int $a): string => 'Session ' . $a, array_column($sessions, 'annee', 'id')), $sessionChoisie, 'Toutes les sessions') . '</select> '
-            . '<button type="submit">Afficher</button></form>'
-            . '<p>' . count($etudiants) . ' étudiant' . (count($etudiants) > 1 ? 's' : '') . '. Même filtre que la liste des étudiants.</p>'
+            . '<p>' . count($etudiants) . ' étudiant' . (count($etudiants) > 1 ? 's' : '') . '.</p>'
+            . '<p class="discret">Sélectionnez votre liste ou cliquez sur le titre d\'une colonne pour trier.</p>'
             . '<table class="triable"><thead><tr>' . $entete . '</tr></thead><tbody>' . $lignes . '</tbody></table>'
             . $orphelins);
     }
@@ -183,16 +178,5 @@ final class PagesTravaux
             'prestashop' => 'PrestaShop',
             default => 'autre',
         };
-    }
-
-    /** @param array<int, string> $choix identifiant => libellé */
-    private static function options(array $choix, ?int $choisi, string $tous): string
-    {
-        $options = '<option value="">' . Html::e($tous) . '</option>';
-        foreach ($choix as $id => $libelle) {
-            $options .= '<option value="' . $id . '"' . ($id === $choisi ? ' selected' : '') . '>' . Html::e($libelle) . '</option>';
-        }
-
-        return $options;
     }
 }
