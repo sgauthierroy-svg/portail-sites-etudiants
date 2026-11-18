@@ -86,6 +86,15 @@ final class PagesEtudiants
         return $html;
     }
 
+    /** « Ajouter des étudiants » (décision du 17/11/2026) : « Par liste » ou « Un seul étudiant ». */
+    private static function etiquettesAjout(string $actif): string
+    {
+        return Pages::etiquettes([
+            ['adresse' => '/etudiants/import', 'titre' => 'Par liste', 'texte' => 'Toute une classe d\'un coup, depuis la Google Sheets.'],
+            ['adresse' => '/etudiants/nouveau', 'titre' => 'Un seul étudiant', 'texte' => 'Un étudiant arrivé en cours d\'année.'],
+        ], $actif, 'Ajouter des étudiants');
+    }
+
     /**
      * @param list<array{id: int, nom: string, actif: bool}> $regimes
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
@@ -94,12 +103,12 @@ final class PagesEtudiants
     public static function nouveau(string $jeton, array $regimes, array $sessions, array $valeurs, ?string $erreur): string
     {
         if ($regimes === [] || $sessions === []) {
-            return Pages::page('Ajouter un étudiant', '<p>Créez d\'abord au moins un régime et une session actifs '
+            return Pages::page('Ajouter des étudiants', self::etiquettesAjout('/etudiants/nouveau') . '<p>Créez d\'abord au moins un régime et une session actifs '
                 . '(<a href="/regimes-sessions">Régimes et sessions</a>).</p><p><a href="/etudiants">Retour aux étudiants</a></p>');
         }
 
-        return Pages::page('Ajouter un étudiant', Pages::alerte($erreur, null)
-            . '<p>Le nom et le prénom sont saisis séparément ; le portail propose ensuite l\'identifiant, que vous vérifiez avant d\'enregistrer.</p>'
+        return Pages::page('Ajouter des étudiants', self::etiquettesAjout('/etudiants/nouveau') . Pages::alerte($erreur, null)
+            . Pages::aide('Un étudiant arrivé en cours d\'année : nom et prénom séparés ; le portail propose ensuite l\'identifiant, que vous vérifiez avant d\'enregistrer.')
             . '<form method="post" action="/etudiants/nouveau">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="apercu">'
             . self::champsEtudiant($regimes, $sessions, $valeurs)
             . '<button type="submit" class="btn-main">Calculer l\'identifiant</button></form><p><a href="/etudiants">Retour aux étudiants</a></p>');
@@ -146,23 +155,46 @@ final class PagesEtudiants
         int $maintenant, ?string $erreur, ?string $information, array $sites = [], ?array $reinitialisation = null, string $blocDemandes = ''): string
     {
         $action = '/etudiants/' . $etudiant->id;
+        // Fiche en cartes (décision du 17/11/2026) : l'étudiant, ses sites, puis les actions rares repliées en bas.
         $contenu = Pages::alerte($erreur, $information)
-            . '<table><tbody>'
-            . '<tr><th>Nom complet</th><td>' . Html::e($etudiant->nomComplet) . '</td></tr>'
-            . '<tr><th>Classe</th><td>' . Html::e($etudiant->classe()) . ' (' . Html::e(RegimesSessions::anneeDeFormation($etudiant->session, $maintenant)) . ')</td></tr>'
-            . '<tr><th>Identifiant (sous-domaine)</th><td>' . Html::e($etudiant->identifiant) . '</td></tr>'
-            . '<tr><th>Identifiant WordPress</th><td>' . Html::e($etudiant->identifiantWp) . '</td></tr>'
-            . '<tr><th>E-mail</th><td>' . Html::e($etudiant->email) . '</td></tr>'
-            . '<tr><th>Origine</th><td>' . ($etudiant->origine === 'import' ? 'import' : 'ajout manuel') . ', le ' . Html::e(self::date($etudiant->ajouteLe)) . '</td></tr>'
-            . '</tbody></table>';
+            . '<section class="carte-fiche"><dl class="infos">'
+            . '<div><dt>Classe</dt><dd>' . Html::e($etudiant->classe()) . '</dd></div>'
+            . '<div><dt>Année</dt><dd>' . Html::e(RegimesSessions::anneeDeFormation($etudiant->session, $maintenant)) . '</dd></div>'
+            . '<div><dt>Identifiant</dt><dd><code>' . Html::e($etudiant->identifiant) . '</code></dd></div>'
+            . '<div><dt>Identifiant WordPress</dt><dd><code>' . Html::e($etudiant->identifiantWp) . '</code></dd></div>'
+            . '<div><dt>E-mail</dt><dd>' . Html::e($etudiant->email) . '</dd></div>'
+            . '</dl></section>';
 
+        $voirAcces = Droits::peut($moi->role, Droits::VOIR_ACCES_SITES);
+        $cartes = '';
+        foreach ($sites as $site) {
+            $adresse = 'https://' . $etudiant->identifiant . '.bts-sup-sallanches.com' . $site['dossier'] . '/';
+            // Administration : lien connu pour WordPress (wp-admin) et pour les boutiques créées par le portail.
+            $admin = match (true) {
+                $site['logiciel'] === 'wordpress' => $adresse . 'wp-admin/',
+                $site['dossier_admin'] !== null => $adresse . $site['dossier_admin'] . '/',
+                default => null,
+            };
+            $cartes .= '<article class="carte-site"><h3>' . Pages::nomSite($site['dossier']) . '</h3>'
+                . '<p class="discret">' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ($site['version'] === null ? '' : ' ' . $site['version']))
+                . ' · ' . ($site['cree_par_portail'] ? 'créé par le portail le ' : 'vu le ') . Html::e(self::date($site['date'])) . '</p>'
+                . '<p class="boutons"><a class="bouton btn-main" href="' . Html::e($adresse) . '" target="_blank" rel="noopener noreferrer">Ouvrir '
+                . ($site['logiciel'] === 'prestashop' ? 'la boutique' : 'le site') . '</a>'
+                . ($voirAcces && $admin !== null ? ' <a class="bouton" href="' . Html::e($admin) . '" target="_blank" rel="noopener noreferrer">Administration</a>' : '')
+                . '</p></article>';
+        }
+        $contenu .= '<h2>Ses sites</h2>'
+            . ($cartes === '' ? '<p>Aucun site trouvé (liste des sites du serveur).</p>'
+                : '<div class="cartes-sites">' . $cartes . '</div>'
+                    . ($voirAcces ? '<p class="discret">Les liens s\'ouvrent dans un nouvel onglet. Le lien d\'administration d\'une boutique est personnel à l\'étudiant : ne le diffusez pas. '
+                        . 'Pour une boutique créée avant le portail, il n\'est pas connu.</p>' : ''));
+
+        // Actions rares, repliées : ouvertes d'office après une action (message d'erreur ou de confirmation).
+        $actions = '';
+        if ($reinitialisation !== null && Droits::peut($moi->role, Droits::REINITIALISER_SITE)) {
+            $actions .= self::reinitialisation($jeton, $action, $reinitialisation);
+        }
         if (Droits::peut($moi->role, Droits::MODIFIER_ETUDIANT)) {
-            $contenu .= '<h2>Corriger le nom ou l\'e-mail</h2>'
-                . '<form method="post" action="' . $action . '">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="coordonnees">'
-                . Pages::saisie('nom_complet', 'Nom complet (tel qu\'écrit dans EcoleDirecte)', $etudiant->nomComplet)
-                . Pages::saisie('email', 'E-mail de l\'étudiant', $etudiant->email, 'email')
-                . '<button type="submit">Enregistrer</button></form>';
-
             $peutSession = Droits::peut($moi->role, Droits::CHANGER_SESSION);
             $optionsRegimes = '';
             foreach ($regimes as $regime) {
@@ -176,7 +208,7 @@ final class PagesEtudiants
                     $optionsSessions .= self::option((string) $session['id'], 'Session ' . $session['annee'], $session['id'] === $etudiant->sessionId);
                 }
             }
-            $contenu .= '<h2>Changer de régime' . ($peutSession ? ' ou de session' : '') . '</h2>'
+            $actions .= '<h2>Changer de régime' . ($peutSession ? ' ou de session' : '') . '</h2>'
                 . '<p>Passage FI ↔ ALT : changez le régime. Redoublement : changez la session'
                 . ($peutSession ? '' : ' (droit non attribué à ce compte)') . '. Les deux peuvent changer en une seule fois. '
                 . 'Les sites ne sont pas modifiés ici.</p>'
@@ -185,7 +217,19 @@ final class PagesEtudiants
                 . ($peutSession
                     ? '<p><label for="session">Session</label><br><select id="session" name="session">' . $optionsSessions . '</select></p>'
                     : '<input type="hidden" name="session" value="' . $etudiant->sessionId . '">')
-                . '<button type="submit">Enregistrer le changement</button></form>';
+                . '<button type="submit">Enregistrer le changement</button></form>'
+                . '<h2>Corriger le nom ou l\'e-mail</h2>'
+                . '<form method="post" action="' . $action . '">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="coordonnees">'
+                . Pages::saisie('nom_complet', 'Nom complet (tel qu\'écrit dans EcoleDirecte)', $etudiant->nomComplet)
+                . Pages::saisie('email', 'E-mail de l\'étudiant', $etudiant->email, 'email')
+                . '<button type="submit">Enregistrer</button></form>';
+        }
+        // Demandes en attente, suppression (administrateur) ou demande à l'administrateur (lot 5, paquet B) : déjà échappé par PagesDemandes.
+        $actions .= $blocDemandes;
+        if ($actions !== '') {
+            $contenu .= '<details class="bloc"' . ($erreur !== null || $information !== null || str_contains($blocDemandes, 'Demandes en attente') ? ' open' : '') . '>'
+                . '<summary>Actions sur cet étudiant</summary>'
+                . str_replace(['<h2>', '</h2>'], ['<h3>', '</h3>'], $actions) . '</details>';
         }
 
         $lignes = '';
@@ -195,35 +239,17 @@ final class PagesEtudiants
                 . '<td>' . Html::e($trace['ancienne'] ?? '') . ' → ' . Html::e($trace['nouvelle'] ?? '') . '</td>'
                 . '<td>' . Html::e($trace['auteur'] ?? '') . '</td></tr>';
         }
-        $voirAcces = Droits::peut($moi->role, Droits::VOIR_ACCES_SITES);
-        $lignesSites = '';
-        foreach ($sites as $site) {
-            $adresse = 'https://' . $etudiant->identifiant . '.bts-sup-sallanches.com' . $site['dossier'] . '/';
-            // Administration : lien connu pour WordPress (wp-admin) et pour les boutiques créées par le portail.
-            $admin = match (true) {
-                $site['logiciel'] === 'wordpress' => $adresse . 'wp-admin/',
-                $site['dossier_admin'] !== null => $adresse . $site['dossier_admin'] . '/',
-                default => null,
-            };
-            $lignesSites .= '<tr><td><a href="' . Html::e($adresse) . '" target="_blank" rel="noopener noreferrer">' . Pages::nomSite($site['dossier']) . '</a></td>'
-                . '<td>' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ' ' . ($site['version'] ?? '')) . '</td>'
-                . '<td>' . ($voirAcces && $admin !== null ? '<a href="' . Html::e($admin) . '" target="_blank" rel="noopener noreferrer">administration</a>' : '—') . '</td>'
-                . '<td>' . ($site['cree_par_portail'] ? 'créé par le portail le ' : 'relevé le ') . Html::e(self::date($site['date'])) . '</td></tr>';
-        }
-        $contenu .= '<h2>Sites</h2>'
-            . ($lignesSites === '' ? '<p>Aucun site trouvé (liste des sites du serveur).</p>'
-                : '<table><thead><tr><th>Site</th><th>Logiciel</th><th>Administration</th><th>Origine</th></tr></thead><tbody>' . $lignesSites . '</tbody></table>'
-                    . ($voirAcces ? '<p class="discret">Les liens s\'ouvrent dans un nouvel onglet. Le lien d\'administration d\'une boutique est personnel à l\'étudiant : ne le diffusez pas. '
-                        . 'Pour une boutique créée avant le portail, il n\'est pas connu.</p>' : ''));
-        if ($reinitialisation !== null && Droits::peut($moi->role, Droits::REINITIALISER_SITE)) {
-            $contenu .= self::reinitialisation($jeton, $action, $reinitialisation);
-        }
-        // Demandes en attente, suppression (administrateur) ou demande à l'administrateur (lot 5, paquet B) : déjà échappé par PagesDemandes.
-        $contenu .= $blocDemandes;
-        $contenu .= '<h2>Parcours</h2>'
+        $contenu .= '<details class="bloc"><summary>Parcours et historique</summary>'
+            . '<p>Ajouté par ' . ($etudiant->origine === 'import' ? 'import' : 'ajout manuel') . ', le ' . Html::e(self::date($etudiant->ajouteLe)) . '.</p>'
             . ($lignes === '' ? '<p>Aucun changement depuis l\'ajout.</p>'
                 : '<table><thead><tr><th>Date</th><th>Changement</th><th>Avant → après</th><th>Par</th></tr></thead><tbody>' . $lignes . '</tbody></table>')
-            . '<p><a href="/etudiants">Retour aux étudiants</a></p>';
+            . '</details>';
+        $contenu .= '<details class="bloc"><summary>Détails techniques</summary><p class="discret">Adresse : <code>https://' . Html::e($etudiant->identifiant)
+            . '.bts-sup-sallanches.com/</code> · dossier du serveur : <code>~/' . Html::e($etudiant->identifiant) . '.bts-sup-sallanches.com</code>';
+        foreach ($sites as $site) {
+            $contenu .= ' · ' . Html::e($site['dossier']) . ($site['cree_par_portail'] ? ' (créé par le portail)' : ' (d\'avant le portail)');
+        }
+        $contenu .= '</p></details><p><a href="/etudiants">Retour aux étudiants</a></p>';
 
         return Pages::page($etudiant->nomComplet, $contenu);
     }
@@ -318,7 +344,7 @@ final class PagesEtudiants
         $releve = $releveLe === null
             ? '<p><strong>Aucun relevé des sous-domaines n\'a encore été fait.</strong> Les identifiants hors règle ne pourront pas être vérifiés '
                 . 'et seront refusés (commande de relevé : voir le guide d\'administration).</p>'
-            : '<p>Dernier relevé des sous-domaines du serveur : ' . Html::e(self::date($releveLe)) . '.</p>';
+            : '<p>Liste des sites du serveur mise à jour le : ' . Html::e(self::date($releveLe)) . '.</p>';
         $formulaire = '<form method="post" action="/etudiants/import">' . Pages::jeton($jeton)
             . '<input type="hidden" name="action" value="apercu">'
             . '<p><label for="texte">Dans la Google Sheets, ouvrez l\'onglet « Export portail », sélectionnez tout (Ctrl + A), copiez (Ctrl + C), '
@@ -326,7 +352,8 @@ final class PagesEtudiants
             . '<p><textarea id="texte" name="texte" rows="12" cols="100" required>' . Html::e($texte) . '</textarea></p>'
             . '<button type="submit" class="btn-main">Voir l\'aperçu (rien n\'est enregistré)</button></form>';
         if ($lignes === null) {
-            return Pages::page('Importer des étudiants', $contenu . $releve
+            return Pages::page('Ajouter des étudiants', self::etiquettesAjout('/etudiants/import')
+                . Pages::aide('Toute une liste d\'un coup, depuis la Google Sheets : collez, vérifiez l\'aperçu, puis importez.') . $contenu . $releve
                 . '<p>Le texte collé est lu en mémoire, jamais enregistré sur le serveur. Colonnes attendues : NomPrénom, Classe, Session, '
                 . 'Identifiant, Identifiant WordPress, E-mail. Un texte qui contient une colonne de mot de passe, de date de naissance '
                 . 'ou de code chiffré est refusé en entier.</p>' . $formulaire

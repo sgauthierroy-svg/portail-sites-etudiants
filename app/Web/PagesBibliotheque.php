@@ -28,12 +28,23 @@ final class PagesBibliotheque
      * @param array{acceptes: list<array{nom: string, taille: int, extension: string}>, ignores: int} $depot
      */
     public static function bibliotheque(string $jeton, Compte $moi, Bibliotheque $bibliotheque, bool $voirPaquets, array $paquets, array $documents,
-        array $depot, int $limiteEnvoi, ?string $erreur, ?string $information): string
+        array $depot, int $limiteEnvoi, ?string $erreur, ?string $information, string $vue = 'documents'): string
     {
-        $contenu = Pages::alerte($erreur, $information);
-        $sommaire = '';
+        // Étiquettes (décision du 17/11/2026) : Documents, Sujets d'examen, Versions PrestaShop ; l'administratif ne voit que Documents.
+        $vue = $voirPaquets && in_array($vue, ['sujets', 'versions'], true) ? $vue : 'documents';
+        $compter = static fn (array $liste): int => count(array_filter($paquets, static fn (array $p): bool => in_array($p['type'], $liste, true)));
+        $contenu = ($voirPaquets ? Pages::etiquettes([
+            ['adresse' => '/bibliotheque', 'titre' => 'Documents (' . count($documents) . ')', 'texte' => 'Référentiel, consignes, guides : en PDF, pour toute l\'équipe.'],
+            ['adresse' => '/bibliotheque/sujets', 'titre' => 'Sujets d\'examen (' . $compter(['sujet_wordpress', 'sujet_prestashop']) . ')', 'texte' => 'Paquets Duplicator chargés sur le site modèle d\'examen.'],
+            ['adresse' => '/bibliotheque/versions', 'titre' => 'Versions PrestaShop (' . $compter(['prestashop']) . ')', 'texte' => 'Paquets d\'installation des boutiques, un par version.'],
+        ], $vue === 'documents' ? '/bibliotheque' : '/bibliotheque/' . $vue, 'Rayons de la bibliothèque') : '')
+            . Pages::alerte($erreur, $information);
+        $action = $vue === 'documents' ? '/bibliotheque' : '/bibliotheque/' . $vue;
         if ($voirPaquets) {
             foreach (self::SECTIONS as $type => [$titre, $aide]) {
+                if (($type === 'prestashop' ? 'versions' : 'sujets') !== $vue) {
+                    continue;
+                }
                 $fiches = '';
                 $nombre = 0;
                 foreach ($paquets as $paquet) {
@@ -62,7 +73,6 @@ final class PagesBibliotheque
                         . '<p class="discret">Par cette page : ' . Html::e(self::limite($limiteEnvoi)) . ' au plus. Au-delà, voir « Gros fichiers » en bas de page.</p>'
                         . '<button type="submit" class="btn-main">Déposer</button></form></details>';
                 }
-                $sommaire .= '<a href="#' . $type . '">' . Html::e($titre) . ' <span class="compte">' . $nombre . '</span></a>';
                 $contenu .= '<section class="rayon" id="' . $type . '"><h2>' . Html::e($titre) . ' <span class="compte">' . $nombre . '</span></h2>'
                     . '<p class="discret">' . Html::e($aide) . '</p>'
                     . ($fiches === '' ? '<p>Aucun pour l\'instant.</p>' : '<div class="fiches">' . $fiches . '</div>') . $ajout . '</section>';
@@ -70,14 +80,13 @@ final class PagesBibliotheque
         }
 
         $fiches = '';
-        foreach ($documents as $document) {
+        foreach ($vue === 'documents' ? $documents : [] as $document) {
             $retirer = $bibliotheque->peutRetirer($document['depose_par'], $moi) ? self::bouton($jeton, 'retirer_document', $document['id']) : '';
             $fiches .= self::fiche(Pages::icone('documents', 'i m'), $document['titre'],
                 '<a class="bouton" href="/documents/' . $document['id'] . '">Télécharger le PDF</a>',
                 Bibliotheque::lisible($document['taille']) . ' · ' . $document['depose_par_nom'] . ', ' . Pages::heureLocale($document['depose_le']), $retirer);
         }
-        $sommaire .= '<a href="#documents">Documents <span class="compte">' . count($documents) . '</span></a>';
-        $contenu .= '<section class="rayon" id="documents"><h2>Documents <span class="compte">' . count($documents) . '</span></h2>'
+        $contenu .= $vue !== 'documents' ? '' : '<section class="rayon" id="documents"><h2>Documents <span class="compte">' . count($documents) . '</span></h2>'
             . '<p class="discret">Référentiel, consignes… en PDF. Visibles par tous les comptes du portail, jamais par les étudiants.</p>'
             . ($fiches === '' ? '<p>Aucun document pour l\'instant.</p>' : '<div class="fiches">' . $fiches . '</div>')
             . '<details class="ajout"><summary>Ajouter un document</summary>'
@@ -93,8 +102,8 @@ final class PagesBibliotheque
             . '<p><label for="version' . $suffixe . '">Numéro de version (PrestaShop seulement)</label><br>'
             . '<input id="version' . $suffixe . '" name="version" maxlength="20" placeholder="9.1.5"></p>';
         $champsDocument = static fn (string $suffixe): string => '<p><label for="titre' . $suffixe . '">Titre</label><br><input id="titre' . $suffixe . '" name="titre" maxlength="150" required></p>';
-        $enAttente = ($voirPaquets ? self::depot($jeton, 'enregistrer_depot', 'zip', $depot, $champsPaquet) : '')
-            . self::depot($jeton, 'enregistrer_depot_document', 'pdf', $depot, $champsDocument);
+        $enAttente = $vue === 'documents' ? self::depot($jeton, 'enregistrer_depot_document', 'pdf', $depot, $champsDocument)
+            : self::depot($jeton, 'enregistrer_depot', 'zip', $depot, $champsPaquet);
         $contenu .= '<section class="rayon" id="depot"><h2>Gros fichiers</h2>'
             . '<p>Un fichier trop gros pour la page se dépose avec le gestionnaire de fichiers de CPanel, dans <code>portail/data/depot</code>. '
             . 'Rechargez ensuite cette page : il apparaît ici, prêt à être enregistré.</p>'
@@ -102,7 +111,8 @@ final class PagesBibliotheque
             . ($depot['ignores'] > 0 ? '<p class="discret">' . $depot['ignores'] . ' élément(s) du dossier ignoré(s) : nom avec des caractères spéciaux, ou ni ZIP ni PDF.</p>' : '')
             . '</section>';
 
-        return Pages::page('Bibliothèque', '<nav class="sommaire" aria-label="Rayons de la bibliothèque">' . $sommaire . '</nav>' . $contenu);
+        // Les formulaires renvoient au rayon affiché, pour y rester après un dépôt ou une erreur.
+        return Pages::page('Bibliothèque', str_replace('action="/bibliotheque"', 'action="' . $action . '"', $contenu));
     }
 
     private static function fiche(string $icone, string $titre, string $etiquettes, string $details, string $actions): string

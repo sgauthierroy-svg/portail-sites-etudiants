@@ -218,3 +218,35 @@ th .tech { display: block; }
 .badge.warn::before { content: "\26A0"; content: "\26A0" / ""; }
 .badge.err::before { content: "\2715"; content: "\2715" / ""; }
 .badge.encours::before { content: "\23F3"; content: "\23F3" / ""; }
+
+/* 18/11/2026 : étiquettes en tête de page, phrase d'aide avec « ? ». */
+.etiquettes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin: 4px 0 24px; }
+.etiq { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px; border: 1.5px solid var(--trait); border-radius: 16px; background: var(--fond);
+  text-decoration: none; color: var(--texte); min-height: 44px; }
+a.etiq:hover { border-color: var(--orange); }
+.etiq.actif { border-color: var(--orange); background: #fff7ed; box-shadow: inset 0 0 0 1px var(--orange); }
+.etiq.inactive { opacity: .6; }
+.etiq strong { font-size: 18px; line-height: 1.25; }
+.etiq span { color: var(--discret); font-size: 15px; }
+.etiq .etiq-num { width: 30px; height: 30px; border-radius: 50%; background: var(--texte); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; }
+.aide { color: var(--discret); font-size: 17px; margin: 0 0 18px; }
+details.aide summary { cursor: pointer; list-style: none; }
+details.aide summary::-webkit-details-marker { display: none; }
+.aide-q { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; margin-left: 6px; border: 1.5px solid var(--trait-fort);
+  border-radius: 50%; font-weight: 700; color: var(--texte); font-size: 14px; }
+.aide-detail { margin-top: 10px; padding: 14px 16px; background: var(--panneau); border: 1px solid var(--trait); border-radius: 12px; color: var(--texte); font-size: 16px; }
+.aide-detail p:last-child { margin-bottom: 0; }
+
+/* 18/11/2026 : fiche étudiant en cartes, blocs repliés. */
+.carte-fiche { border: 1px solid var(--trait); border-radius: 16px; padding: 18px 20px; margin-bottom: 8px; }
+.infos { display: flex; flex-wrap: wrap; gap: 14px 32px; margin: 0; }
+.infos dt { color: var(--discret); font-size: 14px; }
+.infos dd { margin: 0; font-weight: 600; }
+.cartes-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.carte-site { border: 1px solid var(--trait); border-radius: 16px; padding: 16px 18px; }
+.carte-site h3 { margin: 0 0 4px; font-size: 19px; }
+.carte-site .boutons { margin: 12px 0 0; }
+a.bouton.btn-main { background: var(--orange); border-color: var(--orange); color: var(--texte); min-height: 44px; }
+details.bloc { border: 1px solid var(--trait); border-radius: 16px; padding: 12px 18px; margin-top: 16px; background: var(--panneau); }
+details.bloc > summary { font-weight: 700; font-size: 18px; cursor: pointer; min-height: 32px; }
+details.bloc h3 { margin: 20px 0 8px; font-size: 18px; }

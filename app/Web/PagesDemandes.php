@@ -72,9 +72,9 @@ final class PagesDemandes
      *
      * @param list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool, date: string}> $sites
      */
-    public static function suppressionFiche(string $jeton, string $action, string $identifiant, array $sites, bool $prevu): string
+    public static function suppressionFiche(string $jeton, string $action, string $identifiant, array $sites, bool $prevu, bool $avecTitre = true): string
     {
-        $html = '<h2>Supprimer (administrateur)</h2>';
+        $html = $avecTitre ? '<h2>Supprimer (administrateur)</h2>' : '';
         if ($prevu) {
             return $html . '<p><span class="badge neutre">un travail est déjà prévu pour cet étudiant</span> — voir <a href="/travaux">Travaux en cours</a>.</p>';
         }
@@ -91,6 +91,7 @@ final class PagesDemandes
             . '<p>Rien n\'est effacé tout de suite : tout est gardé <strong>' . MiseALecart::JOURS . ' jours</strong> (bouton « Restaurer » de la page '
             . '<a href="/demandes">Demandes</a>), puis effacé définitivement, sous-domaine compris pour un étudiant.</p>'
             . '<form method="post" action="' . Html::e($action) . '">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="supprimer">'
+            . '<input type="hidden" name="identifiant" value="' . Html::e($identifiant) . '">'
             . '<fieldset><legend>Supprimer</legend>' . $options . '</fieldset>'
             . '<p><label for="confirmation">Pour confirmer, tapez l\'identifiant de l\'étudiant (<code>' . Html::e($identifiant) . '</code>)</label><br>'
             . '<input id="confirmation" name="confirmation" type="text" autocomplete="off" required maxlength="63"></p>'
@@ -113,8 +114,9 @@ final class PagesDemandes
             $options .= '<option value="' . $session['id'] . '"' . ($choisie ? ' selected' : '') . '>Session ' . $session['annee']
                 . ' (' . $session['etudiants'] . ' étudiant' . ($session['etudiants'] > 1 ? 's' : '') . ')</option>';
         }
-        $contenu = Pages::alerte($erreur, null)
-            . '<p>Pour une session entière (par exemple une promotion partie en juillet) ou une partie de ses étudiants : '
+        $contenu = self::etiquettesSupprimer('/sites/supprimer') . Pages::alerte($erreur, null)
+            . Pages::aide('Choisissez la session, cochez les étudiants, puis ce qu\'il faut supprimer. Tout reste dans la corbeille ' . MiseALecart::JOURS . ' jours.')
+            . '<p class="discret">Pour une session entière (par exemple une promotion partie en juillet) ou une partie de ses étudiants : '
             . 'choisissez la session, cochez les étudiants, puis ce qu\'il faut supprimer. Rien n\'est effacé tout de suite : tout est gardé '
             . MiseALecart::JOURS . ' jours (bouton « Restaurer » de la page <a href="/demandes">Demandes</a>), puis effacé définitivement, '
             . 'sous-domaines compris pour une suppression complète. Le travail se fait en arrière-plan, un étudiant après l\'autre.</p>'
@@ -122,7 +124,7 @@ final class PagesDemandes
             . '<label for="session">Session</label> <select id="session" name="session">' . $options . '</select> '
             . '<button type="submit">Afficher les étudiants</button></form>';
         if ($etudiants === null || $sessionChoisie === null) {
-            return Pages::page('Supprimer en masse', $contenu);
+            return Pages::page('Supprimer', $contenu);
         }
         $lignes = '';
         $possibles = 0;
@@ -136,7 +138,7 @@ final class PagesDemandes
                 . '<td>' . ($possible ? '' : '<span class="badge neutre">' . Html::e((string) $etudiant['empechement']) . '</span>') . '</td></tr>';
         }
         if ($etudiants === []) {
-            return Pages::page('Supprimer en masse', $contenu . '<p>Aucun étudiant dans cette session.</p>');
+            return Pages::page('Supprimer', $contenu . '<p>Aucun étudiant dans cette session.</p>');
         }
         $choix = '<label class="choix"><input type="radio" name="choix" value="etudiant" required> <strong>tout</strong> : les étudiants cochés, '
             . 'tous leurs sites, toutes leurs bases et leurs sous-domaines</label><br>';
@@ -145,7 +147,7 @@ final class PagesDemandes
                 . Pages::nomSite($dossier) . ' et sa base ; les étudiants restent</label><br>';
         }
 
-        return Pages::page('Supprimer en masse', $contenu . '<h2>Session ' . (int) $annee . '</h2>'
+        return Pages::page('Supprimer', $contenu . '<h2>Session ' . (int) $annee . '</h2>'
             . '<form method="post" action="/sites/supprimer">' . Pages::jeton($jeton)
             . '<input type="hidden" name="action" value="supprimer"><input type="hidden" name="session" value="' . $sessionChoisie . '">'
             . '<table class="triable"><thead><tr><th><input type="checkbox" data-tout-cocher aria-label="Tout cocher" title="Tout cocher"></th>'
@@ -156,6 +158,43 @@ final class PagesDemandes
                 . '<input id="confirmation" name="confirmation" type="text" autocomplete="off" required maxlength="20"></p>'
                 . '<button type="submit" class="btn-danger">Supprimer pour les étudiants cochés</button>')
             . '</form>');
+    }
+
+    /**
+     * Supprimer un étudiant (administrateur, demande du 17/11/2026) : choisir l'étudiant, puis un de ses sites ou tout.
+     *
+     * @param list<array{identifiant: string, nom: string, classe: string}> $etudiants
+     * @param ?array{identifiant: string, nom: string, sites: list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool, date: string}>, prevu: bool} $choisi
+     */
+    public static function supprimerUnEtudiant(string $jeton, array $etudiants, ?array $choisi, ?string $erreur): string
+    {
+        $options = '<option value="">— choisir un étudiant —</option>';
+        foreach ($etudiants as $etudiant) {
+            $options .= '<option value="' . Html::e($etudiant['identifiant']) . '"' . ($choisi !== null && $choisi['identifiant'] === $etudiant['identifiant'] ? ' selected' : '')
+                . '>' . Html::e($etudiant['nom'] . ' — ' . $etudiant['classe'] . ' (' . $etudiant['identifiant'] . ')') . '</option>';
+        }
+        $contenu = self::etiquettesSupprimer('/sites/supprimer/etudiant') . Pages::alerte($erreur, null)
+            . Pages::aide('Choisissez l\'étudiant, puis ce qu\'il faut supprimer : un de ses sites, ou tout (fiche, sites, bases, adresse). '
+                . 'Tout reste dans la corbeille ' . MiseALecart::JOURS . ' jours. On peut aussi supprimer depuis la fiche de l\'étudiant.')
+            . '<form method="post" action="/sites/supprimer/etudiant">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="afficher">'
+            . '<p><label for="etudiant">Étudiant</label><br><select id="etudiant" name="identifiant" required>' . $options . '</select></p>'
+            . '<button type="submit">Afficher ses sites</button></form>';
+        if ($choisi !== null) {
+            $contenu .= '<h2>' . Html::e($choisi['nom']) . '</h2>'
+                . self::suppressionFiche($jeton, '/sites/supprimer/etudiant', $choisi['identifiant'],
+                    array_values(array_filter($choisi['sites'], static fn (array $s): bool => in_array($s['dossier'], \Portail\Sites\Suppressions::DOSSIERS, true))),
+                    $choisi['prevu'], false);
+        }
+
+        return Pages::page('Supprimer', $contenu);
+    }
+
+    private static function etiquettesSupprimer(string $actif): string
+    {
+        return Pages::etiquettes([
+            ['adresse' => '/sites/supprimer', 'titre' => 'Supprimer une liste', 'texte' => 'Les étudiants d\'une session, ou un de leurs sites : par exemple une promotion partie en juillet.'],
+            ['adresse' => '/sites/supprimer/etudiant', 'titre' => 'Supprimer un étudiant', 'texte' => 'Un seul étudiant : un de ses sites, ou tout.'],
+        ], $actif, 'Supprimer');
     }
 
     /** @param list<Demande> $demandes */

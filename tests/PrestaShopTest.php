@@ -210,7 +210,7 @@ final class PrestaShopTest extends TestCase
         $fiche = $this->en('cpetit', 'GET', '/etudiants/' . $etudiant)->corps;
         self::assertStringContainsString('WordPress 7.1.4', $fiche);
         self::assertStringContainsString('https://martinel.bts-sup-sallanches.com/WP/wp-admin/', $fiche);
-        self::assertStringContainsString('relevé le 08/11/2026', $fiche);
+        self::assertStringContainsString('vu le 08/11/2026', $fiche);
         self::assertStringContainsString('créé par le portail le', $fiche);
     }
 

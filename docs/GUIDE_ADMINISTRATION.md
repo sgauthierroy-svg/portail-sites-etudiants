@@ -18,7 +18,7 @@ En SSH : `php ~/portail/bin/releve.php`. La commande demande à CPanel la liste 
 
 ### Importer les étudiants
 
-Page **Étudiants → Importer des étudiants** (administrateur, enseignant, administratif). Dans la Google Sheets, onglet « Export portail » : tout sélectionner, copier, coller dans le portail, ligne des titres comprise. Le texte collé n'est jamais enregistré sur le serveur. L'aperçu classe chaque ligne :
+Menu **Ajouter des étudiants**, étiquette **Par liste** (administrateur, enseignant, administratif). Dans la Google Sheets, onglet « Export portail » : tout sélectionner, copier, coller dans le portail, ligne des titres comprise. Le texte collé n'est jamais enregistré sur le serveur. L'aperçu classe chaque ligne :
 
 - **À importer** : nouvel étudiant conforme ;
 - **À vérifier** (case à cocher, décochée par défaut) : importé seulement si la case est cochée après vérification ;
@@ -27,9 +27,9 @@ Page **Étudiants → Importer des étudiants** (administrateur, enseignant, adm
 
 Un identifiant hors de la règle de la feuille (étudiants de la session 2027, ancien format) n'est accepté que si son sous-domaine figure dans le dernier relevé. Avant toute réinitialisation ou suppression d'un site de ces étudiants (V2), le portail vérifiera en plus que le site leur appartient. Un texte qui contient une colonne de mot de passe, de date de naissance ou de code chiffré est refusé en entier.
 
-**E-mails manquants.** Une ligne sans e-mail est refusée. On peut donc coller l'onglet entier : seuls les étudiants complets entrent. Une fois les e-mails récupérés et reportés dans la feuille, on recolle l'onglet entier : les étudiants déjà importés sont ignorés, les nouveaux complets sont importés. Tant que des étudiants sont en attente, faire entrer les nouveaux étudiants par l'import plutôt que par le formulaire « Ajouter un étudiant », pour que leur identifiant reste celui de la feuille.
+**E-mails manquants.** Une ligne sans e-mail est refusée. On peut donc coller l'onglet entier : seuls les étudiants complets entrent. Une fois les e-mails récupérés et reportés dans la feuille, on recolle l'onglet entier : les étudiants déjà importés sont ignorés, les nouveaux complets sont importés. Tant que des étudiants sont en attente, faire entrer les nouveaux étudiants par l'import plutôt que par le formulaire « Un seul étudiant », pour que leur identifiant reste celui de la feuille.
 
-**Étudiants dont les sites existent déjà** (session 2028, créés hors du portail). Ils entrent par l'import, après un relevé : leur ligne indique « Sous-domaine déjà présent sur le serveur ✓ ». Le formulaire « Ajouter un étudiant » refuse leur identifiant, puisqu'il est déjà utilisé sur le serveur.
+**Étudiants dont les sites existent déjà** (session 2028, créés hors du portail). Ils entrent par l'import, après un relevé : leur ligne indique « Sous-domaine déjà présent sur le serveur ✓ ». Le formulaire « Un seul étudiant » refuse leur identifiant, puisqu'il est déjà utilisé sur le serveur.
 
 ### Archiver les sessions terminées
 
@@ -45,7 +45,7 @@ Ils se modifient sur la fiche de l'étudiant (session et/ou régime, en une seul
 
 ### Ajouter un étudiant arrivé en cours d'année
 
-Page **Étudiants**, puis **Ajouter un étudiant** : saisir le nom de famille et le prénom séparément, l'e-mail, le régime et la session. Le portail calcule l'identifiant avec la même règle que la Google Sheets et l'affiche à côté du nom complet : le vérifier, le corriger si besoin, puis enregistrer. Un homonyme reçoit automatiquement un chiffre (`henrije2`). Un identifiant déjà pris par un étudiant, par un site présent sur le serveur ou par un site protégé est refusé.
+Menu **Ajouter des étudiants**, étiquette **Un seul étudiant** : saisir le nom de famille et le prénom séparément, l'e-mail, le régime et la session. Le portail calcule l'identifiant avec la même règle que la Google Sheets et l'affiche à côté du nom complet : le vérifier, le corriger si besoin, puis enregistrer. Un homonyme reçoit automatiquement un chiffre (`henrije2`). Un identifiant déjà pris par un étudiant, par un site présent sur le serveur ou par un site protégé est refusé.
 
 Comme la feuille, le portail prend le **dernier mot** du prénom (« Jean Pierre » donne `pi`) : corriger à la main si besoin, et reporter le même identifiant dans la Google Sheets.
 
@@ -131,7 +131,7 @@ Menu « Créer des boutiques » (administrateur, enseignants, administratif) : c
 
 ## WordPress des étudiants : création (V2, lot 5, 14/11/2026)
 
-Menu « Créer des WordPress » (administrateur, enseignants, administratif) : choisir la session, cocher les étudiants (aucun coché d'avance ; case « Tout cocher »), lancer. L'étudiant doit d'abord être dans le portail (import ou « Ajouter un étudiant ») : son identifiant et son identifiant WordPress (`AzzouziK`) sont ceux de sa fiche. Un étudiant dont le `/WP` existe déjà (dernier relevé ou portail) ne peut pas être coché.
+Menu « Créer des WordPress » (administrateur, enseignants, administratif) : choisir la session, cocher les étudiants (aucun coché d'avance ; case « Tout cocher »), lancer. L'étudiant doit d'abord être dans le portail (« Par liste » ou « Un seul étudiant ») : son identifiant et son identifiant WordPress (`AzzouziK`) sont ceux de sa fiche. Un étudiant dont le `/WP` existe déjà (dernier relevé ou portail) ne peut pas être coché.
 
 - **État produit** : celui des 1re année créés par `creation_wp.sh` (relevé du 14/11/2026 sur un site de la session 2028) — WordPress en français, titre « Sup », thème et extensions par défaut, permaliens simples, fuseau de Paris, un seul compte administrateur (identifiant WordPress de l'étudiant, avec son e-mail), adresse d'administration du site = adresse d'alerte, `.htaccess` avec la seule redirection vers https (`HTTPS-PORTAIL`).
 - **Sous-domaine** : s'il manque, le travailleur le crée (`uapi SubDomain addsubdomain`, dossier `~/identifiant.bts-sup-sallanches.com`). Son **certificat** est demandé à la fin de l'étape, avec acme.sh (mêmes commandes que `certificats.sh` ; CPanel l'active en 30 minutes au plus). Un sous-domaine existant n'est pas touché.
@@ -169,14 +169,14 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
 
 ## Supprimer un site ou un étudiant, restaurer (lot 5, paquet B, 15/11/2026)
 
-**Administrateur seul** (décision du 29/10/2026), sur la fiche de l'étudiant (rubrique « Supprimer (administrateur) ») ou en validant une demande.
+**Administrateur seul** (décision du 29/10/2026), de trois façons : sur la fiche de l'étudiant (bloc « Actions sur cet étudiant »), en validant une demande, ou par le menu **Sites, Supprimer** (demande du 17/11/2026), qui propose deux étiquettes : **Supprimer une liste** (par session, voir plus bas) et **Supprimer un étudiant** (choisir l'étudiant dans la liste, puis le site ou l'étudiant entier, comme sur sa fiche).
 
 - **Confirmation** : sur la fiche, choisir le site ou l'étudiant, puis **taper l'identifiant de l'étudiant** ; par lot, taper `SUPPRIMER`. Un étudiant qui a déjà un travail prévu ne peut pas être supprimé avant la fin de ce travail. Les sites protégés ne sont jamais proposés.
 - **Rien n'est effacé tout de suite** (décision du 15/11/2026 : tout, restaurable 8 jours).
   - **Un site** : son dossier est mis à l'écart 8 jours dans `~/archives_suppression/portail/`, sa base et son utilisateur MySQL restent en place.
   - **Un étudiant** : le dossier entier du sous-domaine est mis à l'écart, la fiche quitte toutes les listes, et le portail note toutes ses bases et tous ses utilisateurs MySQL. Les bases notées sont celles du portail, celles de ses fichiers de réglages si elles sont à son nom, et toutes celles de CPanel au nom exact `jafl3067_identifiant` ou `jafl3067_identifiant_…`, comme `nettoyage_etudiants.sh`. La base partagée `jafl3067_peda` et les bases protégées ne sont jamais retenues.
-  - **Le sous-domaine** reste dans CPanel pendant les 8 jours ; son adresse ne montre plus de site. L'identifiant reste réservé : ni « Ajouter un étudiant », ni l'import ne peuvent le reprendre (l'import l'indique en rouge). Dans « Liste des sites », il est listé à part, avec sa date d'effacement.
-- **Supprimer en masse** (menu « Supprimer en masse », administrateur seul, demande du 16/11/2026) : pour une session entière, par exemple la session 2027 en juillet 2027.
+  - **Le sous-domaine** reste dans CPanel pendant les 8 jours ; son adresse ne montre plus de site. L'identifiant reste réservé : ni « Un seul étudiant », ni l'import ne peuvent le reprendre (l'import l'indique en rouge). Dans « Liste des sites », il est listé à part, avec sa date d'effacement.
+- **Supprimer une liste** (menu Sites, Supprimer, étiquette « Supprimer une liste » ; administrateur seul, demande du 16/11/2026) : pour une session entière, par exemple la session 2027 en juillet 2027.
   - Choisir la session (actives et archivées, avec le nombre d'étudiants), puis « Afficher les étudiants ». Les sites connus de chacun s'affichent ; les filtres et « Tout cocher » sont disponibles.
   - Choisir ce qu'il faut supprimer : **tout** (les étudiants, leurs sites, leurs bases et leurs sous-domaines), ou **seulement un site** (/WP, /WP2, /Presta ou /Presta2) ; dans ce dernier cas, les étudiants restent.
   - Un motif facultatif est gardé au journal. Taper `SUPPRIMER`, puis valider.
@@ -191,7 +191,14 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
 
 ## Menu et mots du portail (17/11/2026)
 
-- **Menu en rubriques** : Étudiants, Sites, Examens, Suivi, Administration, Documents, Mon compte. Chacun ne voit que les pages permises par son rôle.
+- **Menu en rubriques** : Étudiants, Sites, Examens, Documents, Suivi, Administration, Mon compte (Documents placé entre Examens et Suivi le 18/11/2026). Chacun ne voit que les pages permises par son rôle.
+- **Étiquettes** (18/11/2026) : les pages qui regroupent plusieurs façons de faire s'ouvrent sur des étiquettes cliquables.
+  - **Ajouter des étudiants** : « Par liste » (import de l'onglet de la Google Sheets) et « Un seul étudiant » (formulaire). Une seule entrée au menu.
+  - **Supprimer** (administrateur) : « Supprimer une liste » et « Supprimer un étudiant ».
+  - **Site modèle d'examen** : quatre étapes numérotées, 1 Charger le sujet, 2 Déployer dans les sites d'examen, 3 Clôturer l'épreuve, 4 Geler ou rouvrir ; l'étiquette PrestaShop est marquée « bientôt » (lot 6).
+  - **Bibliothèque** : trois rayons, Documents, Sujets d'examen et Versions PrestaShop ; l'administratif et la direction ne voient que Documents.
+- **Fiche de l'étudiant en cartes** (18/11/2026) : ses informations, puis une carte par site avec « Ouvrir le site » (ou « Ouvrir la boutique ») et « Administration » ; les actions (réinitialiser, demander, supprimer) sont repliées sous « Actions sur cet étudiant », ouvertes d'office quand un message ou une demande en attente les concerne ; viennent ensuite « Parcours et historique » et « Détails techniques ».
+- **Phrases d'aide** : sous le titre de chaque page, une phrase dit à quoi elle sert ; le « ? » déplie le détail.
 - **Mots de tous les jours**, avec le dossier technique en petit : Site WordPress (cours) `/WP`, Site d'examen `/WP2`, Boutique (cours) `/Presta`, Boutique d'examen `/Presta2`. Autres changements : « Voir tout » devient « Liste des sites », « sous-domaine » devient « adresse du site », « relevé » devient « liste des sites mise à jour le… », et les suppressions restaurables forment la « corbeille ».
 - **États** : chaque pastille a un signe en plus de sa couleur (✓ prêt, ⚠ à vérifier, ✕ échec, ⏳ en cours).
 - **Icône d'onglet** : le logo (`public/favicon.png`).
@@ -265,7 +272,7 @@ Décisions du 13/11/2026. Le sujet d'examen WordPress vit sur un sous-domaine d�
 
 ## Bibliothèque et documents (V2)
 
-- Depuis le 11/11/2026, une seule page « Bibliothèque » réunit les versions PrestaShop, les sujets et les documents ; l'administratif et la direction n'y voient que les documents.
+- Depuis le 11/11/2026, une seule page « Bibliothèque » réunit les versions PrestaShop, les sujets et les documents ; l'administratif et la direction n'y voient que les documents. Depuis le 18/11/2026, elle est rangée en trois rayons (étiquettes) : Documents, Sujets d'examen, Versions PrestaShop.
 - **Paquets** (administrateur, enseignants) : paquets d'installation PrestaShop (un par version, numéro indiqué au dépôt), sujets WordPress (archive ZIP de Duplicator). Les sujets PrestaShop arrivent avec le lot 6.
 - **Documents** (tous les comptes) : PDF seulement, 30 Mo au plus. Téléchargés, jamais affichés dans la page.
 - Fichiers rangés sous le nom de leur empreinte SHA-256 dans `~/portail/data/bibliotheque` et `~/portail/data/documents` (droits 700, hors d'atteinte du web). L'empreinte d'un paquet est revérifiée avant chaque installation : un fichier modifié est refusé.

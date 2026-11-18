@@ -245,8 +245,14 @@ final class RolesEtComptesTest extends TestCase
         }
         self::assertStringContainsString('Liste des sites', $admin);
         self::assertStringContainsString('<link rel="icon" type="image/png" href="/favicon.png">', $admin);
+        self::assertLessThan(strpos($admin, '>Suivi</h2>'), strpos($admin, '>Documents</h2>'), 'Documents avant Suivi');
+        self::assertGreaterThan(strpos($admin, '>Examens</h2>'), strpos($admin, '>Documents</h2>'), 'Documents après Examens');
+        self::assertStringContainsString('>Ajouter des étudiants</a>', $admin);
         $enseignante = $this->en('cpetit', 'GET', '/')->corps;
-        self::assertStringNotContainsString('Supprimer en masse', $enseignante);
+        self::assertStringNotContainsString('/sites/supprimer', $enseignante);
+        $ajout = $this->en('cpetit', 'GET', '/etudiants/import')->corps;
+        self::assertStringContainsString('Par liste', $ajout);
+        self::assertStringContainsString('Un seul étudiant', $ajout);
         self::assertStringNotContainsString('Comptes du portail', $enseignante);
     }
 

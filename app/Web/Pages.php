@@ -26,6 +26,23 @@ final class Pages
         self::$cadre = ['compte' => $compte, 'jeton' => $jeton, 'chemin' => $chemin];
     }
 
+    /**
+     * Une phrase d'aide en tête de chaque page (décision du 17/11/2026), dans les mots de tous les jours.
+     * Une page qui a sa propre phrase d'aide (Pages::aide) garde la sienne.
+     */
+    private const AIDES = [
+        'Liste des étudiants' => 'Tous les étudiants, par régime et session. Cliquez un nom pour ouvrir sa fiche : ses sites et ce qu\'on peut faire pour lui.',
+        'Liste des sites' => 'Une ligne par étudiant, une colonne par site. La liste se met à jour seule chaque lundi ; le bouton la met à jour tout de suite.',
+        'Créer des WordPress' => 'Pour un nouvel étudiant : son adresse et son site WordPress (cours). Il reçoit ses accès par e-mail.',
+        'Créer des boutiques PrestaShop' => 'La boutique (cours) des étudiants d\'une session, en 2e année. Chacun reçoit ses accès par e-mail.',
+        'Demandes' => 'Les demandes de suppression ou de réinitialisation adressées à l\'administrateur, et leur réponse.',
+        'Travaux en cours' => 'Ce que le serveur est en train de faire, étudiant par étudiant. Vous pouvez fermer la page : le travail continue.',
+        'Régimes et sessions' => 'Les classes (FI, ALT) et les promotions. À chaque rentrée, créez la session de la nouvelle promotion avant d\'ajouter ses étudiants.',
+        'Certificats' => 'Le cadenas https de chaque site. Un certificat non reconnu fait afficher « site non sécurisé » : relancez-le ici.',
+        'Comptes du portail' => 'Les personnes qui ont accès au portail. Un départ : désactivez le compte, puis supprimez-le si besoin.',
+        'Journal' => 'Qui a fait quoi, quand, et avec quel résultat.',
+    ];
+
     /** Demandes en attente, affichées à côté de « Demandes » dans le menu de l'administrateur (lot 5, paquet B). */
     public static int $demandesEnAttente = 0;
 
@@ -71,7 +88,9 @@ final class Pages
             . '<div class="qui"><span class="avatar" aria-hidden="true">' . Html::e($initiales) . '</span>'
             . '<span class="qui-texte"><strong>' . Html::e($compte->nomAffiche) . '</strong><span>' . Html::e($compte->libelleRole()) . '</span></span>'
             . self::boutonDeconnexion(self::$cadre['jeton']) . '</div></header>'
-            . '<main class="contenu"><h1>' . Html::e($titre) . '</h1>' . $contenu . '</main></div></div></body></html>';
+            . '<main class="contenu"><h1>' . Html::e($titre) . '</h1>'
+            . (isset(self::AIDES[$titre]) && !str_contains($contenu, 'class="aide"') ? self::aide(self::AIDES[$titre]) : '')
+            . $contenu . '</main></div></div></body></html>';
     }
 
     private const ICONES = [
@@ -133,11 +152,10 @@ final class Pages
         if ($peut(Droits::CONSULTER)) {
             $liste[] = ['/etudiants', 'etudiants', 'Liste des étudiants', 'Les étudiants par régime et session, avec leur fiche.', 'Étudiants'];
         }
-        if ($peut(Droits::IMPORTER)) {
-            $liste[] = ['/etudiants/import', 'import', 'Importer des étudiants', 'Ajoute une classe entière depuis la Google Sheets, avec un aperçu à vérifier.', 'Étudiants'];
-        }
-        if ($peut(Droits::CREER_ETUDIANT)) {
-            $liste[] = ['/etudiants/nouveau', 'ajout', 'Ajouter un étudiant', 'Un étudiant arrivé en cours d’année, avec son identifiant.', 'Étudiants'];
+        // « Ajouter des étudiants » (décision du 17/11/2026) : une entrée, deux étiquettes « Par liste » et « Un seul étudiant ».
+        if ($peut(Droits::IMPORTER) || $peut(Droits::CREER_ETUDIANT)) {
+            $liste[] = [$peut(Droits::IMPORTER) ? '/etudiants/import' : '/etudiants/nouveau', 'ajout', 'Ajouter des étudiants',
+                'Par liste (Google Sheets) ou un seul étudiant arrivé en cours d’année.', 'Étudiants'];
         }
         if ($peut(Droits::CONSULTER)) {
             $liste[] = ['/sites', 'sites', 'Liste des sites', 'Une ligne par étudiant : son site WordPress, son site d’examen, ses boutiques.', 'Sites'];
@@ -147,10 +165,14 @@ final class Pages
             $liste[] = ['/sites/prestashop', 'boutique', 'Créer des boutiques', 'La boutique (cours) PrestaShop d’une session, accès envoyés par e-mail.', 'Sites'];
         }
         if ($peut(Droits::SUPPRIMER)) {
-            $liste[] = ['/sites/supprimer', 'corbeille', 'Supprimer en masse', 'Supprimer les sites ou les étudiants d’une session (corbeille de 8 jours).', 'Sites'];
+            $liste[] = ['/sites/supprimer', 'corbeille', 'Supprimer', 'Une liste (par session) ou un étudiant : sites ou tout, corbeille de 8 jours.', 'Sites'];
         }
         if ($peut(Droits::SUJETS_EXAMEN)) {
             $liste[] = ['/sites/sujet', 'sujet', 'Site modèle d’examen', 'Charger le sujet d’examen, le déployer chez les étudiants, clôturer l’épreuve.', 'Examens'];
+        }
+        if ($peut(Droits::DOCUMENTS)) {
+            $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', $peut(Droits::BIBLIOTHEQUE)
+                ? 'Documents de l’équipe, sujets d’examen, versions PrestaShop.' : 'Référentiel et documents de l’équipe, en PDF.', 'Documents'];
         }
         if ($peut(Droits::DEMANDER)) {
             $liste[] = ['/demandes', 'demandes', 'Demandes', $peut(Droits::TRAITER_DEMANDES)
@@ -172,13 +194,37 @@ final class Pages
         if ($peut(Droits::JOURNAL)) {
             $liste[] = ['/journal', 'journal', 'Journal', 'Qui a fait quoi, quand, et avec quel résultat.', 'Administration'];
         }
-        if ($peut(Droits::DOCUMENTS)) {
-            $liste[] = ['/bibliotheque', 'bibliotheque', 'Bibliothèque', $peut(Droits::BIBLIOTHEQUE)
-                ? 'Documents de l’équipe, sujets d’examen, versions PrestaShop.' : 'Référentiel et documents de l’équipe, en PDF.', 'Documents'];
-        }
         $liste[] = ['/mot-de-passe', 'motdepasse', 'Mon mot de passe', 'Changer le mot de passe de votre compte.', 'Mon compte'];
 
         return $liste;
+    }
+
+    /**
+     * Étiquettes cliquables en tête de page (décision du 17/11/2026) : une étiquette = une action, l'active est mise en avant.
+     *
+     * @param list<array{adresse: string, titre: string, texte: string, numero?: string, bientot?: bool}> $etiquettes
+     */
+    public static function etiquettes(array $etiquettes, string $actif, string $libelle): string
+    {
+        $html = '';
+        foreach ($etiquettes as $e) {
+            $contenu = (isset($e['numero']) ? '<span class="etiq-num" aria-hidden="true">' . Html::e($e['numero']) . '</span>' : '')
+                . '<strong>' . Html::e($e['titre']) . ($e['bientot'] ?? false ? ' <span class="badge neutre">bientôt</span>' : '') . '</strong>'
+                . '<span>' . Html::e($e['texte']) . '</span>';
+            $html .= ($e['bientot'] ?? false)
+                ? '<div class="etiq inactive">' . $contenu . '</div>'
+                : '<a class="etiq' . ($e['adresse'] === $actif ? ' actif" aria-current="page' : '') . '" href="' . Html::e($e['adresse']) . '">' . $contenu . '</a>';
+        }
+
+        return '<nav class="etiquettes" aria-label="' . Html::e($libelle) . '">' . $html . '</nav>';
+    }
+
+    /** Phrase d'aide en tête de page, avec un « ? » qui déplie l'explication détaillée (décision du 17/11/2026). */
+    public static function aide(string $phrase, string $detail = ''): string
+    {
+        return $detail === ''
+            ? '<p class="aide">' . Html::e($phrase) . '</p>'
+            : '<details class="aide"><summary>' . Html::e($phrase) . ' <span class="aide-q" aria-label="Plus d’explications">?</span></summary><div class="aide-detail">' . $detail . '</div></details>';
     }
 
     private static function menu(Compte $compte, string $chemin): string
@@ -187,7 +233,9 @@ final class Pages
         foreach (self::destinations($compte) as [$adresse, $icone, $libelle, , $rubrique]) {
             $actif = $adresse === $chemin || ($adresse === '/etudiants' && preg_match('#^/etudiants/[0-9]+$#', $chemin) === 1)
                 || ($adresse === '/comptes' && str_starts_with($chemin, '/comptes/'))
-                || ($adresse === '/travaux' && str_starts_with($chemin, '/travaux/'));
+                || ($adresse === '/travaux' && str_starts_with($chemin, '/travaux/'))
+                || ($adresse !== '/' && $adresse !== '/sites' && $adresse !== '/etudiants' && str_starts_with($chemin, $adresse . '/'))
+                || (in_array($adresse, ['/etudiants/import', '/etudiants/nouveau'], true) && in_array($chemin, ['/etudiants/import', '/etudiants/nouveau'], true));
             $compteur = $adresse === '/demandes' && self::$demandesEnAttente > 0
                 ? ' <span class="compteur" aria-label="' . self::$demandesEnAttente . ' en attente">' . self::$demandesEnAttente . '</span>' : '';
             $blocs[$rubrique][] = '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . $compteur . '</a>';

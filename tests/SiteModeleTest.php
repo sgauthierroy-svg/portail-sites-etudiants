@@ -123,7 +123,7 @@ final class SiteModeleTest extends TestCase
     public function testPageReserveeAuxEnseignantsEtAdministrateurs(): void
     {
         foreach (['mzanelli' => 200, 'cpetit' => 200, 'jroux' => 403, 'pmoreau' => 403] as $compte => $code) {
-            $reponse = $this->en($compte, 'GET', '/sites/sujet');
+            $reponse = $this->en($compte, 'GET', '/sites/sujet/charger');
             self::assertSame($code, $reponse->statut, $compte);
             if ($code === 200) {
                 self::assertStringContainsString('Installer ce sujet sur le site modèle', $reponse->corps);

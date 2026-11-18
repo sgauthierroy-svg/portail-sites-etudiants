@@ -96,14 +96,16 @@ final class Application
             '/sites/prestashop' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerPrestaShop($requete, $moi)),
             '/sites/wordpress' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerWordPress($requete, $moi)),
             '/sites/certificats' => $this->pageConnectee($requete, Droits::CERTIFICATS, fn (Compte $moi) => $this->certificats($requete, $moi)),
-            '/sites/sujet' => $this->pageConnectee($requete, Droits::SUJETS_EXAMEN, fn (Compte $moi) => $this->siteModele($requete, $moi)),
-            '/bibliotheque' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
+            '/sites/sujet', '/sites/sujet/charger', '/sites/sujet/deployer', '/sites/sujet/cloturer', '/sites/sujet/gel'
+                => $this->pageConnectee($requete, Droits::SUJETS_EXAMEN, fn (Compte $moi) => $this->siteModele($requete, $moi)),
+            '/bibliotheque', '/bibliotheque/sujets', '/bibliotheque/versions' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => $this->bibliotheque($requete, $moi)),
             // Ancienne adresse des documents (réunis dans la bibliothèque le 11/11/2026).
             '/documents' => $this->pageConnectee($requete, Droits::DOCUMENTS, fn (Compte $moi) => Reponse::redirection('/bibliotheque')),
             '/travaux' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->travaux($requete, $moi)),
             '/regimes-sessions' => $this->pageConnectee($requete, Droits::REGIMES_SESSIONS, fn (Compte $moi) => $this->regimesSessions($requete, $moi)),
             '/demandes' => $this->pageConnectee($requete, Droits::DEMANDER, fn (Compte $moi) => $this->demandes($requete, $moi)),
             '/sites/supprimer' => $this->pageConnectee($requete, Droits::SUPPRIMER, fn (Compte $moi) => $this->supprimerEnMasse($requete, $moi)),
+            '/sites/supprimer/etudiant' => $this->pageConnectee($requete, Droits::SUPPRIMER, fn (Compte $moi) => $this->supprimerUnEtudiant($requete, $moi)),
             default => $this->pageNumerotee($requete),
         };
     }
@@ -271,7 +273,7 @@ final class Application
         return new Reponse(200, PagesSujet::page($this->session->jeton(), $modele->etat(), $modele->sujets(),
             MiseALecart::enCours($this->pdo, SiteModele::IDENTIFIANT),
             ['sessions' => $sessions, 'session' => $sessionChoisie, 'etudiants' => $sessionChoisie === null ? null : $deploiement->etudiants($sessionChoisie)],
-            $erreur));
+            $erreur, substr($requete->chemin, strlen('/sites/sujet/')) ?: ''));
     }
 
     // ===== V2, lot 2 : bibliothèque et documents =====
@@ -332,7 +334,8 @@ final class Application
         }
 
         return new Reponse(200, PagesBibliotheque::bibliotheque($this->session->jeton(), $moi, $bibliotheque, $voirPaquets,
-            $voirPaquets ? $bibliotheque->paquets() : [], $bibliotheque->documents(), $bibliotheque->depot(), self::limiteEnvoi(), $erreur, $information));
+            $voirPaquets ? $bibliotheque->paquets() : [], $bibliotheque->documents(), $bibliotheque->depot(), self::limiteEnvoi(), $erreur, $information,
+            substr($requete->chemin, strlen('/bibliotheque/')) ?: 'documents'));
     }
 
     private function telechargerDocument(Requete $requete, int $id): Reponse
@@ -706,6 +709,41 @@ final class Application
         }
 
         return $html . PagesDemandes::formulaireFiche($this->session->jeton(), $action, $choix);
+    }
+
+    /** Supprimer un étudiant, depuis la rubrique « Sites » (administrateur, demande du 17/11/2026). */
+    private function supprimerUnEtudiant(Requete $requete, Compte $moi): Reponse
+    {
+        $choisi = null;
+        $erreur = null;
+        $identifiant = '';
+        if ($requete->methode === 'POST') {
+            $identifiant = $requete->champ('identifiant');
+            if ($requete->champ('action') === 'supprimer') {
+                try {
+                    return Reponse::redirection('/travaux/' . (new Suppressions($this->pdo))->depuisFiche($identifiant, $requete->champ('choix'),
+                        $requete->champ('confirmation'), $moi, $requete->adresseIp));
+                } catch (ErreurSaisie $e) {
+                    $erreur = $e->getMessage();
+                }
+            } elseif ($requete->champ('action') !== 'afficher') {
+                return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
+            return $refus;
+        }
+        $etudiants = [];
+        foreach ((new GestionEtudiants($this->pdo))->liste() as $etudiant) {
+            $etudiants[] = ['identifiant' => $etudiant->identifiant, 'nom' => $etudiant->nomComplet, 'classe' => $etudiant->classe()];
+            if ($etudiant->identifiant === $identifiant) {
+                $requeteTravail = $this->pdo->prepare("SELECT 1 FROM travaux_etapes WHERE cible = :i AND etat IN ('en_attente', 'en_cours') LIMIT 1");
+                $requeteTravail->execute([':i' => $identifiant]);
+                $choisi = ['identifiant' => $identifiant, 'nom' => $etudiant->nomComplet, 'sites' => Releve::sitesEtudiant($this->pdo, $identifiant),
+                    'prevu' => $requeteTravail->fetchColumn() !== false];
+            }
+        }
+
+        return new Reponse(200, PagesDemandes::supprimerUnEtudiant($this->session->jeton(), $etudiants, $choisi, $erreur));
     }
 
     /** Suppression en masse par session (administrateur, demande du 16/11/2026). */

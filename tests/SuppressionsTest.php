@@ -267,6 +267,22 @@ final class SuppressionsTest extends TestCase
         self::assertStringContainsString('Fin de formation', (string) $this->pdo->query("SELECT motif FROM mises_a_l_ecart WHERE identifiant = 'leroyhu'")->fetchColumn());
     }
 
+    public function testSupprimerUnEtudiantDepuisLaRubriqueSites(): void
+    {
+        $liste = $this->en('mzanelli', 'GET', '/sites/supprimer')->corps;
+        self::assertStringContainsString('Supprimer une liste', $liste);
+        self::assertStringContainsString('href="/sites/supprimer/etudiant"', $liste);
+        self::assertSame(403, $this->en('cpetit', 'GET', '/sites/supprimer/etudiant')->statut);
+        $page = $this->en('mzanelli', 'POST', '/sites/supprimer/etudiant', ['action' => 'afficher', 'identifiant' => 'martinel'])->corps;
+        self::assertStringContainsString('value="site:/WP2"', $page);
+        self::assertStringContainsString('name="identifiant" value="martinel"', $page);
+        $refus = $this->en('mzanelli', 'POST', '/sites/supprimer/etudiant', ['action' => 'supprimer', 'identifiant' => 'martinel', 'choix' => 'etudiant', 'confirmation' => 'non']);
+        self::assertStringContainsString('tapez exactement', $refus->corps);
+        $reponse = $this->en('mzanelli', 'POST', '/sites/supprimer/etudiant', ['action' => 'supprimer', 'identifiant' => 'martinel', 'choix' => 'site:/WP', 'confirmation' => 'martinel']);
+        self::assertSame(303, $reponse->statut);
+        self::assertSame('supprimer_site', $this->pdo->query('SELECT type FROM travaux')->fetchColumn());
+    }
+
     // ===== Demandes à l'administrateur =====
 
     public function testUneDemandeAUnMotifObligatoireEtPrevientLAdministrateurSansNomDEtudiant(): void

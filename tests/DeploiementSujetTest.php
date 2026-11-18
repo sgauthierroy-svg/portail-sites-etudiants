@@ -271,7 +271,7 @@ final class DeploiementSujetTest extends TestCase
     {
         $page = $this->en('cpetit', 'GET', '/sites/sujet')->corps;
         self::assertStringContainsString('Déployer chez les étudiants', $page);
-        $page = $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'afficher_deploiement', 'session' => (string) $this->session])->corps;
+        $page = $this->en('cpetit', 'POST', '/sites/sujet/deployer', ['action' => 'afficher_deploiement', 'session' => (string) $this->session])->corps;
         self::assertStringContainsString('remplace le /WP2 actuel', $page);
         self::assertStringContainsString('name="coches[]" value="martinel"', $page);
         self::assertStringNotContainsString('value="leroyhu"', $page);
@@ -414,9 +414,9 @@ final class DeploiementSujetTest extends TestCase
     public function testPageDeLEpreuve(): void
     {
         $this->deployerMartinel();
-        $page = $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'afficher_deploiement', 'session' => (string) $this->session])->corps;
-        self::assertStringContainsString('Épreuve : clôture et gel', $page);
-        self::assertSame(2, substr_count($page, 'data-tout-cocher'), 'une case « Tout cocher » par tableau');
+        $page = $this->en('cpetit', 'POST', '/sites/sujet/cloturer', ['action' => 'afficher_deploiement', 'session' => (string) $this->session])->corps;
+        self::assertStringContainsString('Clôturer l\'épreuve', $page);
+        self::assertSame(1, substr_count($page, 'data-tout-cocher'), 'une case « Tout cocher » dans le tableau de l\'étape');
         self::assertStringContainsString('épreuve ouverte', $page);
         self::assertStringContainsString('name="confirmer_cloture"', $page);
         $refus = $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'cloturer', 'session' => (string) $this->session], ['coches' => ['martinel']]);
@@ -426,7 +426,7 @@ final class DeploiementSujetTest extends TestCase
         self::assertSame(303, $reponse->statut);
         $this->tourner();
         // Les enseignants lèvent le gel (décision du 14/11/2026) ; l'administratif n'a pas accès à la page.
-        $page = $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'afficher_deploiement', 'session' => (string) $this->session])->corps;
+        $page = $this->en('cpetit', 'POST', '/sites/sujet/gel', ['action' => 'afficher_deploiement', 'session' => (string) $this->session])->corps;
         self::assertStringContainsString('— figé', $page);
         self::assertSame(303, $this->en('cpetit', 'POST', '/sites/sujet', ['action' => 'lever_gel', 'session' => (string) $this->session], ['coches' => ['martinel']])->statut);
         self::assertSame(403, $this->en('jroux', 'POST', '/sites/sujet', ['action' => 'lever_gel', 'session' => (string) $this->session], ['coches' => ['martinel']])->statut);

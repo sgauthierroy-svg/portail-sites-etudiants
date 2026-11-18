@@ -11,6 +11,9 @@ use Portail\Sites\SiteModele;
  */
 final class PagesSujet
 {
+    /** Étapes d'un BTS blanc, dans l'ordre (décision du 17/11/2026 : la page en étiquettes). */
+    public const ETAPES = ['charger', 'deployer', 'cloturer', 'gel'];
+
     /**
      * @param array{connu: bool, installe: bool, version: ?string, gele: bool, installe_le: ?string, travail: ?int} $etat
      * @param list<array{id: int, nom: string, version_wordpress: ?string, depose_le: string, depose_par_nom: string}> $sujets
@@ -19,15 +22,33 @@ final class PagesSujet
      *              etudiants: ?list<array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool,
      *                                      deploye_le: ?string, cloture_le: ?string, lecture_seule: bool, epreuve_prevue: bool}>} $deploiement
      */
-    public static function page(string $jeton, array $etat, array $sujets, array $ecarts, array $deploiement, ?string $erreur): string
+    public static function page(string $jeton, array $etat, array $sujets, array $ecarts, array $deploiement, ?string $erreur, string $vue = ''): string
     {
         $adresse = SiteModele::adresse();
         $contenu = Pages::alerte($erreur, null)
-            . '<p>Le site modèle est le sujet d\'examen tel que les étudiants le recevront dans leur <code>/WP2</code>. '
-            . 'Un enseignant y charge le sujet (paquet Duplicator déposé dans la <a href="/bibliotheque">bibliothèque</a>), l\'adapte si besoin dans WordPress, '
-            . 'puis le déploie chez les étudiants. L\'administrateur reçoit à chaque chargement une liste de contrôle (bon fonctionnement, sécurité), sans rien bloquer.</p>';
+            . ($vue === '' ? Pages::aide('Les étapes d\'un BTS blanc, dans l\'ordre : cliquez celle où vous en êtes.',
+                '<p>Le site modèle est le sujet d\'examen tel que les étudiants le recevront dans leur site d\'examen. '
+                . 'Un enseignant y charge le sujet (paquet Duplicator déposé dans la <a href="/bibliotheque/sujets">bibliothèque</a>), l\'adapte si besoin dans WordPress, '
+                . 'puis le déploie chez les étudiants. À la fin de l\'épreuve, il clôture : les sites sont figés pour la correction. '
+                . 'L\'administrateur reçoit à chaque chargement une liste de contrôle (bon fonctionnement, sécurité), sans rien bloquer.</p>') : '')
+            . self::etapes($vue);
+        if ($vue !== '' && $vue !== 'charger') {
+            $contenu .= self::resume($etat);
+            if (!$etat['connu'] || !$etat['installe']) {
+                return self::fin($contenu . '<p>Commencez par l\'étape 1 : <a href="/sites/sujet/charger">charger un sujet</a> sur le site modèle.</p>', $vue);
+            }
+            if ($vue === 'deployer') {
+                $contenu .= $etat['travail'] === null ? self::deploiement($jeton, $etat, $deploiement)
+                    : '<p role="status">Un travail sur le site modèle est en cours : <a href="/travaux/' . $etat['travail'] . '">travail n° ' . $etat['travail'] . '</a>. '
+                        . 'Le déploiement sera possible ensuite.</p>';
+            } else {
+                $contenu .= self::epreuve($jeton, $deploiement, $etat['travail'] !== null, $vue);
+            }
 
-        $contenu .= '<h2>État</h2>';
+            return self::fin($contenu, $vue);
+        }
+
+        $contenu .= '<h2>État du site modèle</h2>';
         if (!$etat['connu']) {
             $contenu .= '<p role="alert">Le sous-domaine <code>' . SiteModele::IDENTIFIANT . '.bts-sup-sallanches.com</code> n\'est pas dans le dernier relevé. '
                 . 'Créez-le dans CPanel (avec son certificat), puis <a href="/travaux">mettez à jour la liste des sites</a>.</p>';
@@ -46,7 +67,7 @@ final class PagesSujet
             $contenu .= '<p role="status">Un travail sur le site modèle est prévu ou en cours : <a href="/travaux/' . $etat['travail'] . '">travail n° ' . $etat['travail'] . '</a>.</p>';
         }
 
-        if ($etat['connu'] && $etat['travail'] === null) {
+        if ($vue === 'charger' && $etat['connu'] && $etat['travail'] === null) {
             $contenu .= '<h2>Charger un sujet</h2>';
             if ($sujets === []) {
                 $contenu .= '<p>Aucun sujet WordPress dans la bibliothèque : déposez d\'abord le paquet Duplicator (rayon « Sujets WordPress »).</p>';
@@ -76,15 +97,7 @@ final class PagesSujet
             }
         }
 
-        if ($etat['connu'] && $etat['installe'] && $etat['travail'] === null) {
-            $contenu .= self::deploiement($jeton, $etat, $deploiement);
-        }
-        if ($etat['connu'] && $etat['installe']) {
-            // Pendant un travail sur le modèle, le choix de la session du déploiement est masqué : l'épreuve a le sien.
-            $contenu .= self::epreuve($jeton, $deploiement, $etat['travail'] !== null);
-        }
-
-        if ($ecarts !== []) {
+        if ($vue === '' && $ecarts !== []) {
             $lignes = '';
             foreach ($ecarts as $ecart) {
                 $lignes .= '<tr><td>' . Html::e(Pages::heureLocale($ecart['mis_le'])) . '</td><td>' . Html::e($ecart['motif']) . '</td><td>'
@@ -95,7 +108,45 @@ final class PagesSujet
                 . '<table><thead><tr><th>Mis à l\'écart le</th><th>Motif</th><th>Effacé après le</th><th>Dossier</th></tr></thead><tbody>' . $lignes . '</tbody></table>';
         }
 
-        return Pages::page('Site modèle d\'examen', $contenu . '<p><a href="/sites">Liste des sites</a> · <a href="/">Accueil</a></p>');
+        return self::fin($contenu, $vue);
+    }
+
+    /** Fin de page : les formulaires renvoient à l'étape affichée, pour y rester après une erreur. */
+    private static function fin(string $contenu, string $vue): string
+    {
+        $action = '/sites/sujet' . ($vue === '' ? '' : '/' . $vue);
+
+        return Pages::page('Site modèle d\'examen', str_replace('action="/sites/sujet"', 'action="' . $action . '"', $contenu)
+            . '<p><a href="/sites/sujet">Toutes les étapes</a> · <a href="/sites">Liste des sites</a></p>');
+    }
+
+    private static function etapes(string $vue): string
+    {
+        $actif = '/sites/sujet' . ($vue === '' ? '' : '/' . $vue);
+
+        return '<h2 class="titre-etapes">WordPress</h2>' . Pages::etiquettes([
+            ['adresse' => '/sites/sujet/charger', 'numero' => '1', 'titre' => 'Charger un sujet', 'texte' => 'Installer un sujet de la bibliothèque sur le site modèle, puis le vérifier.'],
+            ['adresse' => '/sites/sujet/deployer', 'numero' => '2', 'titre' => 'Déployer chez les étudiants', 'texte' => 'Copier le modèle dans le site d\'examen de chaque étudiant.'],
+            ['adresse' => '/sites/sujet/cloturer', 'numero' => '3', 'titre' => 'Clôturer l\'épreuve', 'texte' => 'Copie datée, déconnexion, site figé pour la correction.'],
+            ['adresse' => '/sites/sujet/gel', 'numero' => '4', 'titre' => 'Lever le gel', 'texte' => 'Rouvrir un site figé, ou le refiger.'],
+        ], $actif, 'Étapes du sujet WordPress')
+            . ($vue === '' ? '<h2 class="titre-etapes">PrestaShop</h2>' . Pages::etiquettes([
+                ['adresse' => '', 'numero' => '1', 'titre' => 'Charger un sujet', 'texte' => 'Boutique modèle d\'examen.', 'bientot' => true],
+                ['adresse' => '', 'numero' => '2', 'titre' => 'Déployer', 'texte' => 'Dans les boutiques d\'examen.', 'bientot' => true],
+                ['adresse' => '', 'numero' => '3', 'titre' => 'Clôturer', 'texte' => 'Boutiques figées.', 'bientot' => true],
+                ['adresse' => '', 'numero' => '4', 'titre' => 'Lever le gel', 'texte' => 'Rouvrir une boutique.', 'bientot' => true],
+            ], '', 'Étapes du sujet PrestaShop') : '');
+    }
+
+    /** @param array{connu: bool, installe: bool, version: ?string, gele: bool, installe_le: ?string, travail: ?int} $etat */
+    private static function resume(array $etat): string
+    {
+        if (!$etat['connu'] || !$etat['installe']) {
+            return '<p><span class="badge warn">aucun sujet sur le site modèle</span></p>';
+        }
+
+        return '<p><span class="badge ok">modèle prêt</span> WordPress ' . Html::e($etat['version'] ?? '?') . ', '
+            . ($etat['gele'] ? 'version gelée' : 'mises à jour automatiques') . ' — <a href="' . Html::e(SiteModele::adresse()) . '" target="_blank" rel="noopener">voir le modèle</a></p>';
     }
 
     /**
@@ -168,7 +219,7 @@ final class PagesSujet
      *              etudiants: ?list<array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool,
      *                                      deploye_le: ?string, cloture_le: ?string, lecture_seule: bool, epreuve_prevue: bool}>} $deploiement
      */
-    private static function epreuve(string $jeton, array $deploiement, bool $selecteur): string
+    private static function epreuve(string $jeton, array $deploiement, bool $travailEnCours, string $vue): string
     {
         $annee = null;
         $options = '';
@@ -177,19 +228,18 @@ final class PagesSujet
             $annee = $choisie ? $session['annee'] : $annee;
             $options .= '<option value="' . $session['id'] . '"' . ($choisie ? ' selected' : '') . '>Session ' . $session['annee'] . '</option>';
         }
-        $contenu = '<h2>Épreuve : clôture et gel</h2>'
+        $contenu = '<h2>' . ($vue === 'gel' ? 'Lever le gel, ou refiger' : 'Clôturer l\'épreuve') . '</h2>'
             . '<p>La préconnexion des back-offices se fait à la main avant l\'épreuve (cochez « Se souvenir de moi » si elle a lieu plus de 2 jours avant). '
             . 'À la fin de l\'épreuve, <strong>Clôturer</strong> : pour chaque étudiant coché, une copie datée de son <code>/WP2</code> est gardée 8 jours, '
             . 'les sessions ouvertes sont fermées (l\'étudiant est déconnecté), puis le site passe en <strong>lecture seule</strong> : '
             . 'les correcteurs se connectent avec le compte administrateur du modèle, voient tout, et ne peuvent rien enregistrer. '
-            . 'Déconnexion après 1 h d\'inactivité. Un enseignant peut lever le gel d\'un site, puis le refiger.</p>';
-        if ($selecteur) {
-            $contenu .= '<form method="post" action="/sites/sujet">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="afficher_deploiement">'
-                . '<label for="session-epreuve">Session</label> <select id="session-epreuve" name="session">' . $options . '</select> '
-                . '<button type="submit">Afficher les étudiants</button></form>';
-        }
+            . 'Déconnexion après 1 h d\'inactivité. Un enseignant peut lever le gel d\'un site, puis le refiger.</p>'
+            . '<form method="post" action="/sites/sujet">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="afficher_deploiement">'
+            . '<label for="session-epreuve">Session</label> <select id="session-epreuve" name="session">' . $options . '</select> '
+            . '<button type="submit">Afficher les étudiants</button></form>';
         if ($annee === null || $deploiement['etudiants'] === null) {
-            return $contenu . ($selecteur ? '' : '<p class="discret">Choisissez une session ci-dessus (« Afficher les étudiants »).</p>');
+            return $contenu . '<p class="discret">Choisissez la session, puis « Afficher les étudiants ».</p>'
+                . ($travailEnCours ? '<p class="discret">Un travail sur le site modèle est en cours : la clôture et le gel restent possibles.</p>' : '');
         }
         $lignes = '';
         $avecWp2 = 0;
@@ -219,11 +269,12 @@ final class PagesSujet
             . '<form method="post" action="/sites/sujet">' . Pages::jeton($jeton)
             . '<input type="hidden" name="session" value="' . (int) $deploiement['session'] . '">'
             . '<table class="triable"><thead><tr><th>' . self::toutCocher() . '</th><th>Étudiant</th><th>Épreuve</th><th>Site</th></tr></thead><tbody>' . $lignes . '</tbody></table>'
-            . '<p><label><input type="checkbox" name="confirmer_cloture" value="1"> Je confirme la fin de l\'épreuve pour les étudiants cochés : '
-            . 'ils seront déconnectés et leur <code>/WP2</code> figé.</label></p>'
-            . '<p><button type="submit" name="action" value="cloturer" class="btn-main">Clôturer l\'épreuve pour les étudiants cochés</button></p>'
-            . '<p><button type="submit" name="action" value="lever_gel">Lever le gel des étudiants cochés</button> '
-            . '<button type="submit" name="action" value="refiger">Refiger les étudiants cochés</button></p>'
+            . ($vue === 'gel'
+                ? '<p><button type="submit" name="action" value="lever_gel">Lever le gel des étudiants cochés</button> '
+                    . '<button type="submit" name="action" value="refiger">Refiger les étudiants cochés</button></p>'
+                : '<p><label><input type="checkbox" name="confirmer_cloture" value="1"> Je confirme la fin de l\'épreuve pour les étudiants cochés : '
+                    . 'ils seront déconnectés et leur site d\'examen figé.</label></p>'
+                    . '<p><button type="submit" name="action" value="cloturer" class="btn-main">Clôturer l\'épreuve pour les étudiants cochés</button></p>')
             . '</form>';
     }
 }
