@@ -324,6 +324,7 @@ Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la b
 | Comptes non confirmés depuis 6 mois (le lundi) | adresse d'alerte |
 | Certificat d'un sous-domaine créé par le portail toujours pas posé après 6 essais | adresse d'alerte |
 | Certificats à surveiller (le lundi, seulement s'il y a un problème) | adresse d'alerte |
+| Boutiques ou WordPress hors du gel de leur session (à chaque relevé, nombres seulement) | adresse d'alerte |
 | Nouvelle demande à l'administrateur (type et demandeur seulement) | adresse d'alerte |
 | Décision sur ses demandes (nombres et commentaire de refus) | le demandeur seul |
 
