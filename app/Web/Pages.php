@@ -46,6 +46,9 @@ final class Pages
     /** Demandes en attente, affichées à côté de « Demandes » dans le menu de l'administrateur (lot 5, paquet B). */
     public static int $demandesEnAttente = 0;
 
+    /** Parmi elles, les problèmes signalés (SAV) : compteur à part, en couleur d'alerte (amélioration D17). */
+    public static int $problemesEnAttente = 0;
+
     /** @var list<array{titre: string, adresse: string, texte: string}> Étudiants proposés par la recherche rapide (rôles qui ouvrent les fiches). */
     public static array $rechercheEtudiants = [];
 
@@ -57,6 +60,7 @@ final class Pages
         self::$cadre = null;
         self::$rafraichir = 0;
         self::$demandesEnAttente = 0;
+        self::$problemesEnAttente = 0;
         self::$rechercheEtudiants = [];
     }
 
@@ -253,8 +257,7 @@ final class Pages
                 || ($adresse === '/travaux' && str_starts_with($chemin, '/travaux/'))
                 || ($adresse !== '/' && $adresse !== '/sites' && $adresse !== '/etudiants' && str_starts_with($chemin, $adresse . '/'))
                 || (in_array($adresse, ['/etudiants/import', '/etudiants/nouveau'], true) && in_array($chemin, ['/etudiants/import', '/etudiants/nouveau'], true));
-            $compteur = $adresse === '/demandes' && self::$demandesEnAttente > 0
-                ? ' <span class="compteur" aria-label="' . self::$demandesEnAttente . ' en attente">' . self::$demandesEnAttente . '</span>' : '';
+            $compteur = $adresse === '/demandes' ? self::compteursDemandes() : '';
             $blocs[$rubrique][] = '<a href="' . $adresse . '"' . ($actif ? ' aria-current="page"' : '') . '>' . self::icone($icone) . Html::e($libelle) . $compteur . '</a>';
         }
         $html = '';
@@ -263,6 +266,21 @@ final class Pages
         }
 
         return '<nav class="nav" aria-label="Menu principal">' . $html . '</nav>';
+    }
+
+    /**
+     * Compteurs du menu à côté de « Demandes » : les problèmes SAV à part, en rouge, puis les autres demandes.
+     */
+    private static function compteursDemandes(): string
+    {
+        $problemes = min(self::$problemesEnAttente, self::$demandesEnAttente);
+        $autres = self::$demandesEnAttente - $problemes;
+
+        $urgent = ' <span class="compteur urgent" aria-label="' . $problemes . ' problème(s) signalé(s)">SAV '
+            . $problemes . '</span>';
+        $normal = ' <span class="compteur" aria-label="' . $autres . ' en attente">' . $autres . '</span>';
+
+        return ($problemes > 0 ? $urgent : '') . ($autres > 0 ? $normal : '');
     }
 
     public static function message(string $titre, string $texte): string
@@ -328,8 +346,10 @@ final class Pages
     /**
      * @param list<array{id: int, identifiant: string, nom: string, depuis: string}> $aRevoir
      * @param list<array{id: int, date: string, auteur: string, cible: string, detail: string}> $secours
+     * @param string $blocAdministrateur HTML déjà échappé : « À faire » et travaux en cours (AFaire::html)
      */
-    public static function accueil(string $jeton, Compte $compte, array $aRevoir = [], array $secours = []): string
+    public static function accueil(string $jeton, Compte $compte, array $aRevoir = [], array $secours = [],
+        string $blocAdministrateur = ''): string
     {
         $alertes = '';
         if ($secours !== []) {
@@ -358,16 +378,18 @@ final class Pages
         }
         $tuiles = '';
         foreach (array_slice(self::destinations($compte), 1) as [$adresse, $icone, $libelle, $description]) {
-            $compteur = $adresse === '/demandes' && self::$demandesEnAttente > 0 ? ' <span class="compteur">' . self::$demandesEnAttente . ' en attente</span>' : '';
+            $classe = self::$problemesEnAttente > 0 ? 'compteur urgent' : 'compteur';
+            $compteur = $adresse === '/demandes' && self::$demandesEnAttente > 0
+                ? ' <span class="' . $classe . '">' . self::$demandesEnAttente . ' en attente</span>' : '';
             $tuiles .= '<a class="tuile" href="' . $adresse . '"><span class="ico">' . self::icone($icone, 'i m') . '</span>'
                 . '<span class="tuile-texte"><span class="tuile-titre">' . Html::e($libelle) . $compteur . '</span><span>' . Html::e($description) . '</span></span></a>';
         }
 
         return self::page('Portail des sites étudiants',
             '<p class="intro">Bonjour ' . Html::e($compte->nomAffiche) . ' (' . Html::e($compte->libelleRole()) . ').</p>'
-            . $alertes
-            . '<section aria-labelledby="t-actions"><h2 id="t-actions">Que voulez-vous faire ?</h2><div class="tuiles">' . $tuiles . '</div></section>'
-            . '<p class="discret">La création et la gestion des sites arrivent lot par lot avec la version 2.</p>');
+            . $blocAdministrateur . $alertes
+            . '<section aria-labelledby="t-actions"><h2 id="t-actions">Que voulez-vous faire ?</h2>'
+            . '<div class="tuiles">' . $tuiles . '</div></section>');
     }
 
     public static function refus(): string

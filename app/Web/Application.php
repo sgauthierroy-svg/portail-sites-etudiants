@@ -416,15 +416,99 @@ final class Application
 
     private function voirTout(Requete $requete, Compte $moi): Reponse
     {
-        if (($refus = $this->seulementGet($requete)) !== null) {
+        $erreur = null;
+        $information = null;
+        if ($requete->methode === 'POST') {
+            try {
+                $resultat = $this->actionGroupee($requete, $moi);
+                if ($resultat instanceof Reponse) {
+                    return $resultat;
+                }
+                $information = $resultat;
+            } catch (ErreurSaisie $e) {
+                $erreur = $e->getMessage();
+            }
+        } elseif (($refus = $this->seulementGet($requete)) !== null) {
             return $refus;
         }
         $file = new FileTravaux($this->pdo);
 
         return new Reponse(200, PagesTravaux::voirTout($this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste(null, null),
             Releve::parIdentifiant($this->pdo), Releve::identifiants($this->pdo), Releve::dernier($this->pdo), $file->dejaPrevu('releve'),
-            null, Releve::horsGel($this->pdo),
-            (new Demandes($this->pdo))->etiquettes(), Suppressions::etudiantsSupprimes($this->pdo), Releve::wordpressHorsGel($this->pdo)));
+            $information, Releve::horsGel($this->pdo),
+            (new Demandes($this->pdo))->etiquettes(), Suppressions::etudiantsSupprimes($this->pdo),
+            Releve::wordpressHorsGel($this->pdo), $erreur));
+    }
+
+    /**
+     * Actions groupées de la Liste des sites (administrateur) sur les étudiants cochés. Chaque action garde les droits
+     * et les garde-fous de sa page d'origine. Rend le message à afficher, ou une page (confirmation, refus).
+     */
+    private function actionGroupee(Requete $requete, Compte $moi): Reponse|string
+    {
+        $coches = $requete->liste('coches');
+        $action = $requete->champ('action');
+        $droit = match ($action) {
+            'groupe_certificats' => Droits::CERTIFICATS,
+            'groupe_wordpress' => Droits::CREER_SITE,
+            'groupe_supprimer', 'groupe_supprimer_confirme' => Droits::SUPPRIMER,
+            default => null,
+        };
+        if ($droit === null) {
+            return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
+        }
+        if (!Droits::peut($moi->role, $droit) || !Droits::peut($moi->role, Droits::CERTIFICATS)) {
+            return $this->refuser($requete, $moi);
+        }
+        if ($coches === []) {
+            throw new ErreurSaisie('Cochez au moins un étudiant dans la liste, puis choisissez l\'action.');
+        }
+        switch ($action) {
+            case 'groupe_certificats':
+                $r = (new SuiviCertificats($this->pdo))->relancerDepuisListe($coches, $moi, $requete->adresseIp);
+
+                return $r['retenus'] . ' relance(s) de certificat demandée(s) : résultat sur la page « Certificats ».'
+                    . self::passes($r['passes']);
+            case 'groupe_wordpress':
+                $r = (new PreparationWordPress($this->pdo))->depuisListe($coches, $moi, $requete->adresseIp);
+
+                return $r['retenus'] . ' WordPress à créer : ' . self::listeTravaux($r['travaux']) . '.'
+                    . self::passes($r['passes']);
+            case 'groupe_supprimer':
+                return new Reponse(200, PagesTravaux::confirmerSuppressionGroupee($this->session->jeton(),
+                    (new Suppressions($this->pdo))->etudiantsCoches($coches), null));
+            default:
+                try {
+                    $r = (new Suppressions($this->pdo))->depuisListe($coches, $requete->champ('choix'),
+                        $requete->champ('confirmation'), $requete->champ('motif'), $moi, $requete->adresseIp);
+                } catch (ErreurSaisie $e) {
+                    return new Reponse(200, PagesTravaux::confirmerSuppressionGroupee($this->session->jeton(),
+                        (new Suppressions($this->pdo))->etudiantsCoches($coches), $e->getMessage()));
+                }
+
+                return $r['retenus'] . ' suppression(s) inscrite(s), restaurables 8 jours : '
+                    . self::listeTravaux($r['travaux']) . '.' . self::passes($r['passes']);
+        }
+    }
+
+    /**
+     * « travail n° 12 » ou « travaux n° 12, 13 ».
+     *
+     * @param list<int> $travaux
+     */
+    private static function listeTravaux(array $travaux): string
+    {
+        return (count($travaux) > 1 ? 'travaux n° ' : 'travail n° ') . implode(', ', $travaux);
+    }
+
+    /**
+     * Fin du message d'une action groupée : les étudiants passés et pourquoi.
+     *
+     * @param list<string> $passes
+     */
+    private static function passes(array $passes): string
+    {
+        return $passes === [] ? '' : ' Passés : ' . implode(', ', $passes) . '.';
     }
 
     private function travaux(Requete $requete, Compte $moi): Reponse
@@ -646,7 +730,8 @@ final class Application
             $gestion->historique($etudiant->identifiant), $this->horloge->maintenant(), $erreur, $information,
             $sites = Releve::sitesEtudiant($this->pdo, $etudiant->identifiant),
             Droits::peut($moi->role, Droits::REINITIALISER_SITE) ? (new Reinitialisations($this->pdo))->etat($etudiant->identifiant, $this->horloge->maintenant()) : null,
-            $this->blocDemandes($moi, $etudiant->identifiant, '/etudiants/' . $etudiant->id, $sites)));
+            $this->blocDemandes($moi, $etudiant->identifiant, '/etudiants/' . $etudiant->id, $sites),
+            Releve::detailsTechniques($this->pdo, $etudiant->identifiant)));
     }
 
     /**
@@ -833,7 +918,7 @@ final class Application
 
     private function pageDemandes(Demandes $demandes, Compte $moi, ?string $erreur, ?string $information): Reponse
     {
-        Pages::$demandesEnAttente = Droits::peut($moi->role, Droits::TRAITER_DEMANDES) ? $demandes->nombreEnAttente() : 0;
+        $this->preparerCompteurs($moi);
 
         return new Reponse(200, PagesDemandes::page($this->session->jeton(), $moi,
             Droits::peut($moi->role, Droits::TRAITER_DEMANDES) ? $demandes->enAttente() : [], $demandes->de($moi->id),
@@ -948,7 +1033,7 @@ final class Application
         }
         Pages::cadre($moi, $this->session->jeton(), $requete->chemin);
         $this->preparerRecherche($moi);
-        Pages::$demandesEnAttente = Droits::peut($moi->role, Droits::TRAITER_DEMANDES) ? (new Demandes($this->pdo))->nombreEnAttente() : 0;
+        $this->preparerCompteurs($moi);
         if (!Droits::peut($moi->role, $droit)) {
             (new Journal($this->pdo))->ecrire('administration', 'accès refusé', 'refus', $moi->id, $moi->nomAffiche, $requete->adresseIp, $requete->chemin);
 
@@ -957,6 +1042,15 @@ final class Application
         $this->session->noterActivite();
 
         return $page($moi);
+    }
+
+    /** Compteurs des demandes en attente du menu de l'administrateur, problèmes SAV à part. */
+    private function preparerCompteurs(Compte $compte): void
+    {
+        $nature = Droits::peut($compte->role, Droits::TRAITER_DEMANDES)
+            ? (new Demandes($this->pdo))->enAttenteParNature() : ['problemes' => 0, 'autres' => 0];
+        Pages::$problemesEnAttente = $nature['problemes'];
+        Pages::$demandesEnAttente = $nature['problemes'] + $nature['autres'];
     }
 
     /** Étudiants de la recherche rapide du bandeau (rôles qui ouvrent les fiches). */
@@ -1180,7 +1274,7 @@ final class Application
 
         Pages::cadre($compte, $this->session->jeton(), $requete->chemin);
         $this->preparerRecherche($compte);
-        Pages::$demandesEnAttente = Droits::peut($compte->role, Droits::TRAITER_DEMANDES) ? (new Demandes($this->pdo))->nombreEnAttente() : 0;
+        $this->preparerCompteurs($compte);
         if ($requete->methode === 'POST') {
             if ($requete->champ('action') !== 'secours_verifies' || $compte->role !== 'administrateur') {
                 return $this->refuser($requete, $compte);
@@ -1197,7 +1291,14 @@ final class Application
         $secours = $compte->role === 'administrateur'
             ? (new Journal($this->pdo))->recentes(GestionComptes::ACTION_SECOURS, gmdate('Y-m-d\\TH:i:s\\Z', $maintenant - 30 * 86400)) : [];
 
-        return $this->seulementGet($requete) ?? new Reponse(200, Pages::accueil($this->session->jeton(), $compte, $aRevoir, $secours));
+        $bloc = '';
+        if (Droits::peut($compte->role, Droits::TRAITER_DEMANDES)) {
+            // Pas de rechargement automatique : il compterait comme une activité (pas de déconnexion après 30 min).
+            $bloc = AFaire::html(AFaire::lignes($this->pdo, $maintenant), (new FileTravaux($this->pdo))->enCours());
+        }
+
+        return $this->seulementGet($requete)
+            ?? new Reponse(200, Pages::accueil($this->session->jeton(), $compte, $aRevoir, $secours, $bloc));
     }
 
     private function connexionComplete(Compte $compte): Reponse

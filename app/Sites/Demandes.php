@@ -209,7 +209,7 @@ final class Demandes
                 ':c' => $auteur->id, ':n' => $auteur->nomAffiche]);
         (new Journal($this->pdo))->ecrire('site', 'problème signalé au service informatique', 'succes', $auteur->id, $auteur->nomAffiche, $adresseIp,
             $etudiant ?? ($classe === null ? null : 'classe'), $dossier ?? '');
-        $this->alertes?->nouvelleDemande(self::LIBELLES['probleme'], $auteur->nomAffiche, $this->nombreEnAttente());
+        $this->alertes?->problemeSignale($auteur->nomAffiche, $this->enAttenteParNature()['problemes']);
 
         return 'Problème signalé au service informatique. Vous êtes prévenu par e-mail de sa réponse.';
     }
@@ -339,6 +339,22 @@ final class Demandes
         $resultat = $this->pdo->query("SELECT count(*) FROM demandes WHERE etat = 'en_attente'");
 
         return $resultat === false ? 0 : (int) Lecture::entier($resultat->fetchColumn());
+    }
+
+    /**
+     * Demandes en attente séparées en deux : les problèmes signalés (SAV, probablement urgents) et le reste
+     * (suppressions, réinitialisations). Sert au bloc « À faire » et au compteur du menu de l'administrateur.
+     *
+     * @return array{problemes: int, autres: int}
+     */
+    public function enAttenteParNature(): array
+    {
+        $resultat = $this->pdo->query("SELECT coalesce(sum(type = 'probleme'), 0) AS problemes,
+            coalesce(sum(type <> 'probleme'), 0) AS autres FROM demandes WHERE etat = 'en_attente'");
+        $ligne = $resultat === false ? null : Lecture::ligne($resultat);
+
+        return ['problemes' => (int) Lecture::entier($ligne['problemes'] ?? 0),
+            'autres' => (int) Lecture::entier($ligne['autres'] ?? 0)];
     }
 
     /**

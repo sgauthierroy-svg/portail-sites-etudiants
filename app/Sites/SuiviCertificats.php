@@ -181,6 +181,29 @@ final class SuiviCertificats
         return count(array_unique($coches));
     }
 
+    /**
+     * Relance depuis la Liste des sites (actions groupées) : les sous-domaines cochés connus du relevé et non
+     * protégés ; les autres sont passés et nommés dans la réponse, au lieu de tout refuser.
+     *
+     * @param list<string> $coches Identifiants
+     * @return array{retenus: int, passes: list<string>}
+     */
+    public function relancerDepuisListe(array $coches, Compte $auteur, ?string $adresseIp,
+        ?int $maintenant = null): array
+    {
+        $ouverts = array_filter($this->liste($maintenant), static fn (array $l): bool => !$l['protege']);
+        $possibles = array_column($ouverts, 'identifiant');
+        $retenus = array_values(array_intersect(array_unique($coches), $possibles));
+        $passes = array_map(static fn (string $i): string => $i . ' (pas encore de sous-domaine, ou site protégé)',
+            array_values(array_diff(array_unique($coches), $possibles)));
+        if ($retenus === []) {
+            throw new ErreurSaisie('Aucun certificat à relancer'
+                . ($passes === [] ? ' : cochez au moins un étudiant.' : ' : ' . implode(', ', $passes) . '.'));
+        }
+
+        return ['retenus' => $this->relancer($retenus, $auteur, $adresseIp, $maintenant), 'passes' => $passes];
+    }
+
     private function parametre(string $cle): ?string
     {
         $requete = $this->pdo->prepare('SELECT valeur FROM parametres WHERE cle = :c');

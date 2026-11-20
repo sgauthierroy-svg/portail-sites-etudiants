@@ -176,6 +176,18 @@ final class Alertes
             . "\n\nDemandes en attente : " . $enAttente . '. À valider ou refuser dans le portail : ' . rtrim($this->urlPortail, '/') . '/demandes');
     }
 
+    /**
+     * Problème signalé (SAV) : objet d'e-mail distinct des demandes de suppression, pour être vu tout de suite.
+     * Aucun nom d'étudiant ni description : le détail est dans le portail.
+     */
+    public function problemeSignale(string $auteur, int $problemesEnAttente): void
+    {
+        $this->ajouter([], 'Problème signalé (SAV) : à traiter',
+            $auteur . ' a signalé un problème au service informatique (SAV).'
+            . "\n\nProblèmes en attente : " . $problemesEnAttente . '. Détail et réponse dans le portail : '
+            . rtrim($this->urlPortail, '/') . '/demandes');
+    }
+
     /** Décision sur ses demandes, au seul demandeur. Aucun nom d'étudiant : il retrouve le détail dans « Mes demandes ». */
     public function decisionDemandes(string $email, int $validees, int $refusees, ?string $commentaire, int $traites = 0, ?string $reponse = null): void
     {

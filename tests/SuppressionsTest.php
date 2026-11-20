@@ -34,6 +34,7 @@ use Portail\Travaux\ExecutantSupprimer;
 use Portail\Travaux\FileTravaux;
 use Portail\Travaux\Travailleur;
 use Portail\Web\Application;
+use Portail\Web\PagesTravaux;
 use Portail\Web\Reponse;
 use Portail\Web\Requete;
 use Portail\Web\Session;
@@ -431,6 +432,129 @@ final class SuppressionsTest extends TestCase
         $page = $this->en('jroux', 'GET', '/demandes')->corps;
         self::assertStringContainsString('Le /WP2 sert au BTS blanc', $page);
         self::assertStringContainsString('Annulée', $page);
+    }
+
+    // ===== Paquet 3 d'ergonomie : bloc « À faire », avancement, actions groupées, détails techniques =====
+
+    public function testBlocAFaireDeLAdministrateurProblemesSavEnPremier(): void
+    {
+        self::assertStringNotContainsString('id="t-a-faire"', $this->en('mzanelli', 'GET', '/')->corps, 'Rien quand tout va bien');
+
+        $alertes = new Alertes($this->pdo, $this->boite, self::URL);
+        $demandes = new Demandes($this->pdo, $alertes);
+        $demandes->creer('supprimer_etudiant', 'martinel', 'Départ de l\'établissement', $this->compte('jroux'), null);
+        $this->en('cpetit', 'POST', '/demandes/nouvelle', ['action' => 'demander', 'objet' => 'probleme', 'cible' => 'aucune',
+            'etudiant' => '', 'classe' => '', 'site' => '', 'texte' => 'Le portail est lent depuis lundi.']);
+        (new Demandes($this->pdo, $alertes))->demander(['objet' => 'probleme', 'cible' => 'etudiant',
+            'etudiant' => (string) $this->idEtudiant('durandca'), 'classe' => '', 'site' => '/WP', 'texte' => 'Son site affiche une page blanche.'],
+            $this->compte('cpetit'), null);
+        self::assertSame(['problemes' => 2, 'autres' => 1], $demandes->enAttenteParNature());
+
+        $accueil = $this->en('mzanelli', 'GET', '/')->corps;
+        self::assertStringContainsString('id="t-a-faire"', $accueil);
+        self::assertStringContainsString('<a class="a-faire-ligne urgent" href="/demandes"><span class="badge err">Urgent</span>', $accueil);
+        $sav = strpos($accueil, '2 problèmes signalés (SAV)');
+        $autres = strpos($accueil, '1 demande à valider ou refuser');
+        self::assertNotFalse($sav);
+        self::assertNotFalse($autres);
+        self::assertLessThan($autres, $sav, 'Les problèmes SAV passent en premier');
+        // Menu : les problèmes à part, en rouge ; les autres demandes dans le compteur habituel.
+        self::assertStringContainsString('<span class="compteur urgent" aria-label="2 problème(s) signalé(s)">SAV 2</span>', $accueil);
+        self::assertStringContainsString('<span class="compteur" aria-label="1 en attente">1</span>', $accueil);
+        foreach (['cpetit', 'jroux'] as $autre) {
+            self::assertStringNotContainsString('id="t-a-faire"', $this->en($autre, 'GET', '/')->corps, 'Administrateur seulement');
+        }
+
+        // E-mail : objet distinct pour un problème, sans nom d'étudiant ni description.
+        $alertes->expedier();
+        $sujets = array_column($this->boite->envoyes, 'sujet');
+        self::assertContains('[Portail] Problème signalé (SAV) : à traiter', $sujets);
+        self::assertContains('[Portail] Nouvelle demande : Supprimer l\'étudiant', $sujets);
+        foreach ($this->boite->envoyes as $envoye) {
+            self::assertStringNotContainsString('DURAND', $envoye['texte']);
+            self::assertStringNotContainsString('page blanche', $envoye['texte']);
+        }
+    }
+
+    public function testTravauxEnCoursEtEchecsAvecBarreDAvancement(): void
+    {
+        self::assertStringContainsString('En cours : 12 sur 33 faits, 1 en échec.',
+            PagesTravaux::avancement('en_cours', 33, 12, 1));
+        self::assertStringContainsString('<progress max="33" value="33"',
+            PagesTravaux::avancement('termine', 33, 33, 0));
+        self::assertStringContainsString('Pas encore commencé',
+            PagesTravaux::avancement('en_attente', 3, 0, 0));
+
+        $file = new FileTravaux($this->pdo);
+        $id = $file->demander('supprimer_site', ['dossier' => '/WP'], [['cible' => 'durandca', 'libelle' => 'DURAND Camille']],
+            $this->compte('mzanelli'), null);
+        $accueil = $this->en('mzanelli', 'GET', '/')->corps;
+        self::assertStringContainsString('id="t-suivi"', $accueil);
+        self::assertStringContainsString('<a href="/travaux/' . $id . '">Supprimer un site</a>', $accueil);
+        self::assertStringContainsString('Pas encore commencé', $this->en('mzanelli', 'GET', '/travaux')->corps);
+        self::assertStringContainsString('Pas encore commencé', $this->en('mzanelli', 'GET', '/travaux/' . $id)->corps);
+
+        // Fini avec un échec : signalé dans « À faire » pendant 7 jours, plus dans « Travaux en cours ».
+        $fin = gmdate('Y-m-d\TH:i:s\Z', $this->horloge->maintenant() - 3600);
+        $this->pdo->exec("UPDATE travaux_etapes SET etat = 'echec', termine_le = '" . $fin . "'");
+        $this->pdo->exec("UPDATE travaux SET etat = 'termine', termine_le = '" . $fin . "'");
+        $accueil = $this->en('mzanelli', 'GET', '/')->corps;
+        self::assertStringContainsString('1 travail avec des échecs (7 derniers jours)', $accueil);
+        self::assertStringNotContainsString('id="t-suivi"', $accueil);
+        self::assertStringContainsString('Terminé, 1 en échec sur 1 : voir le détail.', $this->en('mzanelli', 'GET', '/travaux/' . $id)->corps);
+        $this->horloge->avancer(8 * 86400);
+        self::assertStringNotContainsString('travail avec des échecs', $this->en('mzanelli', 'GET', '/')->corps);
+    }
+
+    public function testActionsGroupeesDepuisLaListeDesSites(): void
+    {
+        self::assertStringNotContainsString('groupe_wordpress', $this->en('cpetit', 'GET', '/sites')->corps, 'Administrateur seulement');
+        self::assertSame(403, $this->en('cpetit', 'POST', '/sites', ['action' => 'groupe_wordpress'], ['coches' => ['leroyhu']])->statut);
+        $liste = $this->en('mzanelli', 'GET', '/sites')->corps;
+        self::assertStringContainsString('<input type="checkbox" name="coches[]" value="leroyhu"', $liste);
+        self::assertStringContainsString('<button type="submit" name="action" value="" disabled hidden>', $liste, 'Entrée n\'envoie rien');
+        self::assertStringContainsString('Cochez au moins un étudiant', $this->en('mzanelli', 'POST', '/sites', ['action' => 'groupe_wordpress'])->corps);
+
+        // WordPress manquants : celui qui en a déjà un est passé et nommé.
+        $wp = $this->en('mzanelli', 'POST', '/sites', ['action' => 'groupe_wordpress'], ['coches' => ['leroyhu', 'martinel']])->corps;
+        self::assertStringContainsString('1 WordPress à créer : travail n°', $wp);
+        self::assertStringContainsString('Passés : MARTIN Élodie (WordPress /WP déjà présent).', $wp);
+        self::assertSame('leroyhu', $this->pdo->query("SELECT e.cible FROM travaux_etapes e JOIN travaux t ON t.id = e.travail_id
+            WHERE t.type = 'creer_wordpress'")->fetchColumn());
+
+        // Certificats : seulement les sous-domaines connus.
+        $certificats = $this->en('mzanelli', 'POST', '/sites', ['action' => 'groupe_certificats'], ['coches' => ['martinel', 'leroyhu']])->corps;
+        self::assertStringContainsString('1 relance(s) de certificat demandée(s)', $certificats);
+        self::assertStringContainsString('leroyhu (pas encore de sous-domaine, ou site protégé)', $certificats);
+
+        // Suppression : page de confirmation, puis SUPPRIMER à taper ; un seul travail.
+        $confirmation = $this->en('mzanelli', 'POST', '/sites', ['action' => 'groupe_supprimer'], ['coches' => ['durandca', 'martinel']])->corps;
+        self::assertStringContainsString('Supprimer les étudiants cochés', $confirmation);
+        self::assertStringContainsString('<input type="hidden" name="coches[]" value="durandca">', $confirmation);
+        self::assertSame(0, $this->nombre("SELECT count(*) FROM travaux WHERE type LIKE 'supprimer_%'"));
+        $refus = $this->en('mzanelli', 'POST', '/sites', ['action' => 'groupe_supprimer_confirme', 'choix' => 'site:/WP', 'confirmation' => 'oui'],
+            ['coches' => ['durandca', 'martinel']])->corps;
+        self::assertStringContainsString('tapez SUPPRIMER', $refus);
+        self::assertSame(0, $this->nombre("SELECT count(*) FROM travaux WHERE type LIKE 'supprimer_%'"));
+        $fait = $this->en('mzanelli', 'POST', '/sites', ['action' => 'groupe_supprimer_confirme', 'choix' => 'site:/WP', 'confirmation' => 'SUPPRIMER',
+            'motif' => 'Essai'], ['coches' => ['durandca', 'martinel']])->corps;
+        self::assertStringContainsString('2 suppression(s) inscrite(s), restaurables 8 jours : travail n°', $fait);
+        self::assertSame(1, $this->nombre("SELECT count(*) FROM travaux WHERE type = 'supprimer_site'"));
+        self::assertSame(403, $this->en('cpetit', 'POST', '/sites', ['action' => 'groupe_supprimer_confirme', 'choix' => 'etudiant',
+            'confirmation' => 'SUPPRIMER'], ['coches' => ['leroyhu']])->statut);
+    }
+
+    public function testDetailsTechniquesRepliesEnHautDeChaqueCarte(): void
+    {
+        $fiche = '/etudiants/' . $this->idEtudiant('martinel');
+        $admin = $this->en('mzanelli', 'GET', $fiche)->corps;
+        self::assertSame(3, substr_count($admin, '<details class="details-tech"><summary>Détails techniques</summary>'));
+        self::assertStringContainsString('<code>~/martinel.bts-sup-sallanches.com/WP2</code>', $admin);
+        self::assertStringContainsString('<code>jafl3067_martinel_Presta</code>', $admin, 'Base MySQL pour l\'administrateur');
+        self::assertStringContainsString('<dt>Gel</dt>', $admin);
+        $enseignant = $this->en('cpetit', 'GET', $fiche)->corps;
+        self::assertStringContainsString('details-tech', $enseignant);
+        self::assertStringNotContainsString('jafl3067_martinel_Presta', $enseignant, 'Pas de base MySQL pour les autres rôles');
     }
 
     // ===== Outils =====

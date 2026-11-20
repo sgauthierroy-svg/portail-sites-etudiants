@@ -202,6 +202,28 @@ final class FileTravaux
         return $annulees;
     }
 
+    /**
+     * Travaux pas encore terminés, avec leur avancement (accueil de l'administrateur).
+     *
+     * @return list<array{id: int, type: string, etat: string, demande_le: string, demande_par_nom: string,
+     *                    total: int, faits: int, echecs: int}>
+     */
+    public function enCours(): array
+    {
+        return array_values(array_filter($this->lister(),
+            static fn (array $t): bool => in_array($t['etat'], ['en_attente', 'en_cours'], true)));
+    }
+
+    /** Nombre de travaux finis depuis la date donnée (UTC, format ISO) avec au moins une étape en échec. */
+    public function enEchecDepuis(string $depuis): int
+    {
+        $requete = $this->pdo->prepare("SELECT count(DISTINCT t.id) FROM travaux t
+            JOIN travaux_etapes e ON e.travail_id = t.id WHERE e.etat = 'echec' AND t.termine_le >= :d");
+        $requete->execute([':d' => $depuis]);
+
+        return (int) Lecture::entier($requete->fetchColumn());
+    }
+
     /** Travaux pas encore terminés (pour rafraîchir la page). */
     public function actifs(): int
     {

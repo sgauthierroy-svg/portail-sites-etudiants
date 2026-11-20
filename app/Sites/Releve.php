@@ -198,6 +198,32 @@ final class Releve
         return array_values($sites);
     }
 
+    /**
+     * Détails techniques des sites d'un étudiant, pour les cartes de sa fiche : état du gel WordPress d'après le
+     * dernier relevé, base et utilisateur MySQL quand le site a été créé par le portail.
+     *
+     * @return array<string, array{gel: ?string, base: ?string, utilisateur: ?string}> dossier => détails
+     */
+    public static function detailsTechniques(PDO $pdo, string $identifiant): array
+    {
+        $details = [];
+        $releve = $pdo->prepare('SELECT dossier, gel_wordpress FROM releve_sites WHERE identifiant = :i');
+        $releve->execute([':i' => $identifiant]);
+        foreach (Lecture::lignes($releve) as $ligne) {
+            $details[(string) Lecture::texte($ligne['dossier'])] = ['gel' => Lecture::texte($ligne['gel_wordpress']),
+                'base' => null, 'utilisateur' => null];
+        }
+        $crees = $pdo->prepare('SELECT dossier, base, utilisateur_bdd FROM sites WHERE identifiant = :i');
+        $crees->execute([':i' => $identifiant]);
+        foreach (Lecture::lignes($crees) as $ligne) {
+            $dossier = (string) Lecture::texte($ligne['dossier']);
+            $details[$dossier] = ['gel' => $details[$dossier]['gel'] ?? null, 'base' => Lecture::texte($ligne['base']),
+                'utilisateur' => Lecture::texte($ligne['utilisateur_bdd'])];
+        }
+
+        return $details;
+    }
+
     /** @return list<string> Identifiants des sous-domaines relevés */
     public static function identifiants(PDO $pdo): array
     {

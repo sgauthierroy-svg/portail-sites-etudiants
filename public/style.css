@@ -270,3 +270,27 @@ details.bloc h3 { margin: 20px 0 8px; font-size: 18px; }
 .recherche-rien { padding: 10px; color: var(--discret); }
 ul.resultats { list-style: none; padding: 0; }
 ul.resultats li { padding: 6px 0; border-bottom: 1px solid var(--trait); }
+
+/* Paquet 3 d'ergonomie : bloc « À faire » de l'administrateur, SAV en rouge, barres d'avancement, actions groupées. */
+.a-faire { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+.a-faire-ligne { display: flex; align-items: center; gap: 14px; padding: 14px 18px;
+  border: 1.5px solid var(--warn-trait); border-radius: 16px; background: var(--warn-fond); color: var(--texte);
+  text-decoration: none; min-height: 44px; }
+.a-faire-ligne.urgent { border-color: var(--err-texte); background: var(--err-fond); border-width: 2px; }
+.a-faire-ligne:hover { box-shadow: 0 0 0 2px var(--orange); }
+.a-faire-texte { display: flex; flex-direction: column; gap: 2px; }
+.a-faire-texte strong { font-size: 18px; }
+.a-faire-texte span { color: var(--discret); font-size: 15px; }
+.compteur.urgent { background: var(--err-texte); color: #fff; }
+.avancement { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.avancement progress { width: 9rem; height: 12px; accent-color: var(--orange-fonce); }
+ul.avancements { list-style: none; padding: 0; margin: 0; }
+ul.avancements li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 0;
+  border-bottom: 1px solid var(--trait); }
+.actions-groupees { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.actions-groupees fieldset { margin: 0; }
+.carte-site details.details-tech { margin: 0 0 8px; font-size: 14px; color: var(--discret); }
+.carte-site details.details-tech summary { cursor: pointer; min-height: 24px; }
+.carte-site details.details-tech dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 0; }
+.carte-site details.details-tech dd { margin: 0; overflow-wrap: anywhere; }
+button[hidden] { display: none; }

@@ -125,9 +125,11 @@ final class PagesEtudiants
      * @param ?array{wordpress: bool, prestashop: bool, prevu: bool, suggestion: ?string} $reinitialisation Réinitialisations possibles (enseignant, administrateur)
      * @param string $blocDemandes HTML déjà échappé (PagesDemandes)
      * @param list<array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool, date: string}> $sites
+     * @param array<string, array{gel: ?string, base: ?string, utilisateur: ?string}> $techniques dossier => détails
      */
     public static function fiche(string $jeton, Compte $moi, Etudiant $etudiant, array $regimes, array $sessions, array $historique,
-        int $maintenant, ?string $erreur, ?string $information, array $sites = [], ?array $reinitialisation = null, string $blocDemandes = ''): string
+        int $maintenant, ?string $erreur, ?string $information, array $sites = [], ?array $reinitialisation = null,
+        string $blocDemandes = '', array $techniques = []): string
     {
         $action = '/etudiants/' . $etudiant->id;
         // Fiche en cartes (décision du 17/11/2026) : l'étudiant, ses sites, puis les actions rares repliées en bas.
@@ -151,6 +153,8 @@ final class PagesEtudiants
                 default => null,
             };
             $cartes .= '<article class="carte-site"><h3>' . Pages::nomSite($site['dossier']) . '</h3>'
+                . self::detailsTechniques($etudiant->identifiant, $site, $techniques[$site['dossier']] ?? null,
+                    Droits::peut($moi->role, Droits::TRAITER_DEMANDES))
                 . '<p class="discret">' . Html::e(($site['logiciel'] === 'prestashop' ? 'PrestaShop' : 'WordPress') . ($site['version'] === null ? '' : ' ' . $site['version']))
                 . ' · ' . ($site['cree_par_portail'] ? 'créé par le portail le ' : 'vu le ') . Html::e(self::date($site['date'])) . '</p>'
                 . '<p class="boutons"><a class="bouton btn-main" href="' . Html::e($adresse) . '" target="_blank" rel="noopener noreferrer">Ouvrir '
@@ -221,9 +225,6 @@ final class PagesEtudiants
             . '</details>';
         $contenu .= '<details class="bloc"><summary>Détails techniques</summary><p class="discret">Adresse : <code>https://' . Html::e($etudiant->identifiant)
             . '.bts-sup-sallanches.com/</code> · dossier du serveur : <code>~/' . Html::e($etudiant->identifiant) . '.bts-sup-sallanches.com</code>';
-        foreach ($sites as $site) {
-            $contenu .= ' · ' . Html::e($site['dossier']) . ($site['cree_par_portail'] ? ' (créé par le portail)' : ' (d\'avant le portail)');
-        }
         $contenu .= '</p></details><p><a href="/etudiants">Retour aux étudiants</a></p>';
 
         return Pages::page($etudiant->nomComplet, $contenu);
@@ -404,6 +405,43 @@ final class PagesEtudiants
             . '<a href="/etudiants">Annuler : quitter sans rien enregistrer</a></form>'
             . '<h2>Corriger le texte</h2>' . $formulaire
             . '<p><a href="/etudiants">Retour aux étudiants</a> · <a href="/">Accueil</a></p>');
+    }
+
+    /** Mots simples de l'état du gel WordPress relevé sur le serveur. */
+    private const GELS = [
+        'total' => 'gelé, sans aucune mise à jour', 'correctifs' => 'gelé, correctifs de sécurité permis',
+        'incomplet' => 'gel incomplet (à vérifier)', 'aucun' => 'pas de gel',
+    ];
+
+    /**
+     * Détails techniques d'un site, repliés à un clic en haut de sa carte (améliorations C5 et D19) : dossier du
+     * serveur, origine, gel ; base et utilisateur MySQL pour l'administrateur seulement.
+     *
+     * @param array{dossier: string, logiciel: string, version: ?string, dossier_admin: ?string, cree_par_portail: bool,
+     *              date: string} $site
+     * @param array{gel: ?string, base: ?string, utilisateur: ?string}|null $technique
+     */
+    private static function detailsTechniques(string $identifiant, array $site, ?array $technique,
+        bool $administrateur): string
+    {
+        $dossier = '~/' . $identifiant . '.bts-sup-sallanches.com' . $site['dossier'];
+        $origine = $site['cree_par_portail'] ? 'créé par le portail' : 'd\'avant le portail (scripts ou à la main)';
+        $lignes = ['Dossier' => '<code>' . Html::e($dossier) . '</code>', 'Origine' => Html::e($origine)];
+        if ($site['logiciel'] === 'wordpress') {
+            $gel = $technique['gel'] ?? null;
+            $etat = $gel === null ? 'inconnu (liste des sites à mettre à jour)' : (self::GELS[$gel] ?? $gel);
+            $lignes['Gel'] = Html::e($etat);
+        }
+        if ($administrateur && $technique !== null && $technique['base'] !== null) {
+            $lignes['Base MySQL'] = '<code>' . Html::e($technique['base']) . '</code>';
+            $lignes['Utilisateur MySQL'] = '<code>' . Html::e((string) $technique['utilisateur']) . '</code>';
+        }
+        $html = '';
+        foreach ($lignes as $terme => $valeur) {
+            $html .= '<dt>' . Html::e($terme) . '</dt><dd>' . $valeur . '</dd>';
+        }
+
+        return '<details class="details-tech"><summary>Détails techniques</summary><dl>' . $html . '</dl></details>';
     }
 
     private static function option(string $valeur, string $libelle, bool $choisi): string

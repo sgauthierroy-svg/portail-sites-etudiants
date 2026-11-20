@@ -123,6 +123,50 @@ final class PreparationWordPress
         return (new FileTravaux($this->pdo))->demander(self::TYPE, ['version' => $session['version'], 'titre' => self::TITRE], $etapes, $auteur, $adresseIp);
     }
 
+    /**
+     * Création depuis la Liste des sites (actions groupées) : le /WP des étudiants cochés qui n'en ont pas, avec
+     * les règles de la page « Créer des WordPress ». Un travail par session (la version de WordPress est celle de
+     * la session) ; les étudiants impossibles sont passés et nommés dans la réponse.
+     *
+     * @param list<string> $coches Identifiants
+     * @return array{travaux: list<int>, retenus: int, passes: list<string>}
+     */
+    public function depuisListe(array $coches, Compte $auteur, ?string $adresseIp): array
+    {
+        $coches = array_values(array_unique($coches));
+        $travaux = [];
+        $retenus = 0;
+        $passes = [];
+        $vus = [];
+        foreach ($this->sessions() as $session) {
+            $possibles = [];
+            foreach ($this->etudiants($session['id']) as $etudiant) {
+                if (!in_array($etudiant['identifiant'], $coches, true)) {
+                    continue;
+                }
+                $vus[] = $etudiant['identifiant'];
+                if ($etudiant['empechement'] === null) {
+                    $possibles[] = $etudiant['identifiant'];
+                } else {
+                    $passes[] = $etudiant['nom'] . ' (' . $etudiant['empechement'] . ')';
+                }
+            }
+            if ($possibles !== []) {
+                $travaux[] = $this->lancer($session['id'], $possibles, $auteur, $adresseIp);
+                $retenus += count($possibles);
+            }
+        }
+        foreach (array_diff($coches, $vus) as $identifiant) {
+            $passes[] = $identifiant . ' (session archivée ou étudiant inconnu)';
+        }
+        if ($travaux === []) {
+            throw new ErreurSaisie('Aucun étudiant coché ne peut recevoir de WordPress'
+                . ($passes === [] ? '.' : ' : ' . implode(', ', $passes) . '.'));
+        }
+
+        return ['travaux' => $travaux, 'retenus' => $retenus, 'passes' => $passes];
+    }
+
     private function parametre(string $cle): ?string
     {
         $requete = $this->pdo->prepare('SELECT valeur FROM parametres WHERE cle = :c');

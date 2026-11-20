@@ -129,7 +129,60 @@ final class Suppressions
      * @param list<string> $coches
      * @return array{travaux: list<int>, retenus: int, passes: list<string>}
      */
-    public function enMasse(int $session, array $coches, string $choix, string $confirmation, string $motif, Compte $auteur, ?string $adresseIp): array
+    public function enMasse(int $session, array $coches, string $choix, string $confirmation, string $motif,
+        Compte $auteur, ?string $adresseIp): array
+    {
+        return $this->supprimerCoches($this->etudiantsDeSession($session), $coches, $choix, $confirmation, $motif,
+            $auteur, $adresseIp);
+    }
+
+    /**
+     * Suppression depuis la Liste des sites (actions groupées, administrateur seul) : les étudiants cochés, quelle
+     * que soit leur session, avec les mêmes garde-fous que la suppression par liste (SUPPRIMER à taper, sites
+     * protégés passés).
+     *
+     * @param list<string> $coches
+     * @return array{travaux: list<int>, retenus: int, passes: list<string>}
+     */
+    public function depuisListe(array $coches, string $choix, string $confirmation, string $motif, Compte $auteur,
+        ?string $adresseIp): array
+    {
+        return $this->supprimerCoches($this->etudiantsCoches($coches), $coches, $choix, $confirmation, $motif, $auteur,
+            $adresseIp);
+    }
+
+    /**
+     * Étudiants cochés dans la Liste des sites, avec leurs sites et ce qui empêche de les supprimer (page de
+     * confirmation).
+     *
+     * @param list<string> $coches
+     * @return list<array{identifiant: string, nom: string, regime: string, sites: list<string>,
+     *                    empechement: ?string}>
+     */
+    public function etudiantsCoches(array $coches): array
+    {
+        $liste = [];
+        foreach ($this->sessions() as $session) {
+            foreach ($this->etudiantsDeSession($session['id']) as $etudiant) {
+                if (in_array($etudiant['identifiant'], $coches, true)) {
+                    $liste[] = $etudiant;
+                }
+            }
+        }
+
+        return $liste;
+    }
+
+    /**
+     * Garde-fous communs aux suppressions de plusieurs étudiants, puis un seul travail.
+     *
+     * @param list<array{identifiant: string, nom: string, regime: string, sites: list<string>,
+     *                   empechement: ?string}> $candidats
+     * @param list<string> $coches
+     * @return array{travaux: list<int>, retenus: int, passes: list<string>}
+     */
+    private function supprimerCoches(array $candidats, array $coches, string $choix, string $confirmation,
+        string $motif, Compte $auteur, ?string $adresseIp): array
     {
         if (trim($confirmation) !== Demandes::MOT_CONFIRMATION) {
             throw new ErreurSaisie('Pour confirmer, tapez ' . Demandes::MOT_CONFIRMATION . ' en majuscules : rien n\'a été supprimé.');
@@ -142,7 +195,7 @@ final class Suppressions
             }
         }
         $etudiants = [];
-        foreach ($this->etudiantsDeSession($session) as $etudiant) {
+        foreach ($candidats as $etudiant) {
             $etudiants[$etudiant['identifiant']] = $etudiant;
         }
         $cibles = [];

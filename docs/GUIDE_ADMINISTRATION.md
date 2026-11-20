@@ -113,6 +113,7 @@ Les pages du portail ne touchent jamais le serveur : elles inscrivent une demand
 - Un travail terminé avec au moins un échec déclenche une alerte par e-mail ; le détail est sur la page du travail.
 - Lancer le travailleur à la main pour voir ce qu'il fait : `php ~/portail/bin/travaux.php --bavard`.
 - Suivi dans le portail : menu « Travaux en cours » (avancement étudiant par étudiant, bouton « Arrêter » pour le demandeur et l'administrateur) et « Liste des sites » (une ligne par étudiant, une colonne par site, d'après le dernier relevé).
+- **Avancement en langage simple** (paquet 3 d'ergonomie) : une barre et une phrase par travail (« En cours : 12 sur 33 faits, 1 en échec. », « Pas encore commencé… », « Terminé, 1 en échec sur 33 : voir le détail. »), dans « Travaux en cours », sur la page de chaque travail et, pour l'administrateur, sur l'accueil sous le bloc « À faire » (travaux pas encore finis seulement). L'accueil ne se recharge pas tout seul (un rechargement compterait comme une activité et empêcherait la déconnexion après 30 minutes) : rechargez-le pour voir l'avancement.
 - « Mettre à jour la liste des sites » (administrateur, enseignant, administratif) inscrit un relevé dans la file : lecture seule, rien n'est modifié.
 
 ## Boutiques PrestaShop d'entraînement (V2)
@@ -175,13 +176,35 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
   - **Suppression pour une classe** : une demande par étudiant de la classe, que l'administrateur valide en une fois (un seul travail). Un étudiant qui n'a pas le site choisi, ou qui a déjà la même demande en attente, est passé ; le compte rendu le dit.
   - **Problème (SAV)** : plusieurs problèmes peuvent attendre pour un même étudiant. L'administrateur le coche puis « Valider la sélection » : il est marqué **traité** (aucun travail lancé), avec sa réponse facultative dans le champ « Commentaire », transmise au demandeur par e-mail et dans « Mes demandes » ; il peut aussi le refuser avec un commentaire. Étiquette « Problème signalé » sur la ligne de l'étudiant dans « Liste des sites ».
 - **E-mails** : à l'adresse d'alerte pour chaque nouvelle demande ; au demandeur pour la décision. Ni nom d'étudiant, ni motif dans ces e-mails : le détail est dans le portail.
-- **Signalement** : compteur à côté de « Demandes » dans le menu et sur la tuile d'accueil de l'administrateur ; étiquette « Suppression demandée » ou « Réinitialisation demandée » sur la ligne de l'étudiant dans « Liste des sites », et rubrique « Demandes en attente » sur sa fiche.
+- **Signalement** : compteur à côté de « Demandes » dans le menu et sur la tuile d'accueil de l'administrateur — les problèmes SAV à part, en rouge (« SAV 2 »), puis les autres demandes ; étiquette « Suppression demandée » ou « Réinitialisation demandée » sur la ligne de l'étudiant dans « Liste des sites », et rubrique « Demandes en attente » sur sa fiche.
 - **Traiter** (page « Demandes », administrateur) : demandes groupées par type, case « Tout cocher » et filtre. Cocher une demande (une par une) ou plusieurs (par lot), puis « Valider la sélection » ou « Refuser la sélection ».
   - Valider des suppressions : taper `SUPPRIMER` dans la case de confirmation. Les suppressions d'étudiants validées ensemble font **un seul travail** (exemple : toute une session en fin de 2e année), traité un étudiant à la fois.
   - Valider une réinitialisation : le travail habituel (« Réinitialiser un site ») est inscrit.
   - Une demande qui ne peut pas être lancée (travail déjà prévu, site disparu…) reste en attente, avec la raison affichée.
   - Refuser : commentaire obligatoire, transmis au demandeur.
 - **Mes demandes** (étiquette **Voir les demandes en cours**) : chaque demandeur suit ses demandes (en attente, validée avec le numéro du travail, refusée avec le commentaire, annulée) et peut annuler les siennes tant qu'elles sont en attente.
+
+## Accueil de l'administrateur : bloc « À faire » (paquet 3 d'ergonomie)
+
+En haut de l'accueil de l'administrateur, une ligne cliquable par chose qui attend une action, **seulement s'il y en a** (rien quand tout va bien) :
+
+1. **Problèmes signalés (SAV)**, en rouge, marqués « Urgent » : toujours en premier → page « Demandes » ;
+2. demandes à valider ou refuser (suppressions, réinitialisations) → « Demandes » ;
+3. travaux finis avec au moins un échec **dans les 7 derniers jours** → « Travaux en cours » ;
+4. certificats à revoir (non reconnus, fin dans moins de 14 jours, relance abandonnée) → « Certificats » ;
+5. sites hors du gel (boutiques et WordPress, d'après le dernier relevé) → « Liste des sites ».
+
+Juste en dessous : les travaux en cours avec leur barre d'avancement (voir « Travaux sur le serveur »). Les autres rôles ne voient pas ce bloc.
+
+## Actions groupées depuis la Liste des sites (administrateur, paquet 3 d'ergonomie)
+
+Pour l'administrateur seulement, « Liste des sites » a une case par étudiant (et « Tout cocher », qui ne coche que les lignes affichées par le filtre). Sous la liste, « Actions sur les étudiants cochés » :
+
+- **Relancer les certificats** : comme la page « Certificats » ; un étudiant sans sous-domaine, ou un site protégé, est passé (nommé dans le message).
+- **Créer les WordPress manquants** : comme « Créer des WordPress » (mêmes règles, accès envoyés par e-mail aux étudiants, récapitulatif à l'adresse d'alerte) ; **un travail par session** (la version de WordPress est celle de la session) ; un étudiant qui a déjà un `/WP`, dont la création est déjà prévue, protégé ou d'une session archivée, est passé.
+- **Supprimer les cochés…** : ouvre d'abord une page de confirmation (qui, avec quels sites, qui sera passé) ; choisir l'étudiant entier ou un seul type de site, motif facultatif, taper `SUPPRIMER`. **Un seul travail**, restaurable 8 jours, avec les garde-fous de « Supprimer une liste » (sites protégés et étudiants ayant un travail prévu passés).
+
+La touche Entrée (dans le filtre, par exemple) ne lance aucune action : il faut cliquer un bouton.
 
 ## Supprimer un site ou un étudiant, restaurer (lot 5, paquet B, 15/11/2026)
 
@@ -214,7 +237,7 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
   - **Supprimer** (administrateur) : « Supprimer une liste » et « Supprimer un étudiant ».
   - **Site modèle d'examen** : quatre étapes numérotées, 1 Charger le sujet, 2 Déployer dans les sites d'examen, 3 Clôturer l'épreuve, 4 Geler ou rouvrir ; l'étiquette PrestaShop est marquée « bientôt » (lot 6).
   - **Bibliothèque** : trois rayons, Documents, Sujets d'examen et Versions PrestaShop ; l'administratif et la direction ne voient que Documents.
-- **Fiche de l'étudiant en cartes** (18/11/2026) : ses informations, puis une carte par site avec « Ouvrir le site » (ou « Ouvrir la boutique ») et « Administration » ; les actions (réinitialiser, demander, supprimer) sont repliées sous « Actions sur cet étudiant », ouvertes d'office quand un message ou une demande en attente les concerne ; viennent ensuite « Parcours et historique » et « Détails techniques ».
+- **Fiche de l'étudiant en cartes** (18/11/2026) : ses informations, puis une carte par site avec « Ouvrir le site » (ou « Ouvrir la boutique ») et « Administration » ; les actions (réinitialiser, demander, supprimer) sont repliées sous « Actions sur cet étudiant », ouvertes d'office quand un message ou une demande en attente les concerne ; viennent ensuite « Parcours et historique » et « Détails techniques » (adresse et dossier du serveur). En haut de chaque carte de site, **« Détails techniques » replié** (paquet 3 d'ergonomie) : dossier du serveur, origine (créé par le portail ou d'avant), gel WordPress d'après le dernier relevé et, pour l'administrateur seulement, base et utilisateur MySQL d'un site créé par le portail.
 - **Phrases d'aide** : sous le titre de chaque page, une phrase dit à quoi elle sert ; le « ? » déplie le détail.
 - **Mots de tous les jours**, avec le dossier technique en petit : Site WordPress `/WP`, Site d'examen `/WP2`, Boutique `/Presta`, Boutique d'examen `/Presta2`. Autres changements : « Voir tout » devient « Liste des sites », « sous-domaine » devient « adresse du site », « relevé » devient « liste des sites mise à jour le… », et les suppressions restaurables forment la « corbeille ».
 - **États** : chaque pastille a un signe en plus de sa couleur (✓ prêt, ⚠ à vérifier, ✕ échec, ⏳ en cours).
@@ -326,6 +349,7 @@ Le portail écrit à l'adresse d'alerte (réglage `adresse_alertes`) depuis la b
 | Certificats à surveiller (le lundi, seulement s'il y a un problème) | adresse d'alerte |
 | Boutiques ou WordPress hors du gel de leur session (à chaque relevé, nombres seulement) | adresse d'alerte |
 | Nouvelle demande à l'administrateur (type et demandeur seulement) | adresse d'alerte |
+| Problème signalé (SAV), objet « Problème signalé (SAV) : à traiter » (demandeur et nombre en attente seulement) | adresse d'alerte |
 | Décision sur ses demandes (nombres et commentaire de refus) | le demandeur seul |
 
 Aucun e-mail ne contient de mot de passe ni de donnée d'étudiant.
