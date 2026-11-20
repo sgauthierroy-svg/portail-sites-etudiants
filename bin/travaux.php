@@ -48,6 +48,7 @@ $travailleur = new \Portail\Travaux\Travailleur($pdo, $alertes, [
     'deployer_sujet_wp' => new \Portail\Travaux\ExecutantDeployerSujet($pdo, $cpanel, new \Portail\Sites\WpCli(), $ecart, $expediteur, $personnel, $temporaire),
     'cloturer_epreuve' => new \Portail\Travaux\ExecutantCloturerEpreuve($pdo, $cpanel, new \Portail\Sites\WpCli(), $ecart, $expediteur, $personnel, $temporaire),
     'lever_gel_epreuve' => new \Portail\Travaux\ExecutantGelEpreuve($pdo, $cpanel, $personnel),
+    'geler_wordpress' => new \Portail\Travaux\ExecutantGelerWordPress($pdo, $cpanel, $personnel),
     'creer_wordpress' => new \Portail\Travaux\ExecutantCreerWordPress($pdo, $cpanel, new \Portail\Sites\WpCli(), new \Portail\Sites\AcmeSh($personnel),
         new \Portail\Securite\Chiffrement($config->cleBinaire()), $expediteur, $personnel, $temporaire),
     'reinitialiser_wordpress' => new \Portail\Travaux\ExecutantCreerWordPress($pdo, $cpanel, new \Portail\Sites\WpCli(), new \Portail\Sites\AcmeSh($personnel),

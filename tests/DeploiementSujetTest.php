@@ -20,6 +20,7 @@ use Portail\Securite\MotsDePasse;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\EpreuveSujet;
 use Portail\Sites\EpreuveWordPress;
+use Portail\Sites\GelWordPress;
 use Portail\Sites\LigneWordPress;
 use Portail\Sites\MiseALecart;
 use Portail\Sites\Releve;
@@ -140,6 +141,9 @@ final class DeploiementSujetTest extends TestCase
         self::assertMatchesRegularExpression("/define\('DB_USER', 'jafl3067_martinel_w2[a-z0-9]{6}'\)/", $config);
         self::assertStringNotContainsString('secret-du-modele', $config);
         self::assertStringContainsString("'AUTOMATIC_UPDATER_DISABLED', true", $config, 'version gelée');
+        // Bouton « Mettre à jour WordPress » retiré (20/11/2026) : le candidat est préconnecté en administrateur.
+        self::assertStringContainsString("define('PORTAIL_GEL', 'total');", $config);
+        self::assertSame('total', GelWordPress::etat($wp2));
         self::assertStringContainsString("\$table_prefix = 'wpx_'", $config);
         self::assertSame(0600, fileperms($wp2 . '/wp-config.php') & 0777);
 
@@ -341,10 +345,14 @@ final class DeploiementSujetTest extends TestCase
         $epreuve->cloturer($this->session, ['martinel'], true, $this->compte('cpetit'), null);
         $this->tourner();
 
+        // /WP2 déployé avant le 20/11/2026 (sans module de gel) : la levée du gel le pose et garde le gel total.
+        unlink($wp2 . '/' . GelWordPress::MODULE);
+        self::assertSame('incomplet', GelWordPress::etat($wp2));
         $epreuve->gel($this->session, ['martinel'], false, $this->compte('cpetit'), null);
         $this->tourner();
         $config = (string) file_get_contents($wp2 . '/wp-config.php');
         self::assertStringNotContainsString('PORTAIL_LECTURE_SEULE', $config);
+        self::assertSame('total', GelWordPress::etat($wp2));
         self::assertStringNotContainsString('DISALLOW_FILE_MODS', $config);
         self::assertStringContainsString("'AUTOMATIC_UPDATER_DISABLED', true", $config);
         self::assertFalse($this->etudiant('martinel')['lecture_seule']);

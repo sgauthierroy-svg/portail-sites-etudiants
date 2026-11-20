@@ -7,6 +7,7 @@ namespace Portail\Travaux;
 use PDO;
 use Portail\Base\Lecture;
 use Portail\Sites\ConfigWordPress;
+use Portail\Sites\GelWordPress;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\EpreuveWordPress;
 use Portail\Sites\ServeurCpanel;
@@ -45,6 +46,7 @@ final class ExecutantGelEpreuve implements Executant
             if ($figer) {
                 EpreuveWordPress::poserModule($site);
             }
+            GelWordPress::poserModule($site); // /WP2 déployés avant le 20/11/2026 : module de gel absent
             EpreuveWordPress::ecrireReglages($fichierConfig, ['gele' => ConfigWordPress::estGele($config) ?? true, 'lecture_seule' => $figer]);
         } finally {
             umask($masque);

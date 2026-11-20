@@ -9,6 +9,7 @@ use Portail\Base\Lecture;
 use Portail\Courriel\Expediteur;
 use Portail\Journal\Journal;
 use Portail\Sites\ConfigWordPress;
+use Portail\Sites\GelWordPress;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\EpreuveWordPress;
 use Portail\Sites\LigneWordPress;
@@ -94,6 +95,7 @@ final class ExecutantCloturerEpreuve implements Executant, ApresTravail
         try {
             $this->wp->lancer($site, ['db', 'query', 'DELETE FROM `' . $prefixe . "usermeta` WHERE meta_key IN ('session_tokens', 'portail_activite')"]);
             EpreuveWordPress::poserModule($site);
+            GelWordPress::poserModule($site); // /WP2 déployés avant le 20/11/2026 : module de gel absent
             EpreuveWordPress::ecrireReglages($fichierConfig, ['gele' => ConfigWordPress::estGele($config) ?? true, 'lecture_seule' => true]);
         } catch (Throwable $e) {
             throw new RuntimeException($e->getMessage() . ' Copie datée faite ; le /WP2 n\'est peut-être pas figé : relancez la clôture pour cet étudiant.', 0, $e);

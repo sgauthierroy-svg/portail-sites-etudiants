@@ -232,8 +232,10 @@ final class PagesEtudiants
     /**
      * @param list<array{id: int, nom: string, actif: bool}> $regimes
      * @param list<array{id: int, annee: int, version_wp: ?string, active: bool}> $sessions
+     * @param ?array<int, array{total: int, geles: int}> $gel Gel des /WP par session (administrateur seulement, sinon null)
      */
-    public static function regimesSessions(string $jeton, array $regimes, array $sessions, ?string $erreur, ?string $information): string
+    public static function regimesSessions(string $jeton, array $regimes, array $sessions, ?string $erreur, ?string $information,
+        ?array $gel = null): string
     {
         $bouton = static fn (string $action, string $id, string $libelle, string $autres = ''): string =>
             '<form method="post" action="/regimes-sessions">' . Pages::jeton($jeton)
@@ -254,7 +256,8 @@ final class PagesEtudiants
                 . '<td>' . $bouton('version', $id, 'Enregistrer',
                     '<label for="version' . $id . '">Version</label> <input id="version' . $id . '" name="version" type="text" maxlength="8"'
                     . ' pattern="[0-9]{1,2}\.[0-9]{1,2}(\.[0-9]{1,2})?" value="' . Html::e($session['version_wp'] ?? '') . '"> ')
-                . '</td><td>'
+                . '</td>' . ($gel === null ? '' : '<td>' . self::gelSession($session, $gel[$session['id']] ?? null, $bouton) . '</td>')
+                . '<td>'
                 . ($session['active'] ? $bouton('archiver_session', $id, 'Archiver') : $bouton('reactiver_session', $id, 'Réactiver'))
                 . '</td></tr>';
         }
@@ -269,10 +272,38 @@ final class PagesEtudiants
             . '<h2>Sessions</h2>'
             . '<p>La session est l\'année de l\'examen : à la rentrée 2026, la promotion qui arrive est la session 2028. '
             . 'Créez une session à chaque rentrée. La version WordPress gelée servira à la création des sites (V2) ; laissez vide si aucune.</p>'
-            . '<table><thead><tr><th>Session</th><th>État</th><th>Version WordPress gelée</th><th></th></tr></thead><tbody>' . $lignesSessions . '</tbody></table>'
+            . ($gel === null ? '' : '<p>« Geler les /WP » applique la version de la session aux sites WordPress /WP déjà en place '
+                . '(correctifs de sécurité seulement, bouton « Mettre à jour WordPress » retiré). Les nombres viennent de la '
+                . 'liste des sites : actualisez-la après un gel.</p>')
+            . '<table><thead><tr><th>Session</th><th>État</th><th>Version WordPress gelée</th>'
+            . ($gel === null ? '' : '<th>Gel des /WP</th>') . '<th></th></tr></thead><tbody>' . $lignesSessions . '</tbody></table>'
             . '<form method="post" action="/regimes-sessions">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="creer_session">'
             . Pages::saisie('annee', 'Nouvelle session (année de l\'examen, ex. 2028)', '') . '<button type="submit" class="btn-main">Créer la session</button></form>'
             . '<p><a href="/etudiants">Liste des étudiants</a> · <a href="/">Accueil</a></p>');
+    }
+
+    /**
+     * Cellule « Gel des /WP » d'une session (administrateur) : nombre de /WP gelés, boutons Geler et Dégeler.
+     *
+     * @param array{id: int, annee: int, version_wp: ?string, active: bool} $session
+     * @param ?array{total: int, geles: int} $etat
+     * @param callable(string, string, string): string $bouton
+     */
+    private static function gelSession(array $session, ?array $etat, callable $bouton): string
+    {
+        if ($etat === null || $etat['total'] === 0) {
+            return 'aucun /WP relevé';
+        }
+        $texte = Html::e($etat['geles'] . ' gelé(s) sur ' . $etat['total']) . ' ';
+        if (!$session['active']) {
+            return $texte;
+        }
+        $id = (string) $session['id'];
+        if ($session['version_wp'] !== null && $etat['geles'] < $etat['total']) {
+            $texte .= $bouton('geler_wordpress', $id, 'Geler les /WP');
+        }
+
+        return $etat['geles'] > 0 ? $texte . $bouton('degeler_wordpress', $id, 'Dégeler les /WP') : $texte;
     }
 
     /**

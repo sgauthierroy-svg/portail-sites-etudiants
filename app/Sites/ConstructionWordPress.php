@@ -69,7 +69,10 @@ final class ConstructionWordPress
             $crees['utilisateur'] = true;
             $this->cpanel->donnerDroits($utilisateur, $base);
             self::ecrire($preparation . '/wp-config.php', ConfigWordPress::contenu(
-                ['base' => $base, 'utilisateur' => $utilisateur, 'mot_de_passe' => $motDePasseBdd, 'prefixe' => 'wp_'], ['gele' => $version !== null]), 0600);
+                ['base' => $base, 'utilisateur' => $utilisateur, 'mot_de_passe' => $motDePasseBdd, 'prefixe' => 'wp_'],
+                // Version de la session : gelée avec ses correctifs (décision du 07/11/2026, rappelée le 20/11/2026).
+                ['gele' => false, 'correctifs' => $version !== null]), 0600);
+            GelWordPress::poserModule($preparation);
             $this->wp->lancer($preparation, ['core', 'install', '--url=' . $adresse, '--title=' . $titre, '--admin_user=' . $etudiant['identifiant_wp'],
                 '--admin_password=' . bin2hex(random_bytes(24)), '--admin_email=' . $etudiant['email'], '--locale=fr_FR', '--skip-email']);
             $this->wp->lancer($preparation, ['eval', self::POSER_MOT_DE_PASSE], 120,

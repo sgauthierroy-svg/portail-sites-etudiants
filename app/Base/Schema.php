@@ -24,7 +24,7 @@ final class Schema
     private const MAINTENANT = "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')";
 
     /** Versions qui refont une table : clés étrangères suspendues le temps de la copie. */
-    private const SANS_CLES = [10, 15];
+    private const SANS_CLES = [10, 15, 16];
 
     /** @return array<int, string> */
     public static function versions(): array
@@ -487,6 +487,36 @@ final class Schema
                 CREATE UNIQUE INDEX demandes_une_en_attente ON demandes (type, identifiant, coalesce(dossier, '')) WHERE etat = 'en_attente' AND type <> 'probleme';
                 CREATE INDEX demandes_par_etat ON demandes (etat, demande_le);
                 UPDATE comptes SET dernier_filtre = NULL;
+                SQL,
+            // Constat du 20/11/2026 : le portail ne savait pas geler des WordPress déjà en place, et le relevé ne
+            // surveillait la version que des boutiques. Nouveau type de travail « geler_wordpress » (table travaux
+            // refaite, comme en version 10) ; état de gel de chaque WordPress relevé (GelWordPress::ETATS).
+            16 => <<<SQL
+                CREATE TABLE travaux_v16 (
+                    id              INTEGER PRIMARY KEY,
+                    type            TEXT NOT NULL CHECK (type IN (
+                                        'releve', 'creer_prestashop', 'deployer_sujet_wp', 'creer_wordpress',
+                                        'reinitialiser_wordpress', 'reinitialiser_prestashop', 'supprimer_site',
+                                        'supprimer_etudiant', 'restaurer', 'deployer_sujet_prestashop',
+                                        'installer_sujet_modele', 'geler_sujet_modele', 'cloturer_epreuve', 'lever_gel_epreuve',
+                                        'geler_wordpress')),
+                    parametres      TEXT NOT NULL DEFAULT '{}' CHECK (length(parametres) <= 2000),
+                    etat            TEXT NOT NULL DEFAULT 'en_attente'
+                                    CHECK (etat IN ('en_attente', 'en_cours', 'termine', 'annule')),
+                    demande_le      TEXT NOT NULL DEFAULT ({$maintenant}),
+                    demande_par     INTEGER NULL REFERENCES comptes (id) ON DELETE SET NULL,
+                    demande_par_nom TEXT NOT NULL CHECK (length(demande_par_nom) BETWEEN 1 AND 100),
+                    commence_le     TEXT NULL,
+                    termine_le      TEXT NULL
+                );
+                INSERT INTO travaux_v16 (id, type, parametres, etat, demande_le, demande_par, demande_par_nom, commence_le, termine_le)
+                    SELECT id, type, parametres, etat, demande_le, demande_par, demande_par_nom, commence_le, termine_le FROM travaux;
+                DROP TABLE travaux;
+                ALTER TABLE travaux_v16 RENAME TO travaux;
+                CREATE INDEX travaux_par_etat ON travaux (etat, id);
+
+                ALTER TABLE releve_sites ADD COLUMN gel_wordpress TEXT NULL
+                    CHECK (gel_wordpress IS NULL OR gel_wordpress IN ('total', 'correctifs', 'incomplet', 'aucun'));
                 SQL,
         ];
     }

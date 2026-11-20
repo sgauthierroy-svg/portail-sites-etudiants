@@ -29,10 +29,11 @@ final class PagesTravaux
      * @param array<string, string> $horsGel identifiant => raison
      * @param array<string, list<string>> $etiquettes identifiant => demandes en attente
      * @param array<string, string> $supprimes identifiant => date d'effacement (étudiants supprimés, restaurables)
+     * @param array<string, array<string, string>> $horsGelWordPress identifiant => dossier => raison (/WP, /WP2)
      */
     public static function voirTout(string $jeton, Compte $moi, array $etudiants, array $sites, array $sousDomaines, ?string $dernierReleve,
         ?int $relevePrevu, ?string $information, array $horsGel = [],
-        array $etiquettes = [], array $supprimes = []): string
+        array $etiquettes = [], array $supprimes = [], array $horsGelWordPress = []): string
     {
         $colonnes = self::COLONNES;
         foreach ($etudiants as $etudiant) {
@@ -62,6 +63,10 @@ final class PagesTravaux
                 $texte = $site === null ? '—' : Html::e(self::nomLogiciel($site['logiciel']) . ($site['version'] === null ? '' : ' ' . $site['version']));
                 if ($dossier === '/Presta' && isset($horsGel[$etudiant->identifiant])) {
                     $texte .= ' <span class="badge err">' . Html::e('hors gel : ' . $horsGel[$etudiant->identifiant]) . '</span>';
+                }
+                $raison = $horsGelWordPress[$etudiant->identifiant][$dossier] ?? null;
+                if ($raison !== null) {
+                    $texte .= ' <span class="badge err">' . Html::e('hors gel : ' . $raison) . '</span>';
                 }
                 $lignes .= '<td>' . $texte . '</td>';
             }

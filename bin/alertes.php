@@ -33,6 +33,8 @@ switch ($argv[1] ?? '') {
         try {
             \Portail\Sites\Releve::lancer($pdo, 'tâche du lundi');
             $alertes->boutiquesHorsGel(count(\Portail\Sites\Releve::horsGel($pdo)));
+            // WordPress hors du gel de leur session (20/11/2026).
+            $alertes->wordpressHorsGel(array_sum(array_map('count', \Portail\Sites\Releve::wordpressHorsGel($pdo))));
         } catch (\Throwable $e) {
             fwrite(STDERR, '  Relevé du lundi impossible : ' . $e->getMessage() . PHP_EOL);
         }

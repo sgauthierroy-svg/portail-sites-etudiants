@@ -113,6 +113,20 @@ final class Alertes
             . 'Les boutiques concernées sont signalées en rouge dans « Liste des sites » : ' . rtrim($this->urlPortail, '/') . '/sites');
     }
 
+    /** WordPress hors gel (20/11/2026 : version d'une autre branche, gel absent ou incomplet). Aucun nom d'étudiant. */
+    public function wordpressHorsGel(int $nombre): void
+    {
+        if ($nombre === 0) {
+            return;
+        }
+        $this->ajouter([], $nombre . ' site(s) WordPress hors du gel de leur session',
+            'Le dernier relevé a trouvé ' . $nombre . ' site(s) WordPress /WP ou /WP2 hors du gel prévu : version d\'une autre '
+            . 'branche que celle de la session (par exemple 7.2 au lieu de 7.1), gel absent, ou bouton « Mettre à jour '
+            . "WordPress » encore visible.\n\n"
+            . 'Les sites concernés sont signalés en rouge dans « Liste des sites » : ' . rtrim($this->urlPortail, '/') . '/sites'
+            . "\nPour un /WP : « Régimes et sessions », Geler les /WP. Pour un /WP2 : le redéployer, ou clôturer l'épreuve.");
+    }
+
     /** Certificat d'un sous-domaine créé par le portail toujours pas posé après les relances (lot 5, 14/11/2026). */
     public function certificatNonPose(string $sousDomaine, int $essais, string $raison): void
     {

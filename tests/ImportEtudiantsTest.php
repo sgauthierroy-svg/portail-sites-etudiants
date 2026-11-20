@@ -255,7 +255,7 @@ final class ImportEtudiantsTest extends TestCase
         usort($sites, static fn (array $a, array $b): int => strcmp($a['dossier'], $b['dossier']));
         self::assertSame([
             ['dossier' => '/Presta', 'logiciel' => 'prestashop', 'version' => null, 'module_mise_a_jour' => false],
-            ['dossier' => '/WP', 'logiciel' => 'wordpress', 'version' => '6.8.3'],
+            ['dossier' => '/WP', 'logiciel' => 'wordpress', 'version' => '6.8.3', 'gel' => 'aucun'],
         ], $sites);
 
         Releve::enregistrer($this->pdo, ['alicm' => $racine], ['alicm' => $sites], '2026-11-08T10:00:00Z');

@@ -11,8 +11,8 @@ use RuntimeException;
  *
  * Écrit par le portail, sans passer par WP-CLI : le mot de passe de la base n'apparaît
  * ainsi dans aucune ligne de commande. Les réglages que le portail change ensuite (gel des
- * mises à jour, lecture seule d'une épreuve close) sont rangés entre deux repères : le portail
- * ne réécrit que ce bloc, sans relire ni recopier le mot de passe.
+ * mises à jour, total ou avec correctifs ; lecture seule d'une épreuve close) sont rangés entre
+ * deux repères : le portail ne réécrit que ce bloc, sans relire ni recopier le mot de passe.
  *
  * Constantes : documentation WordPress, « Editing wp-config.php »
  * (developer.wordpress.org/advanced-administration/wordpress/wp-config/).
@@ -24,7 +24,7 @@ final class ConfigWordPress
 
     /**
      * @param array{base: string, utilisateur: string, mot_de_passe: string, prefixe: string} $base
-     * @param array{gele: bool, lecture_seule?: bool} $reglages
+     * @param array{gele: bool, correctifs?: bool, lecture_seule?: bool} $reglages
      */
     public static function contenu(#[\SensitiveParameter] array $base, array $reglages): string
     {
@@ -57,7 +57,7 @@ final class ConfigWordPress
      * Remplace le bloc des réglages gérés ; l'ajoute avant le chargement de WordPress s'il manque
      * (wp-config.php d'un site copié à la main). Le reste du fichier n'est pas touché.
      *
-     * @param array{gele: bool, lecture_seule?: bool} $reglages
+     * @param array{gele: bool, correctifs?: bool, lecture_seule?: bool} $reglages
      */
     public static function remplacerBloc(string $contenu, array $reglages): string
     {
@@ -85,15 +85,23 @@ final class ConfigWordPress
         return substr($contenu, 0, $position) . self::bloc($reglages) . "\n\n" . substr($contenu, $position);
     }
 
-    /** @param array{gele: bool, lecture_seule?: bool} $reglages */
+    /** @param array{gele: bool, correctifs?: bool, lecture_seule?: bool} $reglages */
     public static function bloc(array $reglages): string
     {
         $lignes = [self::DEBUT_BLOC];
         if ($reglages['gele']) {
-            // Version gelée : aucune mise à jour automatique (WordPress, extensions, thèmes).
+            // Gel total (/WP2 d'examen, site modèle) : aucune mise à jour automatique (WordPress, extensions, thèmes).
             $lignes[] = "define('AUTOMATIC_UPDATER_DISABLED', true);";
             $lignes[] = "define('WP_AUTO_UPDATE_CORE', false);";
+            $lignes[] = "define('PORTAIL_GEL', 'total');";
+        } elseif (($reglages['correctifs'] ?? false) === true) {
+            // Gel avec correctifs (/WP, décision du 07/11/2026) : la version reste, ses correctifs de sécurité passent.
+            // Le module du portail (GelWordPress) fait le travail : aucune constante de WordPress n'est redéfinie ici,
+            // pour ne pas heurter un WP_AUTO_UPDATE_CORE déjà écrit plus haut par un ancien script.
+            $lignes[] = "define('PORTAIL_GEL', 'correctifs');";
         }
+        // PORTAIL_GEL active le module de gel du portail : bouton « Mettre à jour WordPress » retiré, pas de version
+        // supérieure, extensions et thèmes sans mise à jour automatique, pas d'e-mail « site mis à jour ».
         if (($reglages['lecture_seule'] ?? false) === true) {
             // Épreuve close : le module du portail (wp-content/mu-plugins) refuse tout enregistrement ;
             // aucune extension ni aucun thème ne peut être ajouté, modifié ou mis à jour.
@@ -115,6 +123,25 @@ final class ConfigWordPress
         }
 
         return str_contains(substr($contenu, $debut, $fin - $debut), "'AUTOMATIC_UPDATER_DISABLED', true");
+    }
+
+    /**
+     * Gel du portail d'après le fichier : « total », « correctifs », ou null (pas de gel du portail).
+     * Un gel total écrit avant le 20/11/2026 (sans PORTAIL_GEL) compte comme total.
+     */
+    public static function modeGel(string $contenu): ?string
+    {
+        $debut = strpos($contenu, self::DEBUT_BLOC);
+        $fin = strpos($contenu, self::FIN_BLOC);
+        if ($debut === false || $fin === false || $fin < $debut) {
+            return null;
+        }
+        $bloc = substr($contenu, $debut, $fin - $debut);
+        if (str_contains($bloc, "'AUTOMATIC_UPDATER_DISABLED', true")) {
+            return 'total';
+        }
+
+        return str_contains($bloc, "'PORTAIL_GEL', 'correctifs'") ? 'correctifs' : null;
     }
 
     /** Le site est-il en lecture seule (épreuve close) d'après son fichier ? */

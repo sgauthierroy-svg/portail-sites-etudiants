@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Portail\Sites;
 
+use Portail\Systeme\Fichiers;
 use RuntimeException;
 
 /**
@@ -197,7 +198,7 @@ PHP;
      * Réécrit le bloc des réglages du portail dans wp-config.php, sans toucher au reste
      * (écriture dans un fichier voisin puis remplacement : jamais de fichier à moitié écrit).
      *
-     * @param array{gele: bool, lecture_seule?: bool} $reglages
+     * @param array{gele: bool, correctifs?: bool, lecture_seule?: bool} $reglages
      */
     public static function ecrireReglages(string $fichier, array $reglages): void
     {
@@ -208,31 +209,12 @@ PHP;
         if ($contenu === false) {
             throw new RuntimeException('wp-config.php illisible : rien n\'a été changé.');
         }
-        self::ecrireAtomique($fichier, ConfigWordPress::remplacerBloc($contenu, $reglages), 0600);
+        Fichiers::ecrireAtomique($fichier, ConfigWordPress::remplacerBloc($contenu, $reglages), 0600);
     }
 
     /** Écrit (ou réécrit) le module dans le site. */
     public static function poserModule(string $site): void
     {
-        $dossier = $site . '/' . dirname(self::MODULE);
-        if (is_link($dossier) || (!is_dir($dossier) && !mkdir($dossier, 0755, true))) {
-            throw new RuntimeException('Dossier wp-content/mu-plugins impossible à créer : rien n\'a été changé.');
-        }
-        $fichier = $site . '/' . self::MODULE;
-        if (is_link($fichier)) {
-            throw new RuntimeException('Module du portail remplacé par un lien : refusé par prudence.');
-        }
-        self::ecrireAtomique($fichier, self::contenuModule(), 0644);
-    }
-
-    private static function ecrireAtomique(string $fichier, string $contenu, int $droits): void
-    {
-        $provisoire = $fichier . '.portail-' . bin2hex(random_bytes(4));
-        if (file_put_contents($provisoire, $contenu, LOCK_EX) === false || !chmod($provisoire, $droits) || !rename($provisoire, $fichier)) {
-            if (is_file($provisoire)) {
-                unlink($provisoire); // nosemgrep: outils..cache.semgrep-rules.php.lang.security.unlink-use
-            }
-            throw new RuntimeException('Écriture de ' . basename($fichier) . ' impossible : rien n\'a été changé.');
-        }
+        OutilsWordPress::poserModule($site, self::MODULE, self::contenuModule());
     }
 }

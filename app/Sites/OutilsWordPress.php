@@ -10,7 +10,8 @@ use RuntimeException;
 /**
  * Outils communs à l'installation d'un sujet sur le site modèle et à son déploiement dans les /WP2 :
  * base exportée (lecture, filtrage, préfixe des tables), version de WordPress, fichiers de
- * Duplicator à retirer, suffixe au hasard des bases et utilisateurs MySQL.
+ * Duplicator à retirer, suffixe au hasard des bases et utilisateurs MySQL, modules du portail
+ * dans wp-content/mu-plugins.
  */
 final class OutilsWordPress
 {
@@ -177,5 +178,22 @@ final class OutilsWordPress
         $utilisateur = $lire('DB_USER');
 
         return [$lire('DB_NAME'), $utilisateur !== null && strtolower($utilisateur) === $utilisateur ? $utilisateur : null];
+    }
+
+    /**
+     * Écrit (ou réécrit) un module « à chargement obligatoire » du portail dans un site
+     * ($module : chemin relatif, dans wp-content/mu-plugins). Jamais à travers un lien.
+     */
+    public static function poserModule(string $site, string $module, string $contenu): void
+    {
+        $dossier = $site . '/' . dirname($module);
+        if (is_link($dossier) || (!is_dir($dossier) && !mkdir($dossier, 0755, true))) {
+            throw new RuntimeException('Dossier wp-content/mu-plugins impossible à créer : rien n\'a été changé.');
+        }
+        $fichier = $site . '/' . $module;
+        if (is_link($fichier)) {
+            throw new RuntimeException('Module du portail remplacé par un lien : refusé par prudence.');
+        }
+        Fichiers::ecrireAtomique($fichier, $contenu, 0644);
     }
 }

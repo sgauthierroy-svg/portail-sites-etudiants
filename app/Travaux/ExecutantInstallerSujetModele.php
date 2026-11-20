@@ -12,6 +12,7 @@ use Portail\Journal\Journal;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\AdressesWordPress;
 use Portail\Sites\ConfigWordPress;
+use Portail\Sites\GelWordPress;
 use Portail\Sites\LigneWordPress;
 use Portail\Sites\MiseALecart;
 use Portail\Sites\OutilsWordPress;
@@ -113,6 +114,7 @@ final class ExecutantInstallerSujetModele implements Executant
             self::ecrire($preparation . '/wp-config.php', ConfigWordPress::contenu(
                 ['base' => $base, 'utilisateur' => $utilisateur, 'mot_de_passe' => $motDePasseBdd, 'prefixe' => $prefixe],
                 ['gele' => $ancien['gele']]), 0600);
+            GelWordPress::poserModule($preparation);
             $this->wp->lancer($preparation, ['db', 'import', $sqlFiltre], 900);
 
             AdressesWordPress::remplacer($this->wp, $preparation, SiteModele::adresse(), $this->dossierPersonnel, $final);

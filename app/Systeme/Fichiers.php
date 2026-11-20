@@ -87,4 +87,20 @@ final class Fichiers
     {
         return is_dir($dossier) && (new FilesystemIterator($dossier))->valid();
     }
+
+    /**
+     * Écrit un fichier dans un fichier voisin, puis le met à la place de l'ancien :
+     * jamais de fichier à moitié écrit (wp-config.php, modules du portail).
+     */
+    public static function ecrireAtomique(string $fichier, string $contenu, int $droits): void
+    {
+        $provisoire = $fichier . '.portail-' . bin2hex(random_bytes(4));
+        if (file_put_contents($provisoire, $contenu, LOCK_EX) === false || !chmod($provisoire, $droits)
+            || !rename($provisoire, $fichier)) {
+            if (is_file($provisoire)) {
+                unlink($provisoire); // nosemgrep: outils..cache.semgrep-rules.php.lang.security.unlink-use
+            }
+            throw new RuntimeException('Écriture de ' . basename($fichier) . ' impossible : rien n\'a été changé.');
+        }
+    }
 }

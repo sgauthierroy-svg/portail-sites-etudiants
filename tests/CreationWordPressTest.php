@@ -18,6 +18,7 @@ use Portail\Noyau\ErreurSaisie;
 use Portail\Securite\Chiffrement;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\Certificats;
+use Portail\Sites\GelWordPress;
 use Portail\Sites\MiseALecart;
 use Portail\Sites\Reinitialisations;
 use Portail\Sites\LigneWordPress;
@@ -131,6 +132,9 @@ final class CreationWordPressTest extends TestCase
         $config = (string) file_get_contents($wp . '/wp-config.php');
         self::assertStringContainsString("\$table_prefix = 'wp_'", $config);
         self::assertStringNotContainsString('AUTOMATIC_UPDATER_DISABLED', $config, 'version pas encore fixée : mises à jour automatiques');
+        self::assertStringNotContainsString('PORTAIL_GEL', $config);
+        self::assertFileExists($wp . '/' . GelWordPress::MODULE, 'module posé, inactif tant que la version n\'est pas gelée');
+        self::assertSame('aucun', GelWordPress::etat($wp));
         self::assertStringContainsString('BEGIN HTTPS-PORTAIL', (string) file_get_contents($wp . '/.htaccess'));
         self::assertSame(0644, fileperms($wp . '/.htaccess') & 0777);
         self::assertSame([], glob($this->donnees . '/tmp/wp-*'));
@@ -175,8 +179,13 @@ final class CreationWordPressTest extends TestCase
         (new PreparationWordPress($this->pdo))->lancer($this->session, ['leroyhu'], $this->compte('cpetit'), null);
         $this->tourner();
         self::assertSame('core download --locale=fr_FR --version=7.1.4', implode(' ', $this->wp[0]['arguments']));
-        self::assertStringContainsString("'AUTOMATIC_UPDATER_DISABLED', true",
-            (string) file_get_contents($this->personnel . '/leroyhu.bts-sup-sallanches.com/WP/wp-config.php'));
+        // Version de la session gelée avec ses correctifs (décision du 07/11/2026) : module de gel du portail actif.
+        $wp = $this->personnel . '/leroyhu.bts-sup-sallanches.com/WP';
+        $config = (string) file_get_contents($wp . '/wp-config.php');
+        self::assertStringContainsString("define('PORTAIL_GEL', 'correctifs');", $config);
+        self::assertStringNotContainsString('AUTOMATIC_UPDATER_DISABLED', $config, 'les correctifs de sécurité passent');
+        self::assertSame(GelWordPress::module(), file_get_contents($wp . '/' . GelWordPress::MODULE));
+        self::assertSame('correctifs', GelWordPress::etat($wp));
         self::assertSame(1, (int) $this->pdo->query("SELECT gele FROM sites WHERE identifiant = 'leroyhu'")->fetchColumn());
         // Sous-domaine existant : ni création, ni certificat.
         self::assertSame([], array_filter($this->cpanel['appels'], static fn (string $a): bool => str_starts_with($a, 'creerSousDomaine')));

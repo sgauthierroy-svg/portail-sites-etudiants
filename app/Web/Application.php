@@ -25,6 +25,7 @@ use Portail\Sites\MiseALecart;
 use Portail\Sites\Suppressions;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\EpreuveSujet;
+use Portail\Sites\GelSession;
 use Portail\Sites\PreparationWordPress;
 use Portail\Sites\Reinitialisations;
 use Portail\Sites\SuiviCertificats;
@@ -423,7 +424,7 @@ final class Application
         return new Reponse(200, PagesTravaux::voirTout($this->session->jeton(), $moi, (new GestionEtudiants($this->pdo))->liste(null, null),
             Releve::parIdentifiant($this->pdo), Releve::identifiants($this->pdo), Releve::dernier($this->pdo), $file->dejaPrevu('releve'),
             null, Releve::horsGel($this->pdo),
-            (new Demandes($this->pdo))->etiquettes(), Suppressions::etudiantsSupprimes($this->pdo)));
+            (new Demandes($this->pdo))->etiquettes(), Suppressions::etudiantsSupprimes($this->pdo), Releve::wordpressHorsGel($this->pdo)));
     }
 
     private function travaux(Requete $requete, Compte $moi): Reponse
@@ -870,6 +871,17 @@ final class Application
                         $referentiel->gelerVersion($id, $requete->champ('version'));
                         $information = 'Version WordPress enregistrée.';
                         break;
+                    case 'geler_wordpress':
+                    case 'degeler_wordpress':
+                        // Gel des /WP déjà en place (20/11/2026) : administrateur seulement.
+                        if (!Droits::peut($moi->role, Droits::GELER_WORDPRESS)) {
+                            return new Reponse(403, Pages::message('Accès refusé', 'Cette action est réservée à l\'administrateur.'));
+                        }
+                        $geler = $requete->champ('action') === 'geler_wordpress';
+                        $travail = (new GelSession($this->pdo))->demander($id, $geler, $moi, $requete->adresseIp);
+                        $information = ($geler ? 'Gel' : 'Dégel') . ' des /WP prévu (travail n° ' . $travail . ') : suivez-le dans '
+                            . '« Travaux », puis actualisez la liste des sites.';
+                        break;
                     default:
                         return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
                 }
@@ -880,7 +892,10 @@ final class Application
             return $refus;
         }
 
-        return new Reponse(200, PagesEtudiants::regimesSessions($this->session->jeton(), $referentiel->regimes(), $referentiel->sessions(), $erreur, $information));
+        $gel = Droits::peut($moi->role, Droits::GELER_WORDPRESS) ? (new GelSession($this->pdo))->etat() : null;
+
+        return new Reponse(200, PagesEtudiants::regimesSessions($this->session->jeton(), $referentiel->regimes(), $referentiel->sessions(),
+            $erreur, $information, $gel));
     }
 
     private function journal(Requete $requete, Compte $moi): Reponse

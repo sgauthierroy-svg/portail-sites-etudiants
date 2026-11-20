@@ -36,6 +36,7 @@ final class FileTravaux
         'geler_sujet_modele' => 'Geler ou dégeler le site modèle',
         'cloturer_epreuve' => 'Clôturer une épreuve',
         'lever_gel_epreuve' => 'Lever le gel d\'une épreuve',
+        'geler_wordpress' => 'Geler ou dégeler la version des WordPress',
     ];
 
     public const ETATS = [

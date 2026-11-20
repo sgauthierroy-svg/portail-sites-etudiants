@@ -7,6 +7,7 @@ namespace Portail\Travaux;
 use PDO;
 use Portail\Base\Lecture;
 use Portail\Sites\ConfigWordPress;
+use Portail\Sites\GelWordPress;
 use Portail\Sites\Releve;
 use Portail\Sites\ServeurCpanel;
 use Portail\Sites\SiteModele;
@@ -45,6 +46,8 @@ final class ExecutantGelerSujetModele implements Executant
         if ($contenu === false) {
             throw new RuntimeException('wp-config.php du site modèle illisible.');
         }
+        // Module de gel posé d'abord (inactif sans PORTAIL_GEL) : un modèle installé avant le 20/11/2026 ne l'a pas.
+        GelWordPress::poserModule($attendu . SiteModele::DOSSIER);
         $nouveau = ConfigWordPress::remplacerBloc($contenu, ['gele' => $gele]);
         // Écriture dans un fichier voisin puis remplacement : jamais de wp-config.php à moitié écrit.
         $provisoire = $fichier . '.portail-' . bin2hex(random_bytes(4));

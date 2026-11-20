@@ -22,8 +22,11 @@ final class ExecutantReleve implements Executant
 
         $horsGel = count(Releve::horsGel($this->pdo));
         $this->alertes?->boutiquesHorsGel($horsGel);
+        $wordpress = array_sum(array_map('count', Releve::wordpressHorsGel($this->pdo)));
+        $this->alertes?->wordpressHorsGel($wordpress);
 
         return ['etat' => 'reussi', 'message' => $bilan['sous_domaines'] . ' sous-domaines, ' . $bilan['sites'] . ' sites WordPress ou PrestaShop.'
-            . ($horsGel > 0 ? ' ' . $horsGel . ' boutique(s) hors de la version de leur session : voir « Liste des sites ».' : '')];
+            . ($horsGel > 0 ? ' ' . $horsGel . ' boutique(s) hors de la version de leur session : voir « Liste des sites ».' : '')
+            . ($wordpress > 0 ? ' ' . $wordpress . ' WordPress hors du gel de leur session : voir « Liste des sites ».' : '')];
     }
 }

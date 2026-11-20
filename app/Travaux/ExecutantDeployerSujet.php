@@ -11,6 +11,7 @@ use Portail\Journal\Journal;
 use Portail\Securite\MotsDePasse;
 use Portail\Sites\AdressesWordPress;
 use Portail\Sites\ConfigWordPress;
+use Portail\Sites\GelWordPress;
 use Portail\Sites\DeploiementSujet;
 use Portail\Sites\LigneWordPress;
 use Portail\Sites\MiseALecart;
@@ -158,6 +159,8 @@ final class ExecutantDeployerSujet implements Executant, ApresTravail
             $this->cpanel->donnerDroits($utilisateur, $base);
             self::ecrire($preparation . '/wp-config.php', ConfigWordPress::contenu(
                 ['base' => $base, 'utilisateur' => $utilisateur, 'mot_de_passe' => $motDePasseBdd, 'prefixe' => $prefixe], ['gele' => true]), 0600);
+            // Bouton « Mettre à jour WordPress » retiré : le candidat est préconnecté en administrateur (20/11/2026).
+            GelWordPress::poserModule($preparation);
             $this->wp->lancer($preparation, ['db', 'import', $photo . '/base.sql'], 900);
             AdressesWordPress::remplacer($this->wp, $preparation, $adresse, $this->dossierPersonnel, $final);
             $this->wp->lancer($preparation, ['option', 'update', 'blog_public', '0']);

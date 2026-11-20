@@ -62,7 +62,7 @@ final class Releve
     /**
      * Sites trouvés dans le dossier racine d'un sous-domaine (un niveau).
      *
-     * @return list<array{dossier: string, logiciel: string, version: ?string, module_mise_a_jour?: bool}>
+     * @return list<array{dossier: string, logiciel: string, version: ?string, module_mise_a_jour?: bool, gel?: string}>
      */
     public static function sites(string $racine): array
     {
@@ -75,7 +75,8 @@ final class Releve
             }
             $chemin = $racine . '/' . $entree;
             if (is_file($chemin . '/wp-config.php')) {
-                $sites[] = ['dossier' => '/' . $entree, 'logiciel' => 'wordpress', 'version' => self::versionWordPress($chemin)];
+                $sites[] = ['dossier' => '/' . $entree, 'logiciel' => 'wordpress', 'version' => self::versionWordPress($chemin),
+                    'gel' => GelWordPress::etat($chemin)];
             } elseif (is_file($chemin . '/app/config/parameters.php') || is_file($chemin . '/config/settings.inc.php')) {
                 $sites[] = ['dossier' => '/' . $entree, 'logiciel' => 'prestashop', 'version' => self::versionPrestaShop($chemin),
                     'module_mise_a_jour' => is_dir($chemin . '/modules/autoupgrade')];
@@ -89,7 +90,8 @@ final class Releve
      * Remplace le relevé précédent, en une seule opération.
      *
      * @param array<string, string> $sousDomaines identifiant => dossier racine
-     * @param array<string, list<array{dossier: string, logiciel: string, version: ?string, module_mise_a_jour?: bool}>> $sites
+     * @param array<string, list<array{dossier: string, logiciel: string, version: ?string, module_mise_a_jour?: bool,
+     *     gel?: string}>> $sites
      * @return array{sous_domaines: int, sites: int}
      */
     public static function enregistrer(PDO $pdo, array $sousDomaines, array $sites, string $date, string $auteur = 'commande de relevé (SSH)'): array
@@ -99,13 +101,16 @@ final class Releve
             $pdo->exec('DELETE FROM sous_domaines');
             $pdo->exec('DELETE FROM releve_sites');
             $ajoutSousDomaine = $pdo->prepare('INSERT INTO sous_domaines (identifiant, releve_le) VALUES (:i, :d)');
-            $ajoutSite = $pdo->prepare('INSERT INTO releve_sites (identifiant, dossier, logiciel, version, module_mise_a_jour, releve_le) VALUES (:i, :dossier, :l, :v, :m, :d)');
+            $ajoutSite = $pdo->prepare('INSERT INTO releve_sites
+                (identifiant, dossier, logiciel, version, module_mise_a_jour, gel_wordpress, releve_le)
+                VALUES (:i, :dossier, :l, :v, :m, :g, :d)');
             $nombreSites = 0;
             foreach (array_keys($sousDomaines) as $identifiant) {
                 $ajoutSousDomaine->execute([':i' => $identifiant, ':d' => $date]);
                 foreach ($sites[$identifiant] ?? [] as $site) {
                     $ajoutSite->execute([':i' => $identifiant, ':dossier' => $site['dossier'], ':l' => $site['logiciel'], ':v' => $site['version'],
-                        ':m' => isset($site['module_mise_a_jour']) ? (int) $site['module_mise_a_jour'] : null, ':d' => $date]);
+                        ':m' => isset($site['module_mise_a_jour']) ? (int) $site['module_mise_a_jour'] : null,
+                        ':g' => $site['gel'] ?? null, ':d' => $date]);
                     $nombreSites++;
                 }
             }
@@ -243,6 +248,63 @@ final class Releve
         }
 
         return $ecarts;
+    }
+
+    /**
+     * WordPress hors gel (constat du 20/11/2026), d'après le dernier relevé, pour les étudiants des sessions actives :
+     * - /WP d'une session dont la version est inscrite (« Régimes et sessions ») : version d'une autre branche (7.2 au
+     *   lieu de 7.1 ; les correctifs 7.1.x sont permis), version illisible, gel absent ou incomplet ;
+     * - /WP2 (site d'examen, toujours gelé) : gel absent ou incomplet.
+     * Un site relevé avant la version 16 de la base (état de gel inconnu) n'est signalé que pour sa version.
+     *
+     * @return array<string, array<string, string>> identifiant => dossier => raison
+     */
+    public static function wordpressHorsGel(PDO $pdo): array
+    {
+        $resultat = $pdo->query(
+            "SELECT r.identifiant, r.dossier, r.version, r.gel_wordpress, s.version_wp_gelee AS attendue
+             FROM releve_sites r
+             JOIN etudiants e ON e.identifiant = r.identifiant
+             JOIN sessions s ON s.id = e.session_id
+             WHERE r.logiciel = 'wordpress' AND r.dossier IN ('/WP', '/WP2') AND s.active = 1
+             ORDER BY r.identifiant, r.dossier"
+        );
+        $ecarts = [];
+        foreach (Lecture::lignes($resultat) as $ligne) {
+            $dossier = (string) Lecture::texte($ligne['dossier']);
+            $attendue = Lecture::texte($ligne['attendue']);
+            if ($dossier === '/WP' && $attendue === null) {
+                continue; // version de la session pas encore fixée : WordPress se met à jour seul (décision du 14/11)
+            }
+            $gel = Lecture::texte($ligne['gel_wordpress']);
+            $raison = self::raisonHorsGel($dossier, Lecture::texte($ligne['version']), $attendue, $gel);
+            if ($raison !== null) {
+                $ecarts[(string) Lecture::texte($ligne['identifiant'])][$dossier] = $raison;
+            }
+        }
+
+        return $ecarts;
+    }
+
+    /** Raison de signaler un WordPress, ou null s'il est dans son gel. */
+    private static function raisonHorsGel(string $dossier, ?string $version, ?string $attendue, ?string $gel): ?string
+    {
+        if ($dossier === '/WP' && $attendue !== null) {
+            if ($version === null) {
+                return 'version illisible';
+            }
+            if (self::branche($version) !== self::branche($attendue)) {
+                return 'version ' . $version . ' au lieu de ' . $attendue;
+            }
+        }
+
+        return $gel === 'aucun' || $gel === 'incomplet' ? GelWordPress::ETATS[$gel] : null;
+    }
+
+    /** Branche d'une version : « 7.1 » pour 7.1, 7.1.5 ou 7.1.12. */
+    private static function branche(string $version): string
+    {
+        return implode('.', array_slice(explode('.', $version), 0, 2));
     }
 
     /**
