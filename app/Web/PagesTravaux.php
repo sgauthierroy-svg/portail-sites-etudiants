@@ -48,6 +48,8 @@ final class PagesTravaux
             }
         }
         $fiches = Droits::peut($moi->role, Droits::VOIR_FICHE);
+        $acces = Droits::peut($moi->role, Droits::VOIR_ACCES_SITES);
+        $creer = Droits::peut($moi->role, Droits::CREER_SITE);
         $existants = array_flip($sousDomaines);
         $toutCocher = '<th><input type="checkbox" data-tout-cocher aria-label="Tout cocher" title="Tout cocher"></th>';
         $entete = ($groupe ? $toutCocher : '')
@@ -69,6 +71,15 @@ final class PagesTravaux
             foreach ($colonnes as $dossier) {
                 $site = $sites[$etudiant->identifiant][$dossier] ?? null;
                 $texte = $site === null ? '—' : Html::e(self::nomLogiciel($site['logiciel']) . ($site['version'] === null ? '' : ' ' . $site['version']));
+                // Lien « Administration » des WordPress (D7) ; « Créer ce site » là où le /WP manque (D6).
+                if ($site !== null && $acces && $site['logiciel'] === 'wordpress') {
+                    $admin = 'https://' . $etudiant->identifiant . '.bts-sup-sallanches.com' . $dossier . '/wp-admin/';
+                    $texte .= ' <a href="' . Html::e($admin) . '" target="_blank" rel="noopener noreferrer">'
+                        . 'Administration</a>';
+                }
+                if ($site === null && $creer && $dossier === '/WP') {
+                    $texte = '<a href="/sites/wordpress">Créer ce site</a>';
+                }
                 if ($dossier === '/Presta' && isset($horsGel[$etudiant->identifiant])) {
                     $texte .= ' <span class="badge err">' . Html::e('hors gel : ' . $horsGel[$etudiant->identifiant]) . '</span>';
                 }

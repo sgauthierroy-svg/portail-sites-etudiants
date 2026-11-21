@@ -44,8 +44,10 @@ final class PagesEtudiants
         }
         $html = '<h2>Réinitialiser un site</h2>'
             . ($etat['suggestion'] === null ? '' : '<p class="alerte">' . Html::e($etat['suggestion']) . '</p>')
-            . '<p>Le site repart de zéro, comme à la création. Le site actuel est gardé 8 jours. '
-            . 'L\'étudiant reçoit ses nouveaux accès par e-mail ; l\'administrateur et les enseignants reçoivent le récapitulatif pour la feuille.</p>';
+            . '<p class="risque"><strong>Action à risque : l\'étudiant perd tout ce qu\'il a fait sur ce site</strong> '
+            . '(pages, articles, produits, réglages). Le site repart de zéro, comme à la création ; '
+            . 'l\'ancien est gardé 8 jours. '
+            . 'L\'étudiant reçoit ses nouveaux accès par e-mail ; le service informatique et les enseignants reçoivent le récapitulatif pour la feuille.</p>';
         if ($etat['prevu']) {
             return $html . '<p><span class="badge neutre">réinitialisation déjà prévue</span> — voir <a href="/travaux">Travaux en cours</a>.</p>';
         }
@@ -55,7 +57,7 @@ final class PagesEtudiants
             }
             $html .= '<form method="post" action="' . $action . '">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="' . $valeur . '">'
                 . '<p><label><input type="checkbox" name="confirmer" value="1"> Je confirme : ' . $libelle . ' de cet étudiant sera remplacé par un site neuf.</label></p>'
-                . '<button type="submit">Réinitialiser ' . $libelle . '</button></form>';
+                . '<button type="submit" class="btn-risque">Réinitialiser ' . $libelle . '</button></form>';
         }
 
         return $html;
@@ -161,6 +163,13 @@ final class PagesEtudiants
                 . ($site['logiciel'] === 'prestashop' ? 'la boutique' : 'le site') . '</a>'
                 . ($voirAcces && $admin !== null ? ' <a class="bouton" href="' . Html::e($admin) . '" target="_blank" rel="noopener noreferrer">Administration</a>' : '')
                 . '</p></article>';
+        }
+        // « Créer ce site » là où le site WordPress manque (amélioration D6).
+        if (Droits::peut($moi->role, Droits::CREER_SITE) && !in_array('/WP', array_column($sites, 'dossier'), true)) {
+            $cartes .= '<article class="carte-site carte-manquante"><h3>' . Pages::nomSite('/WP') . '</h3>'
+                . '<p>Pas encore de site WordPress.</p>'
+                . '<p class="boutons"><a class="bouton btn-main" href="/sites/wordpress">Créer ce site</a></p>'
+                . '</article>';
         }
         $contenu .= '<h2>Ses sites</h2>'
             . ($cartes === '' ? '<p>Aucun site trouvé (liste des sites du serveur).</p>'
@@ -391,9 +400,13 @@ final class PagesEtudiants
         }
 
         return Pages::page('Aperçu de l\'import', $contenu . $releve
-            . '<p><strong>Rien n\'est encore enregistré.</strong> Vérifiez chaque identifiant à côté du nom : '
-            . $compte['vert'] . ' à importer, ' . $compte['orange'] . ' à vérifier, ' . $compte['gris'] . ' déjà présent(s), '
-            . $compte['rouge'] . ' refusé(s).</p>'
+            // Compteurs en haut, avant le bouton de validation (amélioration D12).
+            . '<div class="compteurs-import" role="status">'
+            . '<span class="badge ok">' . $compte['vert'] . ' à importer</span>'
+            . '<span class="badge warn">' . $compte['orange'] . ' à vérifier</span>'
+            . '<span class="badge neutre">' . $compte['gris'] . ' déjà présent(s)</span>'
+            . '<span class="badge err">' . $compte['rouge'] . ' refusé(s)</span></div>'
+            . '<p><strong>Rien n\'est encore enregistré.</strong> Vérifiez chaque identifiant à côté du nom.</p>'
             . '<form method="post" action="/etudiants/import">' . Pages::jeton($jeton)
             . '<input type="hidden" name="action" value="importer">'
             . '<textarea name="texte" hidden>' . Html::e($texte) . '</textarea>'

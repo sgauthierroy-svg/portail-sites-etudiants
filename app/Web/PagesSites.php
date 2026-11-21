@@ -28,7 +28,7 @@ final class PagesSites
         }
         $contenu = Pages::alerte($erreur, null)
             . '<p>Boutique par défaut de PrestaShop, en https, dans le dossier <code>/Presta</code> de chaque étudiant coché. '
-            . 'Chaque étudiant reçoit ses accès par e-mail ; l\'administrateur reçoit à la fin un récapitulatif à coller dans la feuille des accès. '
+            . 'Chaque étudiant reçoit ses accès par e-mail ; le service informatique reçoit à la fin un récapitulatif à coller dans la feuille des accès. '
             . 'Le travail se fait en arrière-plan, un étudiant après l\'autre (une à deux minutes chacun).</p>'
             . '<p>Liste des sites mise à jour le : ' . ($dernierReleve === null ? 'aucun' : Html::e(Pages::heureLocale($dernierReleve)))
             . '. Un sous-domaine créé depuis n\'est pas connu : <a href="/travaux">mettez à jour la liste des sites</a> d\'abord.</p>'
@@ -90,7 +90,7 @@ final class PagesSites
         $contenu = Pages::alerte($erreur, null)
             . '<p>WordPress en français dans le dossier <code>/WP</code> de chaque étudiant coché, comme les sites des 1re année : titre « Sup », '
             . 'thème et extensions par défaut, en https. Si l\'étudiant n\'a pas encore de sous-domaine, il est créé avec son certificat. '
-            . 'Chaque étudiant reçoit ses accès par e-mail (son identifiant WordPress et un mot de passe tiré au hasard) ; l\'administrateur reçoit à la fin '
+            . 'Chaque étudiant reçoit ses accès par e-mail (son identifiant WordPress et un mot de passe tiré au hasard) ; le service informatique reçoit à la fin '
             . 'un récapitulatif à coller dans la feuille des accès. Le travail se fait en arrière-plan, un étudiant après l\'autre.</p>'
             . '<p>Liste des sites mise à jour le : ' . ($dernierReleve === null ? 'aucun' : Html::e(Pages::heureLocale($dernierReleve)))
             . '. Un site créé hors du portail depuis n\'est pas connu : <a href="/travaux">mettez à jour la liste des sites</a> d\'abord.</p>'

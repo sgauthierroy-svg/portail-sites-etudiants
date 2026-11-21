@@ -76,7 +76,8 @@ final class SuppressionsTest extends TestCase
         $this->chiffrement = new Chiffrement(random_bytes(32));
         $this->boite = new ExpediteurMemoire();
         $depot = new DepotComptes($this->pdo);
-        foreach (['mzanelli' => 'administrateur', 'cpetit' => 'enseignant', 'jroux' => 'administratif'] as $id => $role) {
+        foreach (['mzanelli' => 'administrateur', 'cpetit' => 'enseignant', 'jroux' => 'administratif', 'dlambert' => 'consultation']
+            as $id => $role) {
             $depot->creer($id, ucfirst($id), $id . '@exemple.fr', $role, MotsDePasse::hacher('un mot de passe solide'));
         }
         $this->pdo->exec('UPDATE comptes SET doit_changer_mdp = 0');
@@ -555,6 +556,71 @@ final class SuppressionsTest extends TestCase
         $enseignant = $this->en('cpetit', 'GET', $fiche)->corps;
         self::assertStringContainsString('details-tech', $enseignant);
         self::assertStringNotContainsString('jafl3067_martinel_Presta', $enseignant, 'Pas de base MySQL pour les autres rôles');
+    }
+
+    // ===== P3 et partie D : demandes depuis la fiche, accueil par rôle, retouches =====
+
+    public function testProblemeSavDepuisLaFicheEtNotesRetirees(): void
+    {
+        $fiche = '/etudiants/' . $this->idEtudiant('martinel');
+        $page = $this->en('cpetit', 'GET', $fiche)->corps;
+        self::assertStringContainsString('<option value="probleme:/WP">Signaler un problème : ', $page);
+        self::assertStringContainsString('<option value="probleme">Signaler un problème (sans site précis)</option>', $page);
+        $trop = $this->en('cpetit', 'POST', $fiche, ['action' => 'demander', 'choix' => 'probleme:/WP', 'motif' => 'Bug'])->corps;
+        self::assertStringContainsString('Décrivez le problème (10 à', $trop);
+        $ok = $this->en('cpetit', 'POST', $fiche, ['action' => 'demander', 'choix' => 'probleme:/WP',
+            'motif' => 'La page d\'accueil affiche une erreur depuis ce matin.'])->corps;
+        self::assertStringContainsString('Problème signalé au service informatique.', $ok);
+        self::assertSame(1, $this->nombre("SELECT count(*) FROM demandes WHERE type = 'probleme' AND identifiant = 'martinel' AND dossier = '/WP'"));
+        // Suppression : toujours la même règle de motif ; message « service informatique » (D2).
+        $suppression = $this->en('cpetit', 'POST', $fiche, ['action' => 'demander', 'choix' => 'supprimer_site:/WP2', 'motif' => 'Départ'])->corps;
+        self::assertStringContainsString('Demande envoyée au service informatique.', $suppression);
+        self::assertStringContainsString('Rien n\'est fait tant que le service informatique ne les a pas validées.',
+            $this->en('cpetit', 'GET', $fiche)->corps, 'Demander n\'est pas exécuter (D18)');
+        // Note de fonctionnement retirée du formulaire de demande (3.2).
+        self::assertStringNotContainsString('devient une demande par étudiant', $this->en('cpetit', 'GET', '/demandes/nouvelle')->corps);
+    }
+
+    public function testAccueilParRoleSansTuiles(): void
+    {
+        foreach (['mzanelli', 'cpetit', 'jroux', 'dlambert'] as $qui) {
+            $accueil = $this->en($qui, 'GET', '/')->corps;
+            self::assertStringNotContainsString('class="tuile"', $accueil, 'Plus de tuiles « Tout le portail » (D1)');
+            self::assertStringContainsString('id="t-classes"', $accueil);
+            self::assertStringContainsString('<td>Session 2027</td><td>3</td>', $accueil);
+        }
+        $enseignant = $this->en('cpetit', 'GET', '/')->corps;
+        self::assertStringContainsString('<a class="geste" href="/sites/wordpress"><strong>Installer des sites WordPress</strong>', $enseignant);
+        self::assertStringContainsString('<a href="/sites/wordpress">Créer ces sites</a>', $enseignant, 'D6');
+        $administratif = $this->en('jroux', 'GET', '/')->corps;
+        self::assertStringContainsString('id="t-ajouts"', $administratif);
+        self::assertStringContainsString('<strong>Préparer la rentrée</strong>', $administratif);
+        self::assertStringNotContainsString('Préparer un BTS blanc', $administratif, 'D11');
+        self::assertStringContainsString('Un étudiant change de classe ou de session', $administratif);
+        $direction = $this->en('dlambert', 'GET', '/')->corps;
+        self::assertStringContainsString('Vous consultez', $direction);
+        self::assertStringContainsString('<a class="a-faire-ligne secours" href="/secours">', $direction);
+        self::assertStringNotContainsString('class="geste"', $direction, 'Pas de gestes d\'action pour la direction (D13)');
+        self::assertStringContainsString('Réinitialiser le code à 6 chiffres', $this->en('dlambert', 'GET', '/secours')->corps);
+        self::assertSame(403, $this->en('cpetit', 'GET', '/secours')->statut);
+        self::assertStringContainsString('class="menu-bouton"', $direction, 'Menu repliable sur téléphone (D3)');
+    }
+
+    public function testListeDesSitesFicheEtSiteModeleRetouches(): void
+    {
+        $liste = $this->en('cpetit', 'GET', '/sites')->corps;
+        self::assertStringContainsString('href="https://martinel.bts-sup-sallanches.com/WP/wp-admin/" target="_blank"', $liste, 'D7');
+        self::assertStringContainsString('<td><a href="/sites/wordpress">Créer ce site</a></td>', $liste, 'D6 : /WP manquant');
+        self::assertStringNotContainsString('Créer ce site', $this->en('dlambert', 'GET', '/sites')->corps);
+        $fiche = $this->en('cpetit', 'GET', '/etudiants/' . $this->idEtudiant('leroyhu'))->corps;
+        self::assertStringContainsString('carte-manquante', $fiche);
+        $avecWp = $this->en('cpetit', 'GET', '/etudiants/' . $this->idEtudiant('martinel'))->corps;
+        self::assertStringContainsString('Action à risque : l\'étudiant perd tout ce qu\'il a fait sur ce site', $avecWp, 'D9');
+        self::assertStringContainsString('class="btn-risque"', $avecWp);
+        $sujet = $this->en('cpetit', 'GET', '/sites/sujet')->corps;
+        self::assertStringContainsString('Où en est le BTS blanc ?', $sujet, 'D8');
+        self::assertStringContainsString('1. Aucun sujet chargé sur le site modèle', $sujet);
+        self::assertLessThan(strpos($sujet, 'class="titre-etapes"'), strpos($sujet, 'Où en est le BTS blanc ?'));
     }
 
     // ===== Outils =====

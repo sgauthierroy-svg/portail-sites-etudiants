@@ -113,6 +113,29 @@ final class SiteModele
     }
 
     /** Travail en attente ou en cours sur le modèle : installation, gel, ou photo d'un déploiement pas encore prise. */
+    /**
+     * Où en est l'épreuve (amélioration D8) : parmi les sites d'examen /WP2 des sessions actives, combien ont reçu le
+     * modèle actuel (déployés après son installation), combien sont clôturés depuis, combien sont figés.
+     *
+     * @return array{total: int, deployes: int, clotures: int, figes: int}
+     */
+    public function avancement(): array
+    {
+        $installe = $this->etat()['installe_le'] ?? '';
+        $requete = $this->pdo->prepare("SELECT count(*) AS total, coalesce(sum(w.cree_le >= :i), 0) AS deployes,
+                coalesce(sum(w.cloture_le IS NOT NULL AND w.cloture_le >= :i AND w.cree_le >= :i), 0) AS clotures,
+                coalesce(sum(w.lecture_seule = 1), 0) AS figes
+            FROM sites w JOIN etudiants e ON e.identifiant = w.identifiant JOIN sessions s ON s.id = e.session_id
+            WHERE w.dossier = '/WP2' AND s.active = 1");
+        $requete->execute([':i' => $installe]);
+        $ligne = Lecture::ligne($requete) ?? [];
+
+        $nombre = static fn (string $cle): int => (int) Lecture::entier($ligne[$cle] ?? 0);
+
+        return ['total' => $nombre('total'), 'deployes' => $nombre('deployes'), 'clotures' => $nombre('clotures'),
+            'figes' => $nombre('figes')];
+    }
+
     private function travailEnCours(): ?int
     {
         $requete = $this->pdo->prepare(

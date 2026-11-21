@@ -12,6 +12,7 @@ use Portail\Comptes\Compte;
 use Portail\Comptes\DepotComptes;
 use Portail\Comptes\Droits;
 use Portail\Comptes\GestionComptes;
+use Portail\Etudiants\Etudiant;
 use Portail\Etudiants\GestionEtudiants;
 use Portail\Etudiants\Identifiant;
 use Portail\Etudiants\ImportEtudiants;
@@ -95,6 +96,8 @@ final class Application
             '/etudiants/import' => $this->pageConnectee($requete, Droits::IMPORTER, fn (Compte $moi) => $this->importEtudiants($requete, $moi)),
             '/etudiants/nouveau' => $this->pageConnectee($requete, Droits::CREER_ETUDIANT, fn (Compte $moi) => $this->nouvelEtudiant($requete, $moi)),
             '/journal' => $this->pageConnectee($requete, Droits::JOURNAL, fn (Compte $moi) => $this->journal($requete, $moi)),
+            '/secours' => $this->pageConnectee($requete, Droits::GERER_COMPTES,
+                fn (Compte $moi) => $this->seulementGet($requete) ?? new Reponse(200, Accueil::pageSecours())),
             '/sites' => $this->pageConnectee($requete, Droits::CONSULTER, fn (Compte $moi) => $this->voirTout($requete, $moi)),
             '/sites/prestashop' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerPrestaShop($requete, $moi)),
             '/sites/wordpress' => $this->pageConnectee($requete, Droits::CREER_SITE, fn (Compte $moi) => $this->creerWordPress($requete, $moi)),
@@ -276,7 +279,7 @@ final class Application
         return new Reponse(200, PagesSujet::page($this->session->jeton(), $modele->etat(), $modele->sujets(),
             MiseALecart::enCours($this->pdo, SiteModele::IDENTIFIANT),
             ['sessions' => $sessions, 'session' => $sessionChoisie, 'etudiants' => $sessionChoisie === null ? null : $deploiement->etudiants($sessionChoisie)],
-            $erreur, substr($requete->chemin, strlen('/sites/sujet/')) ?: ''));
+            $erreur, substr($requete->chemin, strlen('/sites/sujet/')) ?: '', $modele->avancement()));
     }
 
     // ===== V2, lot 2 : bibliothèque et documents =====
@@ -711,8 +714,7 @@ final class Application
                         if (!Droits::peut($moi->role, Droits::DEMANDER)) {
                             return $this->refuser($requete, $moi);
                         }
-                        (new Demandes($this->pdo, $this->alertes))->creer($requete->champ('choix'), $etudiant->identifiant, $requete->champ('motif'), $moi, $requete->adresseIp);
-                        $information = 'Demande envoyée à l\'administrateur. Vous serez prévenu par e-mail de sa décision (suivi : page « Demandes »).';
+                        $information = $this->demanderDepuisFiche($requete, $moi, $etudiant);
                         break;
                     default:
                         return new Reponse(400, Pages::message('Action inconnue', 'Cette action n\'existe pas.'));
@@ -758,6 +760,11 @@ final class Application
             $choix['supprimer_site:' . $site['dossier']] = 'Supprimer : ' . Pages::nomSiteTexte($site['dossier']);
         }
         $choix['supprimer_etudiant'] = 'Supprimer l\'étudiant (tous ses sites et son adresse)';
+        // Problème (SAV) depuis la fiche (demande du 18/11) : sur un de ses sites, ou sans site précis.
+        foreach ($supprimables as $site) {
+            $choix['probleme:' . $site['dossier']] = 'Signaler un problème : ' . Pages::nomSiteTexte($site['dossier']);
+        }
+        $choix['probleme'] = 'Signaler un problème (sans site précis)';
         if (!Droits::peut($moi->role, Droits::REINITIALISER_SITE)) {
             $dossiers = array_column($sites, 'dossier');
             if (in_array('/WP', $dossiers, true)) {
@@ -769,6 +776,28 @@ final class Application
         }
 
         return $html . PagesDemandes::formulaireFiche($this->session->jeton(), $action, $choix);
+    }
+
+    /**
+     * Demande envoyée depuis la fiche : suppression, réinitialisation, ou problème (SAV) sur un site ou sans site
+     * précis. Rend le message de confirmation.
+     */
+    private function demanderDepuisFiche(Requete $requete, Compte $moi, Etudiant $etudiant): string
+    {
+        $demandes = new Demandes($this->pdo, $this->alertes);
+        $choix = $requete->champ('choix');
+        if ($choix === 'probleme' || str_starts_with($choix, 'probleme:')) {
+            $site = $choix === 'probleme' ? '' : substr($choix, strlen('probleme:'));
+
+            $saisie = ['objet' => 'probleme', 'cible' => 'etudiant', 'etudiant' => $etudiant->id, 'classe' => '',
+                'site' => $site, 'texte' => $requete->champ('motif')];
+
+            return $demandes->demander($saisie, $moi, $requete->adresseIp);
+        }
+        $demandes->creer($choix, $etudiant->identifiant, $requete->champ('motif'), $moi, $requete->adresseIp);
+
+        return 'Demande envoyée au service informatique. Vous serez prévenu par e-mail de sa décision '
+            . '(suivi : page « Demandes »).';
     }
 
     /** Supprimer un étudiant, depuis la rubrique « Sites » (administrateur, demande du 17/11/2026). */
@@ -960,7 +989,7 @@ final class Application
                     case 'degeler_wordpress':
                         // Gel des /WP déjà en place (20/11/2026) : administrateur seulement.
                         if (!Droits::peut($moi->role, Droits::GELER_WORDPRESS)) {
-                            return new Reponse(403, Pages::message('Accès refusé', 'Cette action est réservée à l\'administrateur.'));
+                            return new Reponse(403, Pages::message('Accès refusé', 'Cette action est réservée au service informatique.'));
                         }
                         $geler = $requete->champ('action') === 'geler_wordpress';
                         $travail = (new GelSession($this->pdo))->demander($id, $geler, $moi, $requete->adresseIp);
@@ -1296,9 +1325,31 @@ final class Application
             // Pas de rechargement automatique : il compterait comme une activité (pas de déconnexion après 30 min).
             $bloc = AFaire::html(AFaire::lignes($this->pdo, $maintenant), (new FileTravaux($this->pdo))->enCours());
         }
+        $bloc .= $this->blocDuRole($compte);
 
         return $this->seulementGet($requete)
             ?? new Reponse(200, Pages::accueil($this->session->jeton(), $compte, $aRevoir, $secours, $bloc));
+    }
+
+    /** Bloc de l'accueil propre au rôle (Accueil) : état des classes, gestes fréquents, demandes, secours. */
+    private function blocDuRole(Compte $compte): string
+    {
+        $etudiants = Droits::peut($compte->role, Droits::CONSULTER)
+            ? (new GestionEtudiants($this->pdo))->liste(null, null) : [];
+        $actives = array_column((new RegimesSessions($this->pdo))->sessions(true), 'annee');
+        $derniers = [];
+        if ($compte->role === 'administratif') {
+            $derniers = $etudiants;
+            usort($derniers, static fn (Etudiant $a, Etudiant $b): int => strcmp($b->ajouteLe, $a->ajouteLe));
+        }
+        $mesDemandes = 0;
+        if (Droits::peut($compte->role, Droits::DEMANDER) && !Droits::peut($compte->role, Droits::TRAITER_DEMANDES)) {
+            $enAttente = static fn (array $d): bool => $d['etat'] === 'en_attente';
+            $mesDemandes = count(array_filter((new Demandes($this->pdo))->de($compte->id), $enAttente));
+        }
+        $classes = Accueil::classes($this->pdo, $etudiants, $actives);
+
+        return Accueil::html($compte, $classes, Releve::dernier($this->pdo), $derniers, $mesDemandes);
     }
 
     private function connexionComplete(Compte $compte): Reponse

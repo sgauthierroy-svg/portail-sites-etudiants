@@ -294,3 +294,46 @@ ul.avancements li { display: flex; flex-wrap: wrap; align-items: center; gap: 6p
 .carte-site details.details-tech dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 0; }
 .carte-site details.details-tech dd { margin: 0; overflow-wrap: anywhere; }
 button[hidden] { display: none; }
+
+/* Accueil par rôle (partie D) : gestes fréquents, état des classes, secours, risque, compteurs d'import. */
+.gestes { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.geste { display: flex; flex-direction: column; gap: 4px; padding: 16px 18px; min-height: 44px;
+  border: 2px solid var(--orange); border-radius: 16px; background: #fff7ed; color: var(--texte);
+  text-decoration: none; }
+.geste:hover { background: var(--orange-pale); }
+.geste strong { font-size: 18px; }
+.geste span { color: var(--discret); font-size: 15px; }
+.tableau-defilant { overflow-x: auto; }
+.vous-consultez { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.a-faire-ligne.secours { margin-bottom: 24px; }
+ol.pas-a-pas li { margin-bottom: 8px; }
+p.risque { border-left: 4px solid var(--warn-trait); padding: 8px 12px; background: var(--warn-fond); }
+button.btn-risque { background: var(--warn-fond); border-color: var(--warn-trait); color: var(--texte); }
+.carte-manquante { border-style: dashed; }
+.compteurs-import { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; font-size: 17px; }
+ul.ou-en-est { list-style: none; padding: 0; }
+ul.ou-en-est li { padding: 6px 0; }
+.menu-bouton { display: none; }
+
+/* Affichage responsive (D3) : menu repliable et tableaux qui défilent sur téléphone et petite tablette. */
+@media (max-width: 900px) {
+  .cadre { align-content: flex-start; }
+  .menu { flex-basis: 100%; border-right: 0; border-bottom: 1px solid var(--trait); padding: 12px 16px; gap: 12px;
+    flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  .menu .marque img { width: 120px; }
+  .menu .marque-sous { display: none; }
+  .js .menu-bouton { display: inline-flex; align-items: center; min-height: 44px; }
+  .js .menu:not(.menu-ouvert) .nav { display: none; }
+  .menu .nav { flex-basis: 100%; flex-direction: column; }
+  .bandeau, .contenu { padding-left: 16px; padding-right: 16px; }
+  .bandeau .date { display: none; }
+  .bandeau .recherche { flex: 1 1 100%; max-width: none; }
+  .contenu table { display: block; overflow-x: auto; max-width: 100%; }
+}
+@media (max-width: 560px) {
+  .qui-texte span { display: none; }
+  .avatar { width: 36px; height: 36px; }
+  .gestes, .actions-groupees { grid-template-columns: 1fr; }
+  .a-faire-ligne { padding: 12px; gap: 10px; }
+  .a-faire-texte strong { font-size: 16px; }
+}

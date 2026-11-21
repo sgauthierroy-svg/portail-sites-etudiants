@@ -21,8 +21,10 @@ final class PagesSujet
      * @param array{sessions: list<array{id: int, annee: int}>, session: ?int,
      *              etudiants: ?list<array{identifiant: string, nom: string, regime: string, empechement: ?string, remplace: bool,
      *                                      deploye_le: ?string, cloture_le: ?string, lecture_seule: bool, epreuve_prevue: bool}>} $deploiement
+     * @param array{total: int, deployes: int, clotures: int, figes: int}|null $avancement
      */
-    public static function page(string $jeton, array $etat, array $sujets, array $ecarts, array $deploiement, ?string $erreur, string $vue = ''): string
+    public static function page(string $jeton, array $etat, array $sujets, array $ecarts, array $deploiement,
+        ?string $erreur, string $vue = '', ?array $avancement = null): string
     {
         $adresse = SiteModele::adresse();
         $contenu = Pages::alerte($erreur, null)
@@ -30,8 +32,8 @@ final class PagesSujet
                 '<p>Le site modèle est le sujet d\'examen tel que les étudiants le recevront dans leur site d\'examen. '
                 . 'Un enseignant y charge le sujet (paquet Duplicator déposé dans la <a href="/bibliotheque/sujets">bibliothèque</a>), l\'adapte si besoin dans WordPress, '
                 . 'puis le déploie chez les étudiants. À la fin de l\'épreuve, il clôture : les sites sont figés pour la correction. '
-                . 'L\'administrateur reçoit à chaque chargement une liste de contrôle (bon fonctionnement, sécurité), sans rien bloquer.</p>') : '')
-            . self::etapes($vue);
+                . 'Le service informatique reçoit à chaque chargement une liste de contrôle (bon fonctionnement, sécurité), sans rien bloquer.</p>') : '')
+            . ($vue === '' && $avancement !== null ? self::ouEnEst($etat, $avancement) : '') . self::etapes($vue);
         if ($vue !== '' && $vue !== 'charger') {
             $contenu .= self::resume($etat);
             if (!$etat['connu'] || !$etat['installe']) {
@@ -104,7 +106,8 @@ final class PagesSujet
                     . Html::e(Pages::heureLocale($ecart['expire_le'])) . '</td><td><code>' . Html::e($ecart['chemin']) . '</code></td></tr>';
             }
             $contenu .= '<h2>Anciens modèles gardés à l\'écart</h2>'
-                . '<p class="discret">Dans <code>~/archives_suppression/portail/</code>, avec leur base. Pour revenir en arrière, demandez à l\'administrateur.</p>'
+                . '<p class="discret">Gardés avec leur base. '
+                . 'Pour revenir en arrière, demandez au service informatique.</p>'
                 . '<table><thead><tr><th>Mis à l\'écart le</th><th>Motif</th><th>Effacé après le</th><th>Dossier</th></tr></thead><tbody>' . $lignes . '</tbody></table>';
         }
 
@@ -136,6 +139,34 @@ final class PagesSujet
                 ['adresse' => '', 'numero' => '3', 'titre' => 'Clôturer', 'texte' => 'Boutiques figées.', 'bientot' => true],
                 ['adresse' => '', 'numero' => '4', 'titre' => 'Lever le gel', 'texte' => 'Rouvrir une boutique.', 'bientot' => true],
             ], '', 'Étapes du sujet PrestaShop') : '');
+    }
+
+    /**
+     * Où en est le BTS blanc, étape par étape (amélioration D8) : l'étape suivante se voit tout de suite.
+     *
+     * @param array{connu: bool, installe: bool, version: ?string, gele: bool, installe_le: ?string, travail: ?int} $etat
+     * @param array{total: int, deployes: int, clotures: int, figes: int} $avancement
+     */
+    private static function ouEnEst(array $etat, array $avancement): string
+    {
+        $fait = static fn (bool $ok, string $texte): string => '<li class="' . ($ok ? 'etape-faite' : 'etape-a-faire')
+            . '">' . ($ok ? '<span class="badge ok">fait</span> ' : '<span class="badge neutre">à faire</span> ')
+            . Html::e($texte) . '</li>';
+        $installeLe = $etat['installe'] ? $etat['installe_le'] : null;
+        $charge = $installeLe !== null;
+        $total = $avancement['total'];
+        $html = $fait($charge, $installeLe !== null ? '1. Sujet chargé le ' . Pages::heureLocale($installeLe)
+            : '1. Aucun sujet chargé sur le site modèle');
+        $html .= $fait($charge && $total > 0 && $avancement['deployes'] === $total,
+            '2. Déployé : ' . $avancement['deployes'] . ' sur ' . $total . ' site' . ($total > 1 ? 's' : '')
+            . ' d’examen');
+        $html .= $fait($avancement['deployes'] > 0 && $avancement['clotures'] === $avancement['deployes'],
+            '3. Épreuve clôturée : ' . $avancement['clotures'] . ' sur ' . $avancement['deployes']);
+        $html .= '<li><span class="badge neutre">info</span> ' . Html::e('4. Sites figés pour la correction : '
+            . $avancement['figes']) . '</li>';
+
+        return '<section aria-labelledby="t-ou"><h2 id="t-ou">Où en est le BTS blanc ?</h2>'
+            . '<ul class="ou-en-est">' . $html . '</ul></section>';
     }
 
     /** @param array{connu: bool, installe: bool, version: ?string, gele: bool, installe_le: ?string, travail: ?int} $etat */
@@ -170,7 +201,7 @@ final class PagesSujet
             . '<p>Le sujet du site modèle est copié dans le <code>/WP2</code> de chaque étudiant coché : une photo du modèle est prise au début, '
             . 'tous reçoivent donc exactement le même sujet. Chaque <code>/WP2</code> a sa propre base de données, sa version est gelée, '
             . 'et il garde les comptes et mots de passe du modèle. Un <code>/WP2</code> existant est gardé 8 jours à l\'écart. '
-            . 'Aucun e-mail aux étudiants ; l\'administrateur et les enseignants reçoivent la liste des sites à la fin.</p>'
+            . 'Aucun e-mail aux étudiants ; le service informatique et les enseignants reçoivent la liste des sites à la fin.</p>'
             . ($etat['gele'] ? '' : '<p class="discret">La version du modèle n\'est pas gelée : les <code>/WP2</code> déployés le seront quand même.</p>')
             . '<p class="discret">Conseil : essayez d\'abord avec un seul étudiant.</p>'
             . '<form method="post" action="/sites/sujet">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="afficher_deploiement">'

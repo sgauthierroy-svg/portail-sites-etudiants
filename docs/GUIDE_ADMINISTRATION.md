@@ -184,6 +184,39 @@ Décision du 05/11/2026 : l'enseignant et l'administratif demandent, l'administr
   - Refuser : commentaire obligatoire, transmis au demandeur.
 - **Mes demandes** (étiquette **Voir les demandes en cours**) : chaque demandeur suit ses demandes (en attente, validée avec le numéro du travail, refusée avec le commentaire, annulée) et peut annuler les siennes tant qu'elles sont en attente.
 
+## Accueil par rôle (partie D de l'ergonomie)
+
+Plus de tuiles « Que voulez-vous faire ? » : elles répétaient le menu et la recherche (D1). Chaque rôle a son accueil :
+
+- **Tous sauf la direction** : « Gestes fréquents » en gros boutons (enseignant : installer des sites WordPress, des
+  boutiques, préparer un BTS blanc, demander au service informatique ; administratif : un étudiant arrive, changer de classe
+  ou de session, préparer la rentrée, installer des sites WordPress, demander), puis « État des classes ».
+- **État des classes** (D5) : une ligne par session active — étudiants, site WordPress, sans site WordPress (avec « Créer
+  ces sites » pour qui peut créer), site d'examen, boutique, à surveiller (hors gel, lien vers la Liste des sites), demandes
+  en cours. D'après la liste des sites : la date de sa dernière mise à jour est rappelée.
+- **Administratif** (D11, D12) : ses demandes en attente, les 5 dernières personnes ajoutées ; situations de la recherche à
+  sa mesure (arrivée, changement de classe ou de session, départ, rentrée, problème, demande).
+- **Direction** (D13, D14) : mention « Vous consultez », entrée **Secours** (aussi dans le menu, rubrique Administration),
+  état des classes sans bouton d'action. La page `/secours` explique pas à pas quoi faire pour un compte bloqué ou un
+  téléphone perdu, et quand le service informatique est absent (dossier de continuité).
+- **Administrateur** : bloc « À faire » et travaux en cours (ci-dessous), puis gestes et état des classes.
+
+Autres retouches de la partie D :
+- **Création de sites** (D6) : « Créer ce site » dans la colonne `/WP` de la Liste des sites et sur la fiche quand le site
+  WordPress manque (renvoie à « Créer des WordPress »).
+- **Liste des sites** (D7) : lien « Administration » à côté de chaque WordPress (`/WP`, `/WP2`), pour qui voit les accès.
+- **Site modèle d'examen** (D8) : « Où en est le BTS blanc ? » en haut de la page — sujet chargé le…, déployé n sur N,
+  clôturé n sur n, sites figés (sites d'examen des sessions actives ; « déployé » = reçu après le dernier chargement).
+- **Réinitialiser** (D9) : présenté comme une action à risque (encadré orangé, bouton orangé, ce que l'étudiant perd).
+- **Demander n'est pas exécuter** (D18) : les demandes en attente disent « rien n'est fait tant que le service
+  informatique ne les a pas validées ».
+- **Vocabulaire** (D2) : « service informatique » partout pour les rôles autres qu'administrateur.
+- **Import** (D12) : compteurs en haut de l'aperçu (à importer, à vérifier, déjà présents, refusés).
+- **Fiche, « Demander au service informatique »** : on peut aussi y **signaler un problème (SAV)** sur un de ses sites ou
+  sans site précis (description de 10 à 1 000 caractères).
+- **Téléphone et tablette** (D3) : sous 900 px de large, le menu se replie derrière un bouton « Menu » (`public/menu.js` ;
+  sans JavaScript, il reste affiché en entier), la recherche prend toute la largeur, les tableaux défilent de côté.
+
 ## Accueil de l'administrateur : bloc « À faire » (paquet 3 d'ergonomie)
 
 En haut de l'accueil de l'administrateur, une ligne cliquable par chose qui attend une action, **seulement s'il y en a** (rien quand tout va bien) :

@@ -103,7 +103,6 @@ final class PagesDemandes
             . '<p class="discret">Suppression : le motif (départ, abandon, fin de formation, redoublement…). Problème : ce qui se passe, sur quelle page, depuis quand.</p>'
             . '<label class="cache" for="texte">Motif ou description</label><textarea id="texte" name="texte" rows="5" cols="80" required minlength="3" maxlength="'
             . Demandes::DESCRIPTION_MAX . '">' . Html::e($valeur('texte')) . '</textarea></fieldset>'
-            . '<p class="discret">Une suppression pour une classe devient une demande par étudiant, que le service informatique valide en une fois.</p>'
             . '<button type="submit" class="btn-main">Envoyer au service informatique</button></form>');
     }
 
@@ -123,11 +122,10 @@ final class PagesDemandes
         }
 
         return '<h2>Demander au service informatique</h2>'
-            . '<p>Suppression ou réinitialisation : l\'administrateur reçoit votre demande, la valide ou la refuse avec un commentaire. '
-            . 'Vous êtes prévenu par e-mail, et vous la suivez dans « Demandes ».</p>'
+            . '<p>Vous êtes prévenu par e-mail de la réponse, et vous la suivez dans « Demandes ».</p>'
             . '<form method="post" action="' . Html::e($action) . '">' . Pages::jeton($jeton) . '<input type="hidden" name="action" value="demander">'
             . '<p><label for="choix">Ce que vous demandez</label><br><select id="choix" name="choix" required>' . $options . '</select></p>'
-            . self::champMotif()
+            . self::champMotif(true, true)
             . '<button type="submit">Envoyer la demande</button></form>';
     }
 
@@ -275,8 +273,14 @@ final class PagesDemandes
                 . ', motif : « ' . Html::e($demande['motif']) . ' »</li>';
         }
 
-        return '<h2>Demandes en attente</h2><ul>' . $lignes . '</ul>'
-            . ($traiter ? '<p><a href="/demandes">Les traiter</a></p>' : '');
+        // « Demander » n'est pas « exécuter » (amélioration D18) : rien n'est fait tant que le service informatique
+        // ne valide pas.
+        $suite = $traiter
+            ? '<p>Demandées par l\'équipe : rien n\'est fait tant que vous ne les validez pas. '
+                . '<a href="/demandes">Les traiter</a></p>'
+            : '<p>Rien n\'est fait tant que le service informatique ne les a pas validées.</p>';
+
+        return '<h2>Demandes en attente</h2><ul class="demandees">' . $lignes . '</ul>' . $suite;
     }
 
     /** @param list<Demande> $demandes */
@@ -286,6 +290,7 @@ final class PagesDemandes
         if ($demandes === []) {
             return $html . '<p>Aucune demande en attente.</p>';
         }
+        $html .= '<p>Demandes de l\'équipe : rien n\'est fait tant que vous ne les validez pas.</p>';
         $groupes = [];
         foreach ($demandes as $demande) {
             $groupes[$demande['type']][] = $demande;
@@ -377,15 +382,19 @@ final class PagesDemandes
             . '<tbody>' . $lignes . '</tbody></table>';
     }
 
-    private static function champMotif(bool $obligatoire = true): string
+    /** Champ du motif ; avec $probleme, il sert aussi à décrire un problème (SAV), jusqu'à 1 000 caractères. */
+    private static function champMotif(bool $obligatoire = true, bool $probleme = false): string
     {
         $options = '';
         foreach (self::MOTIFS as $motif) {
             $options .= '<option value="' . Html::e($motif) . '"></option>';
         }
+        $libelle = $probleme ? 'Motif, ou description du problème (ce qui se passe, sur quelle page, depuis quand)'
+            : 'Motif' . ($obligatoire ? ' (obligatoire)' : ' (facultatif, gardé au journal)');
 
-        return '<p><label for="motif">Motif' . ($obligatoire ? ' (obligatoire)' : ' (facultatif, gardé au journal)') . '</label><br>'
-            . '<input id="motif" name="motif" type="text" list="motifs"' . ($obligatoire ? ' required minlength="3"' : '') . ' maxlength="300" autocomplete="off">'
+        return '<p><label for="motif">' . Html::e($libelle) . '</label><br>'
+            . '<input id="motif" name="motif" type="text" list="motifs"' . ($obligatoire ? ' required minlength="3"' : '')
+            . ' maxlength="' . ($probleme ? Demandes::DESCRIPTION_MAX : 300) . '" autocomplete="off">'
             . '<datalist id="motifs">' . $options . '</datalist></p>';
     }
 }

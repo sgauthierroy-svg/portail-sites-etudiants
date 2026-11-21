@@ -24,6 +24,9 @@ final class Recherche
     {
         $peut = static fn (string $droit): bool => Droits::peut($compte->role, $droit);
         $demander = $peut(Droits::DEMANDER) && !$peut(Droits::TRAITER_DEMANDES);
+        if ($compte->role === 'administratif') {
+            return self::situationsAdministratif($peut(Droits::IMPORTER));
+        }
         $liste = [];
         if ($peut(Droits::IMPORTER) || $peut(Droits::CREER_ETUDIANT)) {
             $liste[] = ['titre' => 'Un étudiant arrive', 'adresse' => $peut(Droits::IMPORTER) ? '/etudiants/import' : '/etudiants/nouveau',
@@ -49,6 +52,29 @@ final class Recherche
         }
 
         return $liste;
+    }
+
+    /**
+     * Situations de l'administratif (amélioration D11) : usage rare, donc les plus guidées ; pas de BTS blanc.
+     *
+     * @return list<array{titre: string, adresse: string, texte: string}>
+     */
+    private static function situationsAdministratif(bool $importer): array
+    {
+        return [
+            ['titre' => 'Un étudiant arrive', 'adresse' => $importer ? '/etudiants/import' : '/etudiants/nouveau',
+                'texte' => 'L’ajouter au portail, puis créer son site WordPress.'],
+            ['titre' => 'Un étudiant change de classe ou de session', 'adresse' => '/etudiants',
+                'texte' => 'Sa fiche, « Actions sur cet étudiant » : changer de régime ou de session.'],
+            ['titre' => 'Un étudiant part', 'adresse' => '/etudiants',
+                'texte' => 'Ouvrir sa fiche, puis demander la suppression de ses sites.'],
+            ['titre' => 'Préparer la rentrée (régimes, sessions, import)', 'adresse' => '/regimes-sessions',
+                'texte' => 'Créer la session de la nouvelle promotion, puis importer la liste.'],
+            ['titre' => 'Problème de site ou de boutique', 'adresse' => '/demandes/nouvelle',
+                'texte' => 'Le signaler au service informatique.'],
+            ['titre' => 'Faire une demande au service informatique', 'adresse' => '/demandes/nouvelle',
+                'texte' => 'Suppression ou problème (SAV).'],
+        ];
     }
 
     /**

@@ -75,7 +75,8 @@ final class Pages
             . '<link rel="icon" type="image/png" href="/favicon.png">'
             . '<link rel="stylesheet" href="/style.css">'
             . '<script src="/tri.js" defer></script>'
-            . (self::$cadre === null ? '' : '<script src="/recherche.js" defer></script>')
+            . (self::$cadre === null ? ''
+                : '<script src="/recherche.js" defer></script><script src="/menu.js" defer></script>')
             . '<title>' . Html::e($titre) . ' – Portail Sup\'Sallanches</title></head>';
         $marque = '<a class="marque" href="/"><img src="/logo.png" alt="Enseignement Catholique de Sallanches – Sup’Sallanches" width="240" height="160">'
             . '<span class="marque-sous">Portail des sites étudiants</span></a>';
@@ -212,6 +213,11 @@ final class Pages
         if ($peut(Droits::GERER_COMPTES)) {
             $liste[] = ['/comptes', 'comptes', 'Comptes du portail', 'Créer, réinitialiser, désactiver ou supprimer un accès au portail.', 'Administration'];
         }
+        if ($compte->role === 'consultation') {
+            // Entrée « Secours » toujours visible pour la direction (amélioration D14).
+            $liste[] = ['/secours', 'comptes', 'Secours',
+                'Un compte bloqué, ou le service informatique absent : pas à pas.', 'Administration'];
+        }
         if ($peut(Droits::JOURNAL)) {
             $liste[] = ['/journal', 'journal', 'Journal', 'Qui a fait quoi, quand, et avec quel résultat.', 'Administration'];
         }
@@ -265,7 +271,11 @@ final class Pages
             $html .= '<div class="rubrique">' . ($rubrique === '' ? '' : '<h2 class="rubrique-titre">' . Html::e($rubrique) . '</h2>') . implode('', $liens) . '</div>';
         }
 
-        return '<nav class="nav" aria-label="Menu principal">' . $html . '</nav>';
+        // Sur téléphone, menu.js replie le menu derrière ce bouton (amélioration D3) ; sans JavaScript, tout reste
+        // visible.
+        return '<button type="button" class="menu-bouton" aria-expanded="false" aria-controls="menu-principal" hidden>'
+            . 'Menu</button>'
+            . '<nav class="nav" id="menu-principal" aria-label="Menu principal">' . $html . '</nav>';
     }
 
     /**
@@ -346,10 +356,10 @@ final class Pages
     /**
      * @param list<array{id: int, identifiant: string, nom: string, depuis: string}> $aRevoir
      * @param list<array{id: int, date: string, auteur: string, cible: string, detail: string}> $secours
-     * @param string $blocAdministrateur HTML déjà échappé : « À faire » et travaux en cours (AFaire::html)
+     * @param string $blocs HTML déjà échappé : « À faire » de l'administrateur (AFaire), puis le bloc du rôle (Accueil)
      */
     public static function accueil(string $jeton, Compte $compte, array $aRevoir = [], array $secours = [],
-        string $blocAdministrateur = ''): string
+        string $blocs = ''): string
     {
         $alertes = '';
         if ($secours !== []) {
@@ -376,20 +386,10 @@ final class Pages
                 . '<p>Pour chacun : la personne en a-t-elle toujours besoin ? Ouvrez le compte, puis confirmez-le ou désactivez-le.</p>'
                 . '<ul>' . $lignes . '</ul></section>';
         }
-        $tuiles = '';
-        foreach (array_slice(self::destinations($compte), 1) as [$adresse, $icone, $libelle, $description]) {
-            $classe = self::$problemesEnAttente > 0 ? 'compteur urgent' : 'compteur';
-            $compteur = $adresse === '/demandes' && self::$demandesEnAttente > 0
-                ? ' <span class="' . $classe . '">' . self::$demandesEnAttente . ' en attente</span>' : '';
-            $tuiles .= '<a class="tuile" href="' . $adresse . '"><span class="ico">' . self::icone($icone, 'i m') . '</span>'
-                . '<span class="tuile-texte"><span class="tuile-titre">' . Html::e($libelle) . $compteur . '</span><span>' . Html::e($description) . '</span></span></a>';
-        }
-
+        // Plus de tuiles « Tout le portail » (amélioration D1) : elles répétaient le menu et la recherche.
         return self::page('Portail des sites étudiants',
             '<p class="intro">Bonjour ' . Html::e($compte->nomAffiche) . ' (' . Html::e($compte->libelleRole()) . ').</p>'
-            . $blocAdministrateur . $alertes
-            . '<section aria-labelledby="t-actions"><h2 id="t-actions">Que voulez-vous faire ?</h2>'
-            . '<div class="tuiles">' . $tuiles . '</div></section>');
+            . $alertes . $blocs);
     }
 
     public static function refus(): string
